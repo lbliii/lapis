@@ -130,9 +130,9 @@ module Lapis
       {Hash(String, YAML::Any).new, content}
     end
 
-    private def process_markdown(markdown : String) : String
+    private def process_markdown(markdown : String, config : Config) : String
       # First process shortcodes, then convert markdown
-      processor = ShortcodeProcessor.new(Config.new)
+      processor = ShortcodeProcessor.new(config)
       processed_markdown = processor.process(markdown)
 
       options = Markd::Options.new(
