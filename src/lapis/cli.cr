@@ -183,7 +183,7 @@ module Lapis
       post_content = <<-MD
       ---
       title: "Welcome to Lapis"
-      date: "#{Time.utc.to_s("%Y-%m-%d %H:%M:%S UTC")}"
+      date: "#{Time.utc.to_s(Lapis::DATE_FORMAT)}"
       tags: ["welcome", "lapis"]
       layout: "post"
       ---

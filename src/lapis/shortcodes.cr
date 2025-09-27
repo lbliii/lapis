@@ -167,7 +167,7 @@ module Lapis
       return %(<p class="gallery-error">Gallery folder not found: #{folder_path}</p>) if images.empty?
 
       image_items = images.map do |image_path|
-        alt_text = File.basename(image_path, File.extname(image_path)).humanize
+        alt_text = humanize(File.basename(image_path, File.extname(image_path)))
         <<-HTML
         <div class="gallery-item">
           <img src="/assets/#{image_path}"
@@ -216,6 +216,14 @@ module Lapis
           .gsub(">", "&gt;")
           .gsub("\"", "&quot;")
           .gsub("'", "&#39;")
+    end
+
+    private def humanize(text : String) : String
+      # Convert filename-like strings to human readable format
+      text.gsub(/[-_]/, " ")
+          .split(" ")
+          .map(&.capitalize)
+          .join(" ")
     end
   end
 

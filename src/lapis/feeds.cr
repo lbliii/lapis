@@ -18,7 +18,7 @@ module Lapis
           <atom:link href="#{@config.baseurl}/feed.xml" rel="self" type="application/rss+xml"/>
           <language>en-us</language>
           <lastBuildDate>#{Time.utc.to_rfc2822}</lastBuildDate>
-          <generator>Lapis #{VERSION}</generator>
+          <generator>Lapis #{Lapis::VERSION}</generator>
           #{generate_rss_items(recent_posts)}
         </channel>
       </rss>
@@ -38,7 +38,7 @@ module Lapis
         <link href="#{@config.baseurl}"/>
         <updated>#{updated.to_rfc3339}</updated>
         <id>#{@config.baseurl}/</id>
-        <generator version="#{VERSION}">Lapis</generator>
+        <generator version="#{Lapis::VERSION}">Lapis</generator>
         #{generate_atom_entries(recent_posts)}
       </feed>
       XML
@@ -155,14 +155,14 @@ module Lapis
         <loc>#{@config.baseurl}/</loc>
         <changefreq>daily</changefreq>
         <priority>1.0</priority>
-        <lastmod>#{Time.utc.to_s("%Y-%m-%d")}</lastmod>
+        <lastmod>#{Time.utc.to_s(Lapis::DATE_FORMAT_SHORT)}</lastmod>
       </url>
       XML
     end
 
     private def generate_content_entries(content : Array(Content)) : String
       content.map do |item|
-        last_mod = item.date ? item.date.not_nil!.to_s("%Y-%m-%d") : Time.utc.to_s("%Y-%m-%d")
+        last_mod = item.date ? item.date.not_nil!.to_s(Lapis::DATE_FORMAT_SHORT) : Time.utc.to_s(Lapis::DATE_FORMAT_SHORT)
         priority = item.is_post? ? "0.8" : "0.9"
         changefreq = item.is_post? ? "monthly" : "yearly"
 

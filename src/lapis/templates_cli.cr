@@ -219,7 +219,7 @@ module Lapis
       first_post = <<-MD
       ---
       title: "Welcome to My New Blog!"
-      date: "#{Time.utc.to_s("%Y-%m-%d %H:%M:%S UTC")}"
+      date: "#{Time.utc.to_s(Lapis::DATE_FORMAT)}"
       tags: ["welcome", "blogging", "lapis"]
       categories: ["meta"]
       layout: "post"

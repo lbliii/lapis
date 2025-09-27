@@ -21,7 +21,7 @@ module Lapis
     property url : String
 
     def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String)
-      @title = @frontmatter["title"]?.try(&.as_s) || File.basename(@file_path, ".md").humanize
+      @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(File.basename(@file_path, ".md"))
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
       @date = parse_date(@frontmatter["date"]?)
       @tags = parse_array(@frontmatter["tags"]?)
@@ -32,7 +32,7 @@ module Lapis
       @author = @frontmatter["author"]?.try(&.as_s)
       @toc = @frontmatter["toc"]?.try(&.as_bool) || true
       @raw_content = @body
-      @content = process_markdown(@body)
+      @content = @body  # Will be processed later with config
       @url = generate_url
     end
 
@@ -76,7 +76,7 @@ module Lapis
 
       content = "---\n"
       content += "title: \"#{title}\"\n"
-      content += "date: \"#{Time.utc.to_s("%Y-%m-%d %H:%M:%S UTC")}\"\n"
+      content += "date: \"#{Time.utc.to_s(Lapis::DATE_FORMAT)}\"\n"
       content += "layout: \"#{layout}\"\n"
       content += "draft: false\n"
 
@@ -97,6 +97,10 @@ module Lapis
 
     def is_page? : Bool
       !is_post?
+    end
+
+    def process_content(config : Config)
+      @content = process_markdown(@body, config)
     end
 
     def excerpt(length : Int32 = 200) : String
@@ -130,6 +134,14 @@ module Lapis
       {Hash(String, YAML::Any).new, content}
     end
 
+    private def humanize_filename(text : String) : String
+      # Convert filename-like strings to human readable format
+      text.gsub(/[-_]/, " ")
+          .split(" ")
+          .map(&.capitalize)
+          .join(" ")
+    end
+
     private def process_markdown(markdown : String, config : Config) : String
       # First process shortcodes, then convert markdown
       processor = ShortcodeProcessor.new(config)
@@ -148,10 +160,10 @@ module Lapis
 
       date_str = date_value.as_s
       begin
-        Time.parse(date_str, "%Y-%m-%d", Time::Location::UTC)
+        Time.parse(date_str, Lapis::DATE_FORMAT_SHORT, Time::Location::UTC)
       rescue Time::Format::Error
         begin
-          Time.parse(date_str, "%Y-%m-%d %H:%M:%S UTC", Time::Location::UTC)
+          Time.parse(date_str, Lapis::DATE_FORMAT, Time::Location::UTC)
         rescue Time::Format::Error
           nil
         end

@@ -170,7 +170,7 @@ module Lapis
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>#{page_title} - #{@config.title}</title>
-        <link rel="stylesheet" href="/assets/css/style.css">
+        #{generate_css_links}
       </head>
       <body>
         <header>
@@ -220,7 +220,7 @@ module Lapis
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>#{page_title} - #{@config.title}</title>
-        <link rel="stylesheet" href="/assets/css/style.css">
+        #{generate_css_links}
       </head>
       <body>
         <header>
@@ -237,6 +237,28 @@ module Lapis
       HTML
 
       File.write(File.join(output_dir, "index.html"), html)
+    end
+
+    private def generate_css_links : String
+      css_files = [] of String
+      
+      # Check for CSS files in static directory
+      if Dir.exists?(@config.static_dir)
+        css_dir = File.join(@config.static_dir, "css")
+        if Dir.exists?(css_dir)
+          Dir.glob(File.join(css_dir, "*.css")).each do |css_file|
+            relative_path = css_file[@config.static_dir.size + 1..]
+            css_files << %(<link rel="stylesheet" href="/assets/#{relative_path}">)
+          end
+        end
+      end
+      
+      # Fallback to common CSS files if none found
+      if css_files.empty?
+        css_files << %(<link rel="stylesheet" href="/assets/css/style.css">)
+      end
+      
+      css_files.join("\n        ")
     end
   end
 end

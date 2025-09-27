@@ -53,7 +53,9 @@ module Lapis
         Dir.glob(File.join(@config.content_dir, "*.md")).each do |file_path|
           next if File.basename(file_path) == "index.md"
           begin
-            content << Content.load(file_path)
+            page_content = Content.load(file_path)
+            page_content.process_content(@config)
+            content << page_content
           rescue ex
             puts "Warning: Could not load #{file_path}: #{ex.message}"
           end
@@ -65,6 +67,7 @@ module Lapis
         Dir.glob(File.join(@config.posts_dir, "*.md")).each do |file_path|
           begin
             post_content = Content.load(file_path)
+            post_content.process_content(@config)
             content << post_content unless post_content.draft
           rescue ex
             puts "Warning: Could not load #{file_path}: #{ex.message}"
@@ -93,6 +96,7 @@ module Lapis
 
       if File.exists?(index_path)
         index_content = Content.load(index_path)
+        index_content.process_content(@config)
 
         # Process recent_posts shortcodes in the raw content before markdown processing
         processed_raw = process_recent_posts_shortcodes(index_content.raw_content, all_content)

@@ -45,8 +45,8 @@ module Lapis
 
       # Date formatting
       if date = context.content.date
-        result = result.gsub("{{ date }}", date.to_s("%Y-%m-%d"))
-        result = result.gsub("{{ date_formatted }}", date.to_s("%B %d, %Y"))
+        result = result.gsub("{{ date }}", date.to_s(Lapis::DATE_FORMAT_SHORT))
+        result = result.gsub("{{ date_formatted }}", date.to_s(Lapis::DATE_FORMAT_HUMAN))
       else
         result = result.gsub("{{ date }}", "")
         result = result.gsub("{{ date_formatted }}", "")
