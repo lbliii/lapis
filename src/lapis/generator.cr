@@ -1,10 +1,14 @@
 module Lapis
   class Generator
+    include GeneratorAnalytics
+
     property config : Config
     property template_engine : TemplateEngine
+    property asset_processor : AssetProcessor
 
     def initialize(@config : Config)
       @template_engine = TemplateEngine.new(@config)
+      @asset_processor = AssetProcessor.new(@config)
     end
 
     def build
@@ -17,12 +21,16 @@ module Lapis
       puts "Generating pages..."
       generate_content_pages(all_content)
 
-      puts "Copying static files..."
-      copy_static_files
+      puts "Processing assets with optimization..."
+      @asset_processor.process_all_assets
 
       puts "Generating index and archive pages..."
       generate_index_page(all_content)
       generate_archive_pages(all_content)
+
+      puts "Generating feeds and sitemap..."
+      generate_feeds(all_content)
+      generate_sitemap(all_content)
 
       puts "Build completed! Generated #{all_content.size} pages."
     end
@@ -85,6 +93,17 @@ module Lapis
 
       if File.exists?(index_path)
         index_content = Content.load(index_path)
+
+        # Process recent_posts shortcodes in the raw content before markdown processing
+        processed_raw = process_recent_posts_shortcodes(index_content.raw_content, all_content)
+
+        # Re-process the markdown with the substituted content
+        processor = ShortcodeProcessor.new(@config)
+        processed_markdown = processor.process(processed_raw)
+
+        options = Markd::Options.new(smart: true, safe: false)
+        index_content.content = Markd.to_html(processed_markdown, options)
+
         html = @template_engine.render(index_content)
         File.write(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: /"
@@ -100,18 +119,27 @@ module Lapis
     private def generate_archive_pages(all_content : Array(Content))
       posts = all_content.select(&.is_post?)
 
-      # Generate posts archive
+      # Generate paginated posts archive
       if posts.size > 0
-        posts_dir = File.join(@config.output_dir, "posts")
-        Dir.mkdir_p(posts_dir)
+        pagination_generator = PaginationGenerator.new(@config)
+        pagination_generator.generate_paginated_archives(posts, 10)
 
-        archive_html = generate_posts_archive(posts)
-        File.write(File.join(posts_dir, "index.html"), archive_html)
-        puts "  Generated: /posts/ (archive)"
-
-        # Generate tag pages
-        generate_tag_pages(posts)
+        # Generate paginated tag pages
+        generate_paginated_tag_pages(posts)
       end
+    end
+
+    private def generate_paginated_tag_pages(posts : Array(Content))
+      tags = Hash(String, Array(Content)).new { |h, k| h[k] = [] of Content }
+
+      posts.each do |post|
+        post.tags.each do |tag|
+          tags[tag] << post
+        end
+      end
+
+      pagination_generator = PaginationGenerator.new(@config)
+      pagination_generator.generate_tag_paginated_archives(tags, 10)
     end
 
     private def generate_tag_pages(posts : Array(Content))
@@ -379,6 +407,79 @@ module Lapis
         </main>
       </body>
       </html>
+      HTML
+    end
+
+    private def generate_feeds(all_content : Array(Content))
+      posts = all_content.select(&.is_post?)
+      return if posts.empty?
+
+      feed_generator = FeedGenerator.new(@config)
+
+      # Generate RSS feed
+      rss_content = feed_generator.generate_rss(posts)
+      File.write(File.join(@config.output_dir, "feed.xml"), rss_content)
+      puts "  Generated: /feed.xml"
+
+      # Generate Atom feed
+      atom_content = feed_generator.generate_atom(posts)
+      File.write(File.join(@config.output_dir, "feed.atom"), atom_content)
+      puts "  Generated: /feed.atom"
+
+      # Generate JSON Feed
+      json_content = feed_generator.generate_json_feed(posts)
+      File.write(File.join(@config.output_dir, "feed.json"), json_content)
+      puts "  Generated: /feed.json"
+    end
+
+    private def generate_sitemap(all_content : Array(Content))
+      sitemap_generator = SitemapGenerator.new(@config)
+      sitemap_content = sitemap_generator.generate(all_content)
+      File.write(File.join(@config.output_dir, "sitemap.xml"), sitemap_content)
+      puts "  Generated: /sitemap.xml"
+    end
+
+    private def process_recent_posts_shortcodes(html : String, all_content : Array(Content)) : String
+      # Process {% recent_posts N %} shortcodes with actual post data
+      result = html.gsub(/\{%\s*recent_posts\s+(\d+)\s*%\}/) do |match|
+        count = $1.to_i
+        generate_recent_posts_html(all_content, count)
+      end
+      result
+    end
+
+    private def generate_recent_posts_html(all_content : Array(Content), count : Int32) : String
+      recent_posts = all_content.select(&.is_post?).first(count)
+
+      if recent_posts.empty?
+        return %(<div class="recent-posts-empty">No posts available yet.</div>)
+      end
+
+      posts_html = recent_posts.map do |post|
+        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        tags_html = post.tags.first(3).map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
+
+        <<-HTML
+        <article class="recent-post">
+          <h3><a href="#{post.url}">#{post.title}</a></h3>
+          <div class="post-meta">
+            <time>#{date_str}</time>
+            #{tags_html}
+          </div>
+          <p>#{post.excerpt(150)}</p>
+          <a href="#{post.url}" class="read-more">Read more →</a>
+        </article>
+        HTML
+      end.join("\n")
+
+      <<-HTML
+      <div class="recent-posts">
+        <h2>Recent Posts</h2>
+        #{posts_html}
+        <div class="all-posts-link">
+          <a href="/posts/">View all posts →</a>
+        </div>
+      </div>
       HTML
     end
   end

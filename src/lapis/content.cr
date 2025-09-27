@@ -16,6 +16,7 @@ module Lapis
     property frontmatter : Hash(String, YAML::Any)
     property body : String
     property content : String
+    property raw_content : String
     property file_path : String
     property url : String
 
@@ -30,6 +31,7 @@ module Lapis
       @description = @frontmatter["description"]?.try(&.as_s)
       @author = @frontmatter["author"]?.try(&.as_s)
       @toc = @frontmatter["toc"]?.try(&.as_bool) || true
+      @raw_content = @body
       @content = process_markdown(@body)
       @url = generate_url
     end
@@ -129,12 +131,16 @@ module Lapis
     end
 
     private def process_markdown(markdown : String) : String
+      # First process shortcodes, then convert markdown
+      processor = ShortcodeProcessor.new(Config.new)
+      processed_markdown = processor.process(markdown)
+
       options = Markd::Options.new(
         smart: true,
         safe: false
       )
 
-      Markd.to_html(markdown, options)
+      Markd.to_html(processed_markdown, options)
     end
 
     private def parse_date(date_value : YAML::Any?) : Time?

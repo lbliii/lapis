@@ -31,6 +31,9 @@ Thumbs.db
 /demo-site/
 /example-output/
 
+# Example site build output
+/exampleSite/public/
+
 # Log files
 *.log
 
