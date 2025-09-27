@@ -38,7 +38,7 @@ jobs:
         crystal: "1.10.1"
     
     - name: Cache Crystal dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ./lib
@@ -78,7 +78,7 @@ jobs:
         find public -type f -name "*.html" | head -10
     
     - name: Upload site artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: example-site
         path: exampleSite/public/
@@ -86,18 +86,18 @@ jobs:
     
     - name: Setup Pages
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v0.2.0'
-      uses: actions/configure-pages@v3
+      uses: actions/configure-pages@v5
     
     - name: Upload to GitHub Pages
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v0.2.0'
-      uses: actions/upload-pages-artifact@v2
+      uses: actions/upload-pages-artifact@v3
       with:
         path: exampleSite/public
     
     - name: Deploy to GitHub Pages
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v0.2.0'
       id: deployment
-      uses: actions/deploy-pages@v2
+      uses: actions/deploy-pages@v4
 
   # Optional: Test the build locally to ensure it works
   test-build:

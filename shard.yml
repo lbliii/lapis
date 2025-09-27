@@ -12,9 +12,6 @@ dependencies:
   markd:
     github: icyleaf/markd
     version: "~> 0.5.0"
-  http_client:
-    github: crystal-lang/http_client
-    version: "~> 0.1.0"
 
 development_dependencies:
   ameba:
