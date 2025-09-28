@@ -238,8 +238,8 @@ module Lapis
     end
 
     private def determine_og_type(content : Content) : String
-      case content.kind
-      when .post?
+      case content.content_type
+      when .article?
         "article"
       when .page?
         "website"
@@ -250,8 +250,8 @@ module Lapis
 
     private def generate_structured_data(content : Content) : String
       # Generate JSON-LD structured data
-      case content.kind
-      when .post?
+      case content.content_type
+      when .article?
         generate_article_structured_data(content)
       when .page?
         generate_webpage_structured_data(content)

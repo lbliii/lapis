@@ -1,5 +1,6 @@
 require "yaml"
 require "./output_formats"
+require "./content_types"
 
 module Lapis
   class LiveReloadConfig
@@ -167,6 +168,9 @@ module Lapis
 
     @[YAML::Field(emit_null: true)]
     property bundling_config : BundlingConfig = BundlingConfig.new
+
+    @[YAML::Field(emit_null: true)]
+    property content_type_config : ContentTypeConfig = ContentTypeConfig.new
 
     @[YAML::Field(emit_null: true)]
     property plugins : Hash(String, YAML::Any) = {} of String => YAML::Any

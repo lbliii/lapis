@@ -3,6 +3,7 @@ require "markd"
 require "log"
 require "./base_content"
 require "./page_kinds"
+require "./content_types"
 require "./logger"
 require "./exceptions"
 require "./data_processor"
@@ -28,12 +29,16 @@ module Lapis
     property url : String
     property kind : PageKind
     property section : String
-    property content_type : String
+    property content_type : ContentType
 
     def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String, content_dir : String = "content")
       @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(File.basename(@file_path, ".md"))
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
-      @content_type = @frontmatter["type"]?.try(&.as_s) || infer_content_type
+      @content_type = if type_from_frontmatter = @frontmatter["type"]?.try(&.as_s)
+                        ContentType.parse(type_from_frontmatter)
+                      else
+                        infer_content_type
+                      end
       @date = parse_date(@frontmatter["date"]?)
       @tags = parse_array(@frontmatter["tags"]?)
       @categories = parse_array(@frontmatter["categories"]?)
@@ -99,9 +104,10 @@ module Lapis
 
     def self.create_new(type : String, title : String)
       filename = title.downcase.gsub(/[^a-z0-9]+/, "-").strip("-")
+      content_type = ContentType.parse(type)
 
-      case type
-      when "post"
+      case content_type
+      when .article?
         dir = "content/posts"
         path = File.join(dir, "#{filename}.md")
         layout = "post"
@@ -119,7 +125,7 @@ module Lapis
       content += "layout: \"#{layout}\"\n"
       content += "draft: false\n"
 
-      if type == "post"
+      if content_type.article?
         content += "tags: []\n"
       end
       content += "---\n\n"
@@ -151,37 +157,37 @@ module Lapis
 
     # Check if this content should be included in feeds and archives
     def feedable? : Bool
-      ["article", "post"].includes?(@content_type) && !@draft
+      @content_type.feedable? && !@draft
     end
 
     # Check if this content should use date-based URLs
     def date_based_url? : Bool
-      ["article", "post"].includes?(@content_type) && @date != nil
+      @content_type.date_based_url? && @date != nil
     end
 
     # Legacy methods for backward compatibility - will be removed
     def post? : Bool
-      ["article", "post"].includes?(@content_type)
+      @content_type.article?
     end
 
     def post_layout? : Bool
       post?
     end
 
-    private def infer_content_type : String
+    private def infer_content_type : ContentType
       # Infer content type based on file path and layout
       if @layout == "post" || @layout == "article"
-        "article"
+        ContentType::Article
       elsif @file_path.includes?("/posts/") || @file_path.includes?("/articles/")
-        "article"
+        ContentType::Article
       elsif @file_path.includes?("/pages/")
-        "page"
+        ContentType::Page
       elsif @file_path.includes?("/glossary/")
-        "glossary"
+        ContentType::Glossary
       elsif @file_path.includes?("/docs/")
-        "documentation"
+        ContentType::Documentation
       else
-        "page"
+        ContentType::Page
       end
     end
 
