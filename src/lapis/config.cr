@@ -234,7 +234,7 @@ module Lapis
             build_parallel: config.build_config.parallel,
             build_max_workers: config.build_config.max_workers)
           config
-        rescue YAML::ParseException => ex
+        rescue ex : YAML::ParseException
           raise ConfigError.new("Failed to parse config file: #{ex.message}")
         rescue ex
           Logger.error("Failed to load config file",

@@ -35,13 +35,13 @@ module Lapis
     def discover_theme_css_files : Array(String)
       css_files = [] of String
       theme_css_dir = File.join(@config.theme_dir, "static", "css")
-      
+
       if Dir.exists?(theme_css_dir)
         Dir.glob(File.join(theme_css_dir, "*.css")).each do |file_path|
           css_files << file_path
         end
       end
-      
+
       css_files.sort
     end
 
@@ -49,13 +49,13 @@ module Lapis
     def discover_site_css_files : Array(String)
       css_files = [] of String
       site_css_dir = File.join(@config.static_dir, "css")
-      
+
       if Dir.exists?(site_css_dir)
         Dir.glob(File.join(site_css_dir, "*.css")).each do |file_path|
           css_files << file_path
         end
       end
-      
+
       css_files.sort
     end
 
