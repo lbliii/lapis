@@ -1,31 +1,32 @@
 require "./function_processor"
+require "./theme_manager"
 
 module Lapis
   # Partials system for reusable template components
   # Usage: {{ partial "head" . }} or {{ partial "header" . }}
   module Partials
     # Process partial function calls in templates
-    def self.process_partials(template : String, context : TemplateContext, theme_dir : String) : String
+    def self.process_partials(template : String, context : TemplateContext, theme_manager : ThemeManager) : String
       result = template
 
       # Process all {{ partial "name" . }} calls
       result = result.gsub(/\{\{\s*partial\s+"([^"]+)"\s+\.\s*\}\}/) do |match|
         partial_name = $1
-        render_partial(partial_name, context, theme_dir)
+        render_partial(partial_name, context, theme_manager)
       end
 
       result
     end
 
     # Render a specific partial template
-    def self.render_partial(name : String, context : TemplateContext, theme_dir : String) : String
-      partial_path = find_partial(name, theme_dir)
+    def self.render_partial(name : String, context : TemplateContext, theme_manager : ThemeManager) : String
+      partial_path = theme_manager.resolve_file("#{name}.html", "partial")
 
-      if partial_path && File.exists?(partial_path)
+      if partial_path
         partial_content = read_partial_file(partial_path)
 
         # Process the partial content with context
-        process_partial_content(partial_content, context, theme_dir)
+        process_partial_content(partial_content, context, theme_manager)
       else
         # Fallback to built-in partial if custom one doesn't exist
         generate_builtin_partial(name, context)
@@ -46,9 +47,9 @@ module Lapis
     end
 
     # Process partial content with template variables
-    def self.process_partial_content(content : String, context : TemplateContext, theme_dir : String) : String
+    def self.process_partial_content(content : String, context : TemplateContext, theme_manager : ThemeManager) : String
       # Process nested partials first
-      result = process_partials(content, context, theme_dir)
+      result = process_partials(content, context, theme_manager)
 
       # Use the advanced function processor for advanced template syntax
       function_processor = FunctionProcessor.new(context)

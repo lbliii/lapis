@@ -57,6 +57,46 @@ module Lapis
       @config.description
     end
 
+    def theme : String
+      @config.theme
+    end
+
+    def theme_dir : String
+      @config.theme_dir
+    end
+
+    def layouts_dir : String
+      @config.layouts_dir
+    end
+
+    def static_dir : String
+      @config.static_dir
+    end
+
+    def output_dir : String
+      @config.output_dir
+    end
+
+    def content_dir : String
+      @config.content_dir
+    end
+
+    def debug : Bool
+      @config.debug
+    end
+
+    def build_config : BuildConfig
+      @config.build_config
+    end
+
+    def live_reload_config : LiveReloadConfig
+      @config.live_reload_config
+    end
+
+    def bundling_config : BundlingConfig
+      @config.bundling_config
+    end
+
     # CONTENT COLLECTIONS
 
     def all_pages : Array(Content)

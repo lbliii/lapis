@@ -78,6 +78,7 @@ module Lapis
         end
 
         Logger.build_operation("Generating index and archive pages")
+        puts "DEBUG: About to call generate_index_page"
         generate_index_page(all_content)
         Logger.debug("About to generate section pages")
         generate_section_pages(all_content)
@@ -176,9 +177,12 @@ module Lapis
     end
 
     private def generate_index_page(all_content : Array(Content))
+      puts "DEBUG: Checking for index page"
       index_path = File.join(@config.content_dir, "index.md")
+      puts "DEBUG: Looking for index at: #{index_path}"
 
       if File.exists?(index_path)
+        puts "DEBUG: Index file exists, processing it"
         index_content = Content.load(index_path, @config.content_dir)
         index_content.process_content(@config)
 
@@ -196,9 +200,10 @@ module Lapis
         write_file_atomically(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: /"
       else
-        # Generate default index page
+        # Generate default index page using theme
+        puts "DEBUG: No index content found, generating themed index"
         posts = all_content.select(&.feedable?).first(5)
-        html = generate_default_index(posts)
+        html = generate_themed_index(posts)
         write_file_atomically(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: / (default)"
       end
@@ -281,6 +286,49 @@ module Lapis
         clean_url = content.url.strip("/")
         File.join(@config.output_dir, clean_url, "index.html")
       end
+    end
+
+    private def generate_themed_index(recent_posts : Array(Content)) : String
+      puts "DEBUG: Using themed index generation"
+      Logger.debug("Using themed index generation")
+      # Create a temporary content object for the home page
+      frontmatter = {
+        "title" => YAML::Any.new(@config.title),
+        "layout" => YAML::Any.new("home"),
+        "type" => YAML::Any.new("page")
+      } of String => YAML::Any
+
+      content_body = generate_posts_list_html(recent_posts)
+      home_content = Content.new("index.md", frontmatter, content_body)
+
+      Logger.debug("Created home content, rendering with template engine")
+      # Use the theme's template engine to render
+      result = @template_engine.render(home_content)
+      Logger.debug("Template engine render successful")
+      result
+    rescue ex
+      Logger.warn("Failed to use theme for index, falling back to default", error: ex.message)
+      generate_default_index(recent_posts)
+    end
+
+    private def generate_posts_list_html(recent_posts : Array(Content)) : String
+      if recent_posts.empty?
+        return "<p>Welcome to your new Lapis site! Start by adding some content.</p>"
+      end
+
+      posts_html = recent_posts.map do |post|
+        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        <<-HTML
+        <article class="post-summary">
+          <h2><a href="#{post.url}">#{post.title}</a></h2>
+          <div class="meta">#{date_str}</div>
+          <p>#{post.excerpt}</p>
+          <a href="#{post.url}">Read more →</a>
+        </article>
+        HTML
+      end.join("\n")
+
+      "<div class=\"posts-list\">#{posts_html}</div>"
     end
 
     private def generate_default_index(recent_posts : Array(Content)) : String
@@ -390,6 +438,131 @@ module Lapis
         <footer>
           <p>Built with <a href="https://github.com/lapis-lang/lapis">Lapis</a> static site generator</p>
         </footer>
+
+        <!-- Theme Debug Information -->
+        <div id="lapis-debug" style="position: fixed; bottom: 0; right: 0; width: 400px; max-height: 300px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #333; z-index: 9999; overflow-y: auto; display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0; color: #4CAF50;">🔧 Lapis Debug</h3>
+            <button onclick="toggleDebug()" style="background: #333; color: #fff; border: 1px solid #555; padding: 2px 6px; cursor: pointer;">×</button>
+          </div>
+          
+          <div class="debug-section">
+            <h4 style="color: #FF9800; margin: 5px 0;">Theme Info</h4>
+            <div><strong>Current Theme:</strong> #{@config.theme}</div>
+            <div><strong>Theme Dir:</strong> #{@config.theme_dir}</div>
+            <div><strong>Layouts Dir:</strong> #{@config.layouts_dir}</div>
+            <div><strong>Static Dir:</strong> #{@config.static_dir}</div>
+            <div><strong>Status:</strong> <span style="color: #F44336;">FALLBACK MODE</span></div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #2196F3; margin: 5px 0;">Site Config</h4>
+            <div><strong>Title:</strong> #{@config.title}</div>
+            <div><strong>Base URL:</strong> #{@config.baseurl}</div>
+            <div><strong>Output Dir:</strong> #{@config.output_dir}</div>
+            <div><strong>Content Dir:</strong> #{@config.content_dir}</div>
+            <div><strong>Debug Mode:</strong> #{@config.debug}</div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #F44336; margin: 5px 0;">Template Context</h4>
+            <div><strong>Template Engine:</strong> Lapis v0.4.0</div>
+            <div><strong>Theme Manager:</strong> <span style="color: #F44336;">FAILED</span></div>
+            <div><strong>Partial System:</strong> <span style="color: #F44336;">DISABLED</span></div>
+            <div><strong>Live Reload:</strong> #{@config.live_reload_config.enabled}</div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #4CAF50; margin: 5px 0;">Content Stats</h4>
+            <div><strong>Total Posts:</strong> #{recent_posts.size}</div>
+            <div><strong>Recent Posts:</strong> #{recent_posts.size}</div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #795548; margin: 5px 0;">Template Resolution</h4>
+            <div><strong>Current Template:</strong> <span style="color: #F44336;">FALLBACK</span></div>
+            <div><strong>Template Engine:</strong> Lapis Fallback</div>
+            <div><strong>Partial System:</strong> <span style="color: #F44336;">NOT AVAILABLE</span></div>
+            <div><strong>Theme Helpers:</strong> <span style="color: #F44336;">DISABLED</span></div>
+          </div>
+
+          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333; font-size: 10px; color: #888;">
+            <div>Press <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">Ctrl+D</kbd> to toggle</div>
+            <div>Add <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">?debug=true</kbd> to URL</div>
+            <div>Set <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">debug: true</kbd> in config</div>
+          </div>
+        </div>
+
+        <script>
+        let debugVisible = false;
+
+        function toggleDebug() {
+          const debugPanel = document.getElementById('lapis-debug');
+          if (debugPanel) {
+            debugVisible = !debugVisible;
+            debugPanel.style.display = debugVisible ? 'block' : 'none';
+          }
+        }
+
+        // Keyboard shortcut to toggle debug panel
+        document.addEventListener('keydown', function(e) {
+          if (e.ctrlKey && e.key === 'd') {
+            e.preventDefault();
+            toggleDebug();
+          }
+        });
+
+        // Auto-show debug panel in development mode or with ?debug=true
+        function shouldShowDebug() {
+          const urlParams = new URLSearchParams(window.location.search);
+          return window.location.hostname === 'localhost' || 
+                 window.location.hostname === '127.0.0.1' ||
+                 urlParams.get('debug') === 'true' ||
+                 urlParams.get('lapis-debug') === 'true';
+        }
+
+        if (shouldShowDebug()) {
+          setTimeout(() => {
+            const debugPanel = document.getElementById('lapis-debug');
+            if (debugPanel) {
+              debugPanel.style.display = 'block';
+              debugVisible = true;
+            }
+          }, 1000);
+        }
+        </script>
+
+        <style>
+        #lapis-debug {
+          box-shadow: -2px -2px 10px rgba(0,0,0,0.3);
+          border-radius: 5px 0 0 0;
+        }
+
+        #lapis-debug .debug-section {
+          margin-bottom: 8px;
+          padding-bottom: 5px;
+          border-bottom: 1px solid #333;
+        }
+
+        #lapis-debug .debug-section:last-child {
+          border-bottom: none;
+        }
+
+        #lapis-debug div {
+          margin: 2px 0;
+          word-break: break-all;
+        }
+
+        #lapis-debug strong {
+          color: #fff;
+          font-weight: bold;
+        }
+
+        kbd {
+          font-family: monospace;
+          font-size: 10px;
+        }
+        </style>
       </body>
       </html>
       HTML

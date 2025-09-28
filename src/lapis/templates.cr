@@ -9,6 +9,8 @@ require "./content_query"
 require "./cross_references"
 require "./template_processor"
 require "./function_processor"
+require "./theme_manager"
+require "./theme"
 
 module Lapis
   class TemplateEngine
@@ -17,10 +19,19 @@ module Lapis
     property config : Config
     property layouts_dir : String
     property theme_layouts_dir : String
+    property theme_manager : ThemeManager
 
     def initialize(@config : Config)
       @layouts_dir = @config.layouts_dir
       @theme_layouts_dir = File.join(@config.theme_dir, "layouts")
+      @theme_manager = ThemeManager.new(@config.theme, @config.root_dir, @config.theme_dir)
+
+      # Validate theme is available
+      unless @theme_manager.theme_available?
+        Logger.warn("Configured theme not available, falling back to default",
+          theme: @config.theme)
+        @theme_manager = ThemeManager.new("default", @config.root_dir)
+      end
     end
 
     def render(content : Content, layout : String? = nil, output_format : OutputFormat? = nil) : String
@@ -157,105 +168,76 @@ module Lapis
         return find_layout_by_page_kind(content)
       end
 
-      # Fallback to simple layout resolution
-      # Check local layouts first
-      local_path = File.join(@layouts_dir, "#{layout_name}.html")
-      return local_path if File.exists?(local_path)
-
-      # Check theme layouts
-      theme_path = File.join(@theme_layouts_dir, "#{layout_name}.html")
-      return theme_path if File.exists?(theme_path)
-
-      nil
+      # Use ThemeManager for layout resolution
+      @theme_manager.resolve_file("#{layout_name}.html", "layout")
     end
 
     # Template lookup order based on page kind and output format
     private def find_layout_by_page_kind_and_format(content : Content, output_format : OutputFormat?) : String?
-      candidates = [] of String
       format_suffix = output_format ? ".#{output_format.name}" : ""
       extension = output_format ? output_format.extension : "html"
 
+      # Build candidates in priority order and use ThemeManager to resolve
       case content.kind
       when .single?
-        # For single pages: section/single.format.ext -> section/single.ext -> _default/single.format.ext -> _default/single.ext
+        # For single pages: section/single -> _default/single -> explicit layout
+        candidates = [] of String
         unless content.section.empty?
-          candidates << File.join(@layouts_dir, content.section, "single#{format_suffix}.#{extension}")
-          candidates << File.join(@theme_layouts_dir, content.section, "single#{format_suffix}.#{extension}")
-          candidates << File.join(@layouts_dir, content.section, "single.#{extension}")
-          candidates << File.join(@theme_layouts_dir, content.section, "single.#{extension}")
+          candidates << File.join(content.section, "single#{format_suffix}.#{extension}")
+          candidates << File.join(content.section, "single.#{extension}")
         end
-        candidates << File.join(@layouts_dir, "_default", "single#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "single#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "single.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "single.#{extension}")
+        candidates << File.join("_default", "single#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "single.#{extension}")
 
         # Fallback to explicit layout if specified
         if content.layout != "default"
-          candidates << File.join(@layouts_dir, "#{content.layout}#{format_suffix}.#{extension}")
-          candidates << File.join(@theme_layouts_dir, "#{content.layout}#{format_suffix}.#{extension}")
-          candidates << File.join(@layouts_dir, "#{content.layout}.#{extension}")
-          candidates << File.join(@theme_layouts_dir, "#{content.layout}.#{extension}")
+          candidates << "#{content.layout}#{format_suffix}.#{extension}"
+          candidates << "#{content.layout}.#{extension}"
         end
       when .list?, .section?
-        # For list/section pages: section/list.format.ext -> _default/list.format.ext
+        # For list/section pages: section/list -> _default/list
+        candidates = [] of String
         unless content.section.empty?
-          candidates << File.join(@layouts_dir, content.section, "list#{format_suffix}.#{extension}")
-          candidates << File.join(@theme_layouts_dir, content.section, "list#{format_suffix}.#{extension}")
-          candidates << File.join(@layouts_dir, content.section, "list.#{extension}")
-          candidates << File.join(@theme_layouts_dir, content.section, "list.#{extension}")
+          candidates << File.join(content.section, "list#{format_suffix}.#{extension}")
+          candidates << File.join(content.section, "list.#{extension}")
         end
-        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "list.#{extension}")
       when .home?
-        # For home page: index.format.ext -> _default/home.format.ext -> _default/list.format.ext
-        candidates << File.join(@layouts_dir, "index#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "index#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "index.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "index.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "home#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "home#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "home.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "home.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+        # For home page: index -> _default/home -> _default/list
+        candidates = [] of String
+        candidates << "index#{format_suffix}.#{extension}"
+        candidates << "index.#{extension}"
+        candidates << File.join("_default", "home#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "home.#{extension}")
+        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "list.#{extension}")
       when .taxonomy?
-        # For taxonomy pages: taxonomy.format.ext -> _default/taxonomy.format.ext -> _default/list.format.ext
-        candidates << File.join(@layouts_dir, "taxonomy#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "taxonomy#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "taxonomy.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "taxonomy.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "taxonomy#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "taxonomy#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "taxonomy.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "taxonomy.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+        # For taxonomy pages: taxonomy -> _default/taxonomy -> _default/list
+        candidates = [] of String
+        candidates << "taxonomy#{format_suffix}.#{extension}"
+        candidates << "taxonomy.#{extension}"
+        candidates << File.join("_default", "taxonomy#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "taxonomy.#{extension}")
+        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "list.#{extension}")
       when .term?
-        # For term pages: term.format.ext -> _default/term.format.ext -> _default/list.format.ext
-        candidates << File.join(@layouts_dir, "term#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "term#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "term.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "term.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "term#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "term#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "term.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "term.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
-        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+        # For term pages: term -> _default/term -> _default/list
+        candidates = [] of String
+        candidates << "term#{format_suffix}.#{extension}"
+        candidates << "term.#{extension}"
+        candidates << File.join("_default", "term#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "term.#{extension}")
+        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join("_default", "list.#{extension}")
+      else
+        candidates = [] of String
       end
 
-      # Find first existing template
-      candidates.each do |path|
-        if File.exists?(path)
-          return path
+      # Use ThemeManager to resolve first existing template
+      candidates.each do |candidate|
+        if resolved_path = @theme_manager.resolve_file(candidate, "layout")
+          return resolved_path
         end
       end
 
@@ -279,7 +261,7 @@ module Lapis
 
     private def process_template(template : String, context : TemplateContext) : String
       # Process partials first
-      result = Partials.process_partials(template, context, @config.theme_dir)
+      result = Partials.process_partials(template, context, @theme_manager)
 
       # Use the advanced function processor
       function_processor = FunctionProcessor.new(context)
@@ -414,6 +396,142 @@ module Lapis
         <footer>
           <p>Built with <a href="https://github.com/lapis-lang/lapis">Lapis</a> static site generator</p>
         </footer>
+
+        <!-- Theme Debug Information -->
+        <div id="lapis-debug" style="position: fixed; bottom: 0; right: 0; width: 400px; max-height: 300px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #333; z-index: 9999; overflow-y: auto; display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0; color: #4CAF50;">🔧 Lapis Debug</h3>
+            <button onclick="toggleDebug()" style="background: #333; color: #fff; border: 1px solid #555; padding: 2px 6px; cursor: pointer;">×</button>
+          </div>
+          
+          <div class="debug-section">
+            <h4 style="color: #FF9800; margin: 5px 0;">Theme Info</h4>
+            <div><strong>Current Theme:</strong> {{ site.theme }}</div>
+            <div><strong>Theme Dir:</strong> {{ site.theme_dir }}</div>
+            <div><strong>Layouts Dir:</strong> {{ site.layouts_dir }}</div>
+            <div><strong>Static Dir:</strong> {{ site.static_dir }}</div>
+            <div><strong>Status:</strong> <span style="color: #F44336;">FALLBACK MODE</span></div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #2196F3; margin: 5px 0;">Page Info</h4>
+            <div><strong>Layout:</strong> {{ page.layout | default: "default" }}</div>
+            <div><strong>Kind:</strong> {{ page.kind | default: "page" }}</div>
+            <div><strong>URL:</strong> {{ page.url | default: "/" }}</div>
+            <div><strong>File Path:</strong> {{ page.file_path | default: "N/A" }}</div>
+            <div><strong>Output Path:</strong> {{ page.output_path | default: "N/A" }}</div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #9C27B0; margin: 5px 0;">Site Config</h4>
+            <div><strong>Title:</strong> {{ site.title }}</div>
+            <div><strong>Base URL:</strong> {{ site.baseurl }}</div>
+            <div><strong>Output Dir:</strong> {{ site.output_dir }}</div>
+            <div><strong>Content Dir:</strong> {{ site.content_dir }}</div>
+            <div><strong>Debug Mode:</strong> {{ site.debug | default: false }}</div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #F44336; margin: 5px 0;">Template Context</h4>
+            <div><strong>Template Engine:</strong> Lapis v0.4.0</div>
+            <div><strong>Theme Manager:</strong> <span style="color: #F44336;">FAILED</span></div>
+            <div><strong>Partial System:</strong> <span style="color: #F44336;">DISABLED</span></div>
+            <div><strong>Live Reload:</strong> {{ site.live_reload_config.enabled | default: true }}</div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #4CAF50; margin: 5px 0;">Content Stats</h4>
+            <div><strong>Total Posts:</strong> {{ posts.all.size }}</div>
+            <div><strong>Total Pages:</strong> {{ pages.all.size }}</div>
+            <div><strong>Tags:</strong> {{ tags.size }}</div>
+            <div><strong>Categories:</strong> {{ categories.size }}</div>
+          </div>
+
+          <div class="debug-section">
+            <h4 style="color: #795548; margin: 5px 0;">Template Resolution</h4>
+            <div><strong>Current Template:</strong> <span style="color: #F44336;">FALLBACK</span></div>
+            <div><strong>Template Engine:</strong> Lapis Fallback</div>
+            <div><strong>Partial System:</strong> <span style="color: #F44336;">NOT AVAILABLE</span></div>
+            <div><strong>Theme Helpers:</strong> <span style="color: #F44336;">DISABLED</span></div>
+          </div>
+
+          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333; font-size: 10px; color: #888;">
+            <div>Press <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">Ctrl+D</kbd> to toggle</div>
+            <div>Add <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">?debug=true</kbd> to URL</div>
+            <div>Set <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">debug: true</kbd> in config</div>
+          </div>
+        </div>
+
+        <script>
+        let debugVisible = false;
+
+        function toggleDebug() {
+          const debugPanel = document.getElementById('lapis-debug');
+          if (debugPanel) {
+            debugVisible = !debugVisible;
+            debugPanel.style.display = debugVisible ? 'block' : 'none';
+          }
+        }
+
+        // Keyboard shortcut to toggle debug panel
+        document.addEventListener('keydown', function(e) {
+          if (e.ctrlKey && e.key === 'd') {
+            e.preventDefault();
+            toggleDebug();
+          }
+        });
+
+        // Auto-show debug panel in development mode or with ?debug=true
+        function shouldShowDebug() {
+          const urlParams = new URLSearchParams(window.location.search);
+          return window.location.hostname === 'localhost' || 
+                 window.location.hostname === '127.0.0.1' ||
+                 urlParams.get('debug') === 'true' ||
+                 urlParams.get('lapis-debug') === 'true';
+        }
+
+        if (shouldShowDebug()) {
+          setTimeout(() => {
+            const debugPanel = document.getElementById('lapis-debug');
+            if (debugPanel) {
+              debugPanel.style.display = 'block';
+              debugVisible = true;
+            }
+          }, 1000);
+        }
+        </script>
+
+        <style>
+        #lapis-debug {
+          box-shadow: -2px -2px 10px rgba(0,0,0,0.3);
+          border-radius: 5px 0 0 0;
+        }
+
+        #lapis-debug .debug-section {
+          margin-bottom: 8px;
+          padding-bottom: 5px;
+          border-bottom: 1px solid #333;
+        }
+
+        #lapis-debug .debug-section:last-child {
+          border-bottom: none;
+        }
+
+        #lapis-debug div {
+          margin: 2px 0;
+          word-break: break-all;
+        }
+
+        #lapis-debug strong {
+          color: #fff;
+          font-weight: bold;
+        }
+
+        kbd {
+          font-family: monospace;
+          font-size: 10px;
+        }
+        </style>
       </body>
       </html>
       HTML

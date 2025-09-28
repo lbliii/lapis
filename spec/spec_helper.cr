@@ -23,6 +23,8 @@ require "../src/lapis/function_processor"
 require "../src/lapis/live_reload"
 require "../src/lapis/websocket_handler"
 require "../src/lapis/cli"
+require "../src/lapis/theme_manager"
+require "../src/lapis/theme"
 
 # Define VERSION constant for tests
 module Lapis
