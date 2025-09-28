@@ -1,5 +1,6 @@
 require "./content"
 require "./collections"
+require "./content_comparison"
 
 module Lapis
   class ContentQuery
@@ -41,8 +42,7 @@ module Lapis
 
     def recent(count : Int32 = 5) : Array(Content)
       @site_content.select(&.kind.single?)
-        .sort_by { |c| c.date || Time.unix(0) }
-        .reverse
+        .sort
         .first(count)
     end
 
@@ -169,24 +169,8 @@ module Lapis
     end
 
     def sort_by(property : String, reverse : Bool = false) : QueryBuilder
-      sorted = @current_content.sort do |a, b|
-        a_value = get_property_value(a, property)
-        b_value = get_property_value(b, property)
-
-        case {a_value, b_value}
-        when {Time, Time}
-          a_value.as(Time) <=> b_value.as(Time)
-        when {String, String}
-          a_value.as(String) <=> b_value.as(String)
-        when {Number, Number}
-          a_value.as(Number) <=> b_value.as(Number)
-        else
-          a_value.to_s <=> b_value.to_s
-        end
-      end.tap { |result| Logger.debug("Sorted content", count: result.size, property: property, reverse: reverse) }
-
-      final_content = reverse ? sorted.reverse : sorted
-      QueryBuilder.new(final_content, @collections)
+      sorted = ContentComparison.sort_by_property(@current_content, property, reverse)
+      QueryBuilder.new(sorted, @collections)
     end
 
     def limit(count : Int32) : QueryBuilder

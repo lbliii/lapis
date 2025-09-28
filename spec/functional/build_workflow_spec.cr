@@ -120,6 +120,43 @@ describe "Build Workflow" do
       end
     end
 
+    it "handles TypeCastError in content processing gracefully", tags: [TestTags::FUNCTIONAL] do
+      config = TestDataFactory.create_config("TypeCast Error Site", "test_output")
+
+      with_temp_directory do |temp_dir|
+        config.output_dir = File.join(temp_dir, "output")
+
+        # Create content with type casting issues
+        content_dir = File.join(temp_dir, "content")
+        Dir.mkdir_p(content_dir)
+
+        # Create content with invalid frontmatter that could cause type casting issues
+        problematic_content = <<-MD
+        ---
+        title: "Test Post"
+        date: "invalid-date-format"
+        tags: "not-an-array"
+        count: "not-a-number"
+        ---
+
+        # Test Post
+
+        This post has type casting issues in frontmatter.
+        MD
+
+        File.write(File.join(content_dir, "problematic-post.md"), problematic_content)
+
+        # Build should handle type casting errors gracefully
+        generator = Lapis::Generator.new(config)
+
+        # Should not crash due to type casting errors
+        generator.build
+
+        # Verify the build completed despite type casting issues
+        File.exists?(File.join(config.output_dir, "index.html")).should be_true
+      end
+    end
+
     it "builds site with different configurations", tags: [TestTags::FUNCTIONAL] do
       config = TestDataFactory.create_config("Config Test Site", "test_output")
       config.debug = true

@@ -1,16 +1,68 @@
 require "log"
+require "colorize"
 
 module Lapis
-  # Structured logging system for Lapis
+  # Custom cute log backend
+  class CuteLogBackend < Log::IOBackend
+    @@suppress_theme_init = false
+    @@theme_init_count = 0
+    @@log_level = Log::Severity::Info
+    
+    def self.set_log_level(level : Log::Severity)
+      @@log_level = level
+    end
+    
+    def write(entry : Log::Entry)
+      return unless should_log?(entry.severity)
+      
+      time_str = entry.timestamp.to_s("%H:%M:%S")
+      message = entry.message.to_s
+      
+      # Special handling for certain messages
+      if message.includes?("Theme manager initialized")
+        return if @@suppress_theme_init
+        @@theme_init_count += 1
+        if @@theme_init_count > 5
+          @@suppress_theme_init = true
+          puts "   📦 Theme manager ready (suppressing further messages)".colorize(:cyan)
+          return
+        end
+      end
+      
+      case entry.severity
+      when Log::Severity::Debug
+        puts "   #{time_str} 🔍 #{message}".colorize(:light_gray)
+      when Log::Severity::Info
+        puts "   #{time_str} ℹ️  #{message}".colorize(:cyan)
+      when Log::Severity::Warn
+        puts "   #{time_str} ⚠️  #{message}".colorize(:yellow)
+      when Log::Severity::Error
+        puts "   #{time_str} ❌ #{message}".colorize(:red)
+      when Log::Severity::Fatal
+        puts "   #{time_str} 💥 #{message}".colorize(:red).bold
+      else
+        puts "   #{time_str} #{message}"
+      end
+    end
+    
+    private def should_log?(severity : Log::Severity) : Bool
+      severity.value >= @@log_level.value
+    end
+  end
+
+  # Cute and clean logging system for Lapis
   class Logger
     @@initialized = false
+    @@log_level = Log::Severity::Info
+    @@suppress_theme_init = false
+    @@theme_init_count = 0
 
     # Initialize the logging system
     def self.setup(config : Config? = nil)
       return if @@initialized
 
       # Determine log level
-      log_level =
+      @@log_level =
         if config && config.debug
           Log::Severity::Debug
         elsif ENV["LAPIS_LOG_LEVEL"]?
@@ -25,13 +77,13 @@ module Lapis
           Log::Severity::Info
         end
 
-      # Simple console logging setup
+      # Custom cute console logging setup
       Log.setup do |c|
-        c.bind "*", log_level, Log::IOBackend.new(STDOUT)
+        c.bind "*", @@log_level, CuteLogBackend.new
       end
 
       @@initialized = true
-      Log.info { "Lapis logging system initialized" }
+      puts "🐰 Lapis logging system initialized".colorize(:green)
     end
 
     def self.info(message : String, **context)
@@ -119,6 +171,20 @@ module Lapis
     # WebSocket logging
     def self.websocket_event(event : String, **context)
       Log.debug { "WebSocket: #{event}" }
+    end
+
+    # Type casting error logging
+    def self.type_cast_error(operation : String, source_type : String, target_type : String, value : String? = nil, **context)
+      value_str = value ? " value=#{value}" : ""
+      Log.error { "TypeCastError in #{operation}: #{source_type} -> #{target_type}#{value_str} #{format_context(context)}" }
+    end
+
+    def self.type_cast_warning(operation : String, source_type : String, target_type : String, fallback : String, **context)
+      Log.warn { "TypeCastWarning in #{operation}: #{source_type} -> #{target_type}, using fallback: #{fallback} #{format_context(context)}" }
+    end
+
+    def self.type_cast_success(operation : String, source_type : String, target_type : String, **context)
+      Log.debug { "TypeCastSuccess in #{operation}: #{source_type} -> #{target_type} #{format_context(context)}" }
     end
 
     # Format message with context

@@ -1,3 +1,5 @@
+require "colorize"
+
 module Lapis
   class BuildAnalytics
     property start_time : Time
@@ -18,7 +20,7 @@ module Lapis
 
     def start_build
       @start_time = Time.utc
-      puts "🚀 Starting build at #{@start_time.to_s("%H:%M:%S")}"
+      puts "🚀 Starting build at #{@start_time.to_s("%H:%M:%S")}".colorize(:green).bold
     end
 
     def finish_build

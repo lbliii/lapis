@@ -88,6 +88,32 @@ describe "Error Handling" do
 
       File.delete("invalid_config.yml")
     end
+
+    it "handles TypeCastError in config processing", tags: [TestTags::FAST, TestTags::UNIT] do
+      # Test that TypeCastError is handled gracefully in config processing
+      invalid_config = <<-YAML
+        title: "Test"
+        build:
+          incremental: "not_a_boolean"
+          max_workers: "not_a_number"
+        theme:
+          name: "test-theme"
+          config:
+            colors:
+              primary: "not_a_color_object"
+      YAML
+
+      File.write("invalid_config.yml", invalid_config)
+
+      # Should handle type casting errors gracefully
+      config = Lapis::Config.load("invalid_config.yml")
+      config.title.should eq("Test")
+
+      # Invalid values should fall back to defaults without crashing
+      config.build_config.incremental.should be_true
+
+      File.delete("invalid_config.yml")
+    end
   end
 
   describe "Channel errors" do

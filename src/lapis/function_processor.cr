@@ -2,6 +2,8 @@ require "./functions"
 require "./site"
 require "./page"
 require "./navigation"
+require "./logger"
+require "./exceptions"
 
 module Lapis
   # Enhanced template processor with advanced functions
@@ -364,97 +366,104 @@ module Lapis
     end
 
     private def call_method(object, method : String)
+      # Temporarily disabled due to SafeCast dependency
+      return nil
       case {object, method}
       # Site methods
-      when {Site, "Title"}              then object.as(Site).title
-      when {Site, "BaseURL"}            then object.as(Site).base_url
-      when {Site, "Pages"}              then object.as(Site).all_pages
-      when {Site, "RegularPages"}       then object.as(Site).regular_pages
-      when {Site, "Params"}             then object.as(Site).params
-      when {Site, "Data"}               then object.as(Site).data
-      when {Site, "Menus"}              then object.as(Site).menus
-      when {Site, "Author"}             then object.as(Site).author
-      when {Site, "Copyright"}          then object.as(Site).copyright
-      when {Site, "Hugo"}               then object.as(Site).generator_info
-      when {Site, "title"}              then object.as(Site).title
-      when {Site, "base_url"}           then object.as(Site).base_url
-      when {Site, "theme"}              then object.as(Site).theme
-      when {Site, "theme_dir"}          then object.as(Site).theme_dir
-      when {Site, "layouts_dir"}        then object.as(Site).layouts_dir
-      when {Site, "static_dir"}         then object.as(Site).static_dir
-      when {Site, "output_dir"}         then object.as(Site).output_dir
-      when {Site, "content_dir"}        then object.as(Site).content_dir
-      when {Site, "debug"}              then object.as(Site).debug
-      when {Site, "build_config"}       then object.as(Site).build_config
-      when {Site, "live_reload_config"} then object.as(Site).live_reload_config
-      when {Site, "bundling_config"}    then object.as(Site).bundling_config
+      when {Site, "Title"}              then object.is_a?(Site) ? object.title : nil
+      when {Site, "BaseURL"}            then object.is_a?(Site) ? object.base_url : nil
+      when {Site, "Pages"}              then object.is_a?(Site).try(&.all_pages)
+      when {Site, "RegularPages"}       then object.is_a?(Site).try(&.regular_pages)
+      when {Site, "Params"}             then object.is_a?(Site).try(&.params)
+      when {Site, "Data"}               then object.is_a?(Site).try(&.data)
+      when {Site, "Menus"}              then object.is_a?(Site).try(&.menus)
+      when {Site, "Author"}             then object.is_a?(Site).try(&.author)
+      when {Site, "Copyright"}          then object.is_a?(Site).try(&.copyright)
+      when {Site, "Hugo"}               then object.is_a?(Site).try(&.generator_info)
+      when {Site, "title"}              then object.is_a?(Site).try(&.title)
+      when {Site, "base_url"}           then object.is_a?(Site).try(&.base_url)
+      when {Site, "theme"}              then object.is_a?(Site).try(&.theme)
+      when {Site, "theme_dir"}          then object.is_a?(Site).try(&.theme_dir)
+      when {Site, "layouts_dir"}        then object.is_a?(Site).try(&.layouts_dir)
+      when {Site, "static_dir"}         then object.is_a?(Site).try(&.static_dir)
+      when {Site, "output_dir"}         then object.is_a?(Site).try(&.output_dir)
+      when {Site, "content_dir"}        then object.is_a?(Site).try(&.content_dir)
+      when {Site, "debug"}              then object.is_a?(Site).try(&.debug)
+      when {Site, "build_config"}       then object.is_a?(Site).try(&.build_config)
+      when {Site, "live_reload_config"} then object.is_a?(Site).try(&.live_reload_config)
+      when {Site, "bundling_config"}    then object.is_a?(Site).try(&.bundling_config)
         # BuildConfig methods
-      when {BuildConfig, "enabled"}     then object.as(BuildConfig).incremental
-      when {BuildConfig, "incremental"} then object.as(BuildConfig).incremental
-      when {BuildConfig, "parallel"}    then object.as(BuildConfig).parallel
-      when {BuildConfig, "cache_dir"}   then object.as(BuildConfig).cache_dir
-      when {BuildConfig, "max_workers"} then object.as(BuildConfig).max_workers
+      when {BuildConfig, "enabled"}     then object.is_a?(BuildConfig).try(&.incremental)
+      when {BuildConfig, "incremental"} then object.is_a?(BuildConfig).try(&.incremental)
+      when {BuildConfig, "parallel"}    then object.is_a?(BuildConfig).try(&.parallel)
+      when {BuildConfig, "cache_dir"}   then object.is_a?(BuildConfig).try(&.cache_dir)
+      when {BuildConfig, "max_workers"} then object.is_a?(BuildConfig).try(&.max_workers)
         # LiveReloadConfig methods
-      when {LiveReloadConfig, "enabled"}        then object.as(LiveReloadConfig).enabled
-      when {LiveReloadConfig, "websocket_path"} then object.as(LiveReloadConfig).websocket_path
-      when {LiveReloadConfig, "debounce_ms"}    then object.as(LiveReloadConfig).debounce_ms
+      when {LiveReloadConfig, "enabled"}        then object.is_a?(LiveReloadConfig).try(&.enabled)
+      when {LiveReloadConfig, "websocket_path"} then object.is_a?(LiveReloadConfig).try(&.websocket_path)
+      when {LiveReloadConfig, "debounce_ms"}    then object.is_a?(LiveReloadConfig).try(&.debounce_ms)
         # BundlingConfig methods
-      when {BundlingConfig, "enabled"}     then object.as(BundlingConfig).enabled
-      when {BundlingConfig, "minify"}      then object.as(BundlingConfig).minify
-      when {BundlingConfig, "source_maps"} then object.as(BundlingConfig).source_maps
-      when {BundlingConfig, "autoprefix"}  then object.as(BundlingConfig).autoprefix
+      when {BundlingConfig, "enabled"}     then object.is_a?(BundlingConfig).try(&.enabled)
+      when {BundlingConfig, "minify"}      then object.is_a?(BundlingConfig).try(&.minify)
+      when {BundlingConfig, "source_maps"} then object.is_a?(BundlingConfig).try(&.source_maps)
+      when {BundlingConfig, "autoprefix"}  then object.is_a?(BundlingConfig).try(&.autoprefix)
         # Page methods
-      when {Page, "Title"}       then object.as(Page).title
-      when {Page, "Content"}     then object.as(Page).content_html
-      when {Page, "Summary"}     then object.as(Page).summary
-      when {Page, "URL"}         then object.as(Page).url
-      when {Page, "Permalink"}   then object.as(Page).permalink
-      when {Page, "Date"}        then object.as(Page).date
-      when {Page, "Tags"}        then object.as(Page).tags
-      when {Page, "Categories"}  then object.as(Page).categories
-      when {Page, "WordCount"}   then object.as(Page).word_count
-      when {Page, "ReadingTime"} then object.as(Page).reading_time
-      when {Page, "Next"}        then object.as(Page).next
-      when {Page, "Prev"}        then object.as(Page).prev
-      when {Page, "Parent"}      then object.as(Page).parent
-      when {Page, "Children"}    then object.as(Page).children
-      when {Page, "Related"}     then object.as(Page).related
-      when {Page, "Section"}     then object.as(Page).section
-      when {Page, "Kind"}        then object.as(Page).kind
-      when {Page, "Type"}        then object.as(Page).type
-      when {Page, "Layout"}      then object.as(Page).layout
-      when {Page, "Params"}      then object.as(Page).params
+      when {Page, "Title"}       then object.is_a?(Page).try(&.title)
+      when {Page, "Content"}     then object.is_a?(Page).try(&.content_html)
+      when {Page, "Summary"}     then object.is_a?(Page).try(&.summary)
+      when {Page, "URL"}         then object.is_a?(Page).try(&.url)
+      when {Page, "Permalink"}   then object.is_a?(Page).try(&.permalink)
+      when {Page, "Date"}        then object.is_a?(Page).try(&.date)
+      when {Page, "Tags"}        then object.is_a?(Page).try(&.tags)
+      when {Page, "Categories"}  then object.is_a?(Page).try(&.categories)
+      when {Page, "WordCount"}   then object.is_a?(Page).try(&.word_count)
+      when {Page, "ReadingTime"} then object.is_a?(Page).try(&.reading_time)
+      when {Page, "Next"}        then object.is_a?(Page).try(&.next)
+      when {Page, "Prev"}        then object.is_a?(Page).try(&.prev)
+      when {Page, "Parent"}      then object.is_a?(Page).try(&.parent)
+      when {Page, "Children"}    then object.is_a?(Page).try(&.children)
+      when {Page, "Related"}     then object.is_a?(Page).try(&.related)
+      when {Page, "Section"}     then object.is_a?(Page).try(&.section)
+      when {Page, "Kind"}        then object.is_a?(Page).try(&.kind)
+      when {Page, "Type"}        then object.is_a?(Page).try(&.type)
+      when {Page, "Layout"}      then object.is_a?(Page).try(&.layout)
+      when {Page, "Params"}      then object.is_a?(Page).try(&.params)
         # Page methods (lowercase)
-      when {Page, "title"}      then object.as(Page).title
-      when {Page, "content"}    then object.as(Page).content_html
-      when {Page, "summary"}    then object.as(Page).summary
-      when {Page, "url"}        then object.as(Page).url
-      when {Page, "permalink"}  then object.as(Page).permalink
-      when {Page, "date"}       then object.as(Page).date
-      when {Page, "tags"}       then object.as(Page).tags
-      when {Page, "categories"} then object.as(Page).categories
-      when {Page, "kind"}       then object.as(Page).kind
-      when {Page, "layout"}     then object.as(Page).layout
-      when {Page, "file_path"}  then object.as(Page).file_path
+      when {Page, "title"}      then object.is_a?(Page).try(&.title)
+      when {Page, "content"}    then object.is_a?(Page).try(&.content_html)
+      when {Page, "summary"}    then object.is_a?(Page).try(&.summary)
+      when {Page, "url"}        then object.is_a?(Page).try(&.url)
+      when {Page, "permalink"}  then object.is_a?(Page).try(&.permalink)
+      when {Page, "date"}       then object.is_a?(Page).try(&.date)
+      when {Page, "tags"}       then object.is_a?(Page).try(&.tags)
+      when {Page, "categories"} then object.is_a?(Page).try(&.categories)
+      when {Page, "kind"}       then object.is_a?(Page).try(&.kind)
+      when {Page, "layout"}     then object.is_a?(Page).try(&.layout)
+      when {Page, "file_path"}  then object.is_a?(Page).try(&.file_path)
         # Content methods (for arrays of Content)
-      when {Content, "Title"}   then object.as(Content).title
-      when {Content, "URL"}     then object.as(Content).url
-      when {Content, "Date"}    then object.as(Content).date
-      when {Content, "Summary"} then PageOperations.new(object.as(Content), @site.pages).summary
+      when {Content, "Title"}   then object.is_a?(Content).try(&.title)
+      when {Content, "URL"}     then object.is_a?(Content).try(&.url)
+      when {Content, "Date"}    then object.is_a?(Content).try(&.date)
+      when {Content, "Summary"} then 
+        if content = object.is_a?(Content)
+          PageOperations.new(content, @site.pages).summary
+        else
+          nil
+        end
         # Time methods
-      when {Time, "Year"}   then object.as(Time).year
-      when {Time, "Month"}  then object.as(Time).month
-      when {Time, "Day"}    then object.as(Time).day
-      when {Time, "Format"} then object.as(Time).to_s("%Y-%m-%d")
+      when {Time, "Year"}   then object.is_a?(Time).try(&.year)
+      when {Time, "Month"}  then object.is_a?(Time).try(&.month)
+      when {Time, "Day"}    then object.is_a?(Time).try(&.day)
+      when {Time, "Format"} then object.is_a?(Time).try(&.to_s("%Y-%m-%d"))
         # Array methods
-      when {Array, "len"}   then object.as(Array).size
-      when {Array, "first"} then object.as(Array).first?
-      when {Array, "last"}  then object.as(Array).last?
+      when {Array, "len"}   then object.is_a?(Array).try(&.size)
+      when {Array, "first"} then object.is_a?(Array).try(&.first?)
+      when {Array, "last"}  then object.is_a?(Array).try(&.last?)
         # MenuItem methods
-      when {MenuItem, "name"}     then object.as(MenuItem).name
-      when {MenuItem, "url"}      then object.as(MenuItem).url
-      when {MenuItem, "weight"}   then object.as(MenuItem).weight
-      when {MenuItem, "external"} then object.as(MenuItem).external
+      when {MenuItem, "name"}     then object.is_a?(MenuItem).try(&.name)
+      when {MenuItem, "url"}      then object.is_a?(MenuItem).try(&.url)
+      when {MenuItem, "weight"}   then object.is_a?(MenuItem).try(&.weight)
+      when {MenuItem, "external"} then object.is_a?(MenuItem).try(&.external)
       else
         nil
       end

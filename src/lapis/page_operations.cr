@@ -1,4 +1,5 @@
 require "./content"
+require "./content_comparison"
 
 module Lapis
   class PageOperations
@@ -44,7 +45,7 @@ module Lapis
 
     def next_in_section : Content?
       section_pages = @site_content.select { |c| c.section == @content.section && c.kind.single? }
-        .sort_by { |c| c.date || Time.unix(0) }.reverse
+        .sort
 
       current_index = section_pages.index(@content)
       return nil unless current_index
@@ -54,7 +55,7 @@ module Lapis
 
     def prev_in_section : Content?
       section_pages = @site_content.select { |c| c.section == @content.section && c.kind.single? }
-        .sort_by { |c| c.date || Time.unix(0) }.reverse
+        .sort
 
       current_index = section_pages.index(@content)
       return nil unless current_index

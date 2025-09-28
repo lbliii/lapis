@@ -1,5 +1,8 @@
 require "./content"
+require "./content_comparison"
 require "html"
+require "./logger"
+require "./exceptions"
 
 module Lapis
   class TemplateProcessor
@@ -113,7 +116,7 @@ module Lapis
         # Handle method calls like "section_nav.has_prev?"
         value = evaluate_expression(condition)
         case value
-        when Bool then value.as(Bool)
+        when Bool then value.is_a?(Bool) ? value : false
         when Nil  then false
         else           !value.to_s.empty?
         end
@@ -121,13 +124,13 @@ module Lapis
         # Handle simple variable existence
         value = evaluate_expression(condition)
         case value
-        when Bool                  then value.as(Bool)
+        when Bool                  then value.is_a?(Bool) ? value : false
         when Nil                   then false
-        when Array                 then !value.as(Array).empty?
-        when String                then !value.as(String).empty?
-        when Array(MenuItem)       then !value.as(Array(MenuItem)).empty?
-        when Array(BreadcrumbItem) then !value.as(Array(BreadcrumbItem)).empty?
-        when Array(Content)        then !value.as(Array(Content)).empty?
+        when Array                 then !(value.is_a?(Array) ? value.empty? : true)
+        when String                then !(value.is_a?(String) ? value.empty? : true)
+        when Array(MenuItem)       then !(value.is_a?(Array(MenuItem)) ? value.empty? : true)
+        when Array(BreadcrumbItem) then !(value.is_a?(Array(BreadcrumbItem)) ? value.empty? : true)
+        when Array(Content)        then !(value.is_a?(Array(Content)) ? value.empty? : true)
         else                            true
         end
       end
@@ -369,18 +372,18 @@ module Lapis
         text.size > 50 ? "#{text[0..47]}..." : text
       when "first"
         case value
-        when Array then value.as(Array).first?
+        when Array then value.is_a?(Array) ? value.first? : nil
         else            value
         end
       when "last"
         case value
-        when Array then value.as(Array).last?
+        when Array then value.is_a?(Array) ? value.last? : nil
         else            value
         end
       when "size", "length"
         case value
-        when Array  then value.as(Array).size
-        when String then value.as(String).size
+        when Array  then value.is_a?(Array) ? value.size : 0
+        when String then value.is_a?(String) ? value.size : 0
         else             0
         end
       when "join"
@@ -396,10 +399,14 @@ module Lapis
         end
       when "sort"
         case value
-        when Array(String) then value.as(Array(String)).sort
-        when Array(Int32)  then value.as(Array(Int32)).sort
-        else                    value
+        when Array(String)  then value.as(Array(String)).sort
+        when Array(Int32)   then value.as(Array(Int32)).sort
+        when Array(Content) then value.as(Array(Content)).sort
+        else                     value
         end
+      when "clamp"
+        # Clamp filter for ranges - will be handled in apply_filter_with_args
+        value
       when "uniq", "unique"
         case value
         when Array then value.as(Array).uniq
@@ -466,6 +473,30 @@ module Lapis
             value.as(Array).join(args_str.gsub("\"", ""))
           else
             value
+          end
+        when "clamp"
+          # Handle clamp(min,max) or clamp(range)
+          if args_str.includes?(",")
+            parts = args_str.split(",")
+            if parts.size == 2
+              min_val = parts[0].strip.to_i?
+              max_val = parts[1].strip.to_i?
+              if min_val && max_val && value.is_a?(Int32)
+                value.as(Int32).clamp(min_val, max_val)
+              else
+                value
+              end
+            else
+              value
+            end
+          else
+            # Single argument - treat as max (min is 0)
+            max_val = args_str.to_i?
+            if max_val && value.is_a?(Int32)
+              value.as(Int32).clamp(0, max_val)
+            else
+              value
+            end
           end
         else
           value

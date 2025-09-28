@@ -1,4 +1,5 @@
 require "./content"
+require "./content_comparison"
 require "yaml"
 
 module Lapis
@@ -33,23 +34,7 @@ module Lapis
       collection = get_collection(collection_name)
       return [] of Content unless collection
 
-      sorted = collection.content.sort do |a, b|
-        a_value = get_property_value(a, property)
-        b_value = get_property_value(b, property)
-
-        case {a_value, b_value}
-        when {Time, Time}
-          a_value.as(Time) <=> b_value.as(Time)
-        when {String, String}
-          a_value.as(String) <=> b_value.as(String)
-        when {Number, Number}
-          a_value.as(Number) <=> b_value.as(Number)
-        else
-          a_value.to_s <=> b_value.to_s
-        end
-      end
-
-      reverse ? sorted.reverse : sorted
+      ContentComparison.sort_by_property(collection.content, property, reverse)
     end
 
     def limit(collection_name : String, count : Int32) : Array(Content)

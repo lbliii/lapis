@@ -2,6 +2,7 @@ require "option_parser"
 require "log"
 require "json"
 require "socket"
+require "colorize"
 require "./logger"
 require "./exceptions"
 require "./theme_manager"
@@ -37,17 +38,17 @@ module Lapis
           show_help
         else
           Logger.error("Unknown command", command: command)
-          puts "Unknown command: #{command}"
+          puts "Unknown command: #{command}".colorize(:red).bold
           show_help
           exit(1)
         end
       rescue ex : LapisError
         Logger.error("Lapis error", error: ex.message, context: ex.context)
-        puts "Error: #{ex.message}"
+        puts "Error: #{ex.message}".colorize(:red).bold
         exit(1)
       rescue ex
         Logger.fatal("Unexpected error", error: ex.message)
-        puts "Unexpected error: #{ex.message}"
+        puts "Unexpected error: #{ex.message}".colorize(:red).bold
         exit(1)
       end
     end
@@ -118,7 +119,7 @@ module Lapis
       generator.build_with_analytics
       Logger.info("Build completed successfully")
 
-      puts "Site built successfully in '#{config.output_dir}'"
+      puts "Site built successfully in '#{config.output_dir}'".colorize(:green).bold
     end
 
     private def serve_site
@@ -126,29 +127,29 @@ module Lapis
 
       # Check for port conflicts
       if port_in_use?(config.port)
-        puts "⚠️  Port #{config.port} is already in use!"
+        puts "⚠️  Port #{config.port} is already in use!".colorize(:yellow).bold
         puts ""
 
         # Show what's using the port
         show_port_usage(config.port)
 
         # Offer solutions
-        puts "Options:"
+        puts "Options:".colorize(:cyan)
         puts "  1. Stop the existing server: lapis stop"
         puts "  2. Use a different port: lapis serve --port <port>"
         puts "  3. Kill processes using port #{config.port}"
         puts ""
 
-        print "Continue anyway? [y/N]: "
+        print "Continue anyway? [y/N]: ".colorize(:yellow)
         response = gets.try(&.strip.downcase)
         unless response == "y" || response == "yes"
-          puts "Server startup cancelled."
+          puts "Server startup cancelled.".colorize(:yellow)
           exit(0)
         end
         puts ""
       end
 
-      puts "🚀 Starting development server..."
+      puts "🚀 Starting development server...".colorize(:green).bold
 
       # Save server info for management
       save_server_info(config.port, config.host)
@@ -162,7 +163,7 @@ module Lapis
         server.start
       rescue ex
         cleanup_server_info(config.port)
-        puts "❌ Failed to start server: #{ex.message}"
+        puts "❌ Failed to start server: #{ex.message}".colorize(:red).bold
         exit(1)
       end
     end
@@ -268,7 +269,7 @@ module Lapis
       if available_themes.empty?
         puts "  No themes found."
         puts ""
-        puts "💡 Tip: Install themes from shards with 'lapis theme install <theme-name>'"
+        puts "💡 Tip: Install themes from shards with 'lapis theme install <theme-name>'".colorize(:cyan)
         return
       end
 
@@ -298,9 +299,9 @@ module Lapis
       puts "Current theme: #{config.theme}"
 
       if theme_manager.theme_available?
-        puts "✅ Current theme is available"
+        puts "✅ Current theme is available".colorize(:green)
       else
-        puts "❌ Current theme is not available"
+        puts "❌ Current theme is not available".colorize(:red).bold
       end
     end
 
@@ -308,7 +309,7 @@ module Lapis
       theme_name = @args[2]?
 
       unless theme_name
-        puts "❌ Error: Theme name required"
+        puts "❌ Error: Theme name required".colorize(:red).bold.colorize(:red).bold
         puts ""
         puts "Usage: lapis theme info <theme-name>"
         puts ""
@@ -316,7 +317,7 @@ module Lapis
         puts "  lapis theme info my-theme"
         puts "  lapis theme info default"
         puts ""
-        puts "💡 Tip: Run 'lapis theme list' to see available themes"
+        puts "💡 Tip: Run 'lapis theme list' to see available themes".colorize(:cyan)
         exit(1)
       end
 
@@ -325,7 +326,7 @@ module Lapis
         theme_manager = ThemeManager.new(theme_name, config.root_dir)
 
         unless theme_manager.theme_exists?(theme_name)
-          puts "❌ Theme '#{theme_name}' not found"
+          puts "❌ Theme '#{theme_name}' not found".colorize(:red).bold
           puts ""
           puts "Available themes:"
           available_themes = theme_manager.list_available_themes
@@ -337,16 +338,16 @@ module Lapis
             end
           end
           puts ""
-          puts "💡 Tip: Install themes with 'lapis theme install <theme-name>'"
+          puts "💡 Tip: Install themes with 'lapis theme install <theme-name>'".colorize(:cyan)
           exit(1)
         end
       rescue ex : LapisError
-        puts "❌ Configuration Error: #{ex.message}"
+        puts "❌ Configuration Error: #{ex.message}".colorize(:red).bold
         puts ""
-        puts "💡 Make sure you're in a Lapis project directory with a valid config.yml"
+        puts "💡 Make sure you're in a Lapis project directory with a valid config.yml".colorize(:cyan)
         exit(1)
       rescue ex
-        puts "❌ Unexpected Error: #{ex.message}"
+        puts "❌ Unexpected Error: #{ex.message}".colorize(:red).bold
         exit(1)
       end
 
@@ -388,7 +389,7 @@ module Lapis
       theme_name = @args[2]?
 
       unless theme_name
-        puts "❌ Error: Theme name required"
+        puts "❌ Error: Theme name required".colorize(:red).bold
         puts ""
         puts "Usage: lapis theme install <theme-name>"
         puts ""
@@ -396,7 +397,7 @@ module Lapis
         puts "  lapis theme install awesome-blog-theme"
         puts "  lapis theme install lapis-theme-minimal"
         puts ""
-        puts "💡 Tip: Theme names typically start with 'lapis-theme-'"
+        puts "💡 Tip: Theme names typically start with 'lapis-theme-'".colorize(:cyan)
         exit(1)
       end
 
@@ -420,7 +421,7 @@ module Lapis
       theme_name = @args[2]?
 
       unless theme_name
-        puts "❌ Error: Theme name required"
+        puts "❌ Error: Theme name required".colorize(:red).bold
         puts ""
         puts "Usage: lapis theme validate <theme-name>"
         puts ""
@@ -437,7 +438,7 @@ module Lapis
         theme_manager = ThemeManager.new(theme_name, config.root_dir)
 
         unless theme_manager.theme_exists?(theme_name)
-          puts "❌ Theme '#{theme_name}' not found"
+          puts "❌ Theme '#{theme_name}' not found".colorize(:red).bold
           puts ""
           puts "Available themes:"
           available_themes = theme_manager.list_available_themes
@@ -449,23 +450,23 @@ module Lapis
             end
           end
           puts ""
-          puts "💡 Tip: Install themes with 'lapis theme install <theme-name>'"
+          puts "💡 Tip: Install themes with 'lapis theme install <theme-name>'".colorize(:cyan)
           exit(1)
         end
 
         theme_paths = theme_manager.theme_paths
         unless theme_path = theme_paths.first?
-          puts "❌ Internal Error: No theme path found for '#{theme_name}'"
+          puts "❌ Internal Error: No theme path found for '#{theme_name}'".colorize(:red).bold
           puts "This shouldn't happen if the theme exists. Please report this as a bug."
           exit(1)
         end
       rescue ex : LapisError
-        puts "❌ Configuration Error: #{ex.message}"
+        puts "❌ Configuration Error: #{ex.message}".colorize(:red).bold
         puts ""
-        puts "💡 Make sure you're in a Lapis project directory with a valid config.yml"
+        puts "💡 Make sure you're in a Lapis project directory with a valid config.yml".colorize(:cyan)
         exit(1)
       rescue ex
-        puts "❌ Unexpected Error: #{ex.message}"
+        puts "❌ Unexpected Error: #{ex.message}".colorize(:red).bold
         exit(1)
       end
 
@@ -482,9 +483,9 @@ module Lapis
                    end
 
       if validation["valid"].as(Bool)
-        puts "✅ Theme is valid!"
+        puts "✅ Theme is valid!".colorize(:green).bold
       else
-        puts "❌ Theme validation failed"
+        puts "❌ Theme validation failed".colorize(:red).bold
         if error = validation["error"]?.try(&.as(String))
           unless error.empty?
             puts "Error: #{error}"

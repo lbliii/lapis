@@ -38,6 +38,9 @@ module Lapis
       rescue ex : JSON::ParseException
         Logger.error("Type-safe JSON parsing error", error: ex.message.to_s)
         raise ValidationError.new("Type-safe JSON parsing error: #{ex.message}", "json", json_string[0..100])
+      rescue ex : ::TypeCastError
+        Logger.error("Type cast error in JSON parsing", error: ex.message.to_s)
+        raise Lapis::TypeCastError.new("Type cast error in JSON parsing: #{ex.message}", ex, "JSON", "PostData", json_string[0..100])
       rescue ex
         Logger.error("Unexpected type-safe JSON error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected type-safe JSON error: #{ex.message}")
@@ -55,6 +58,9 @@ module Lapis
       rescue ex : JSON::ParseException
         Logger.error("JSON parsing error", error: ex.message.to_s)
         raise ValidationError.new("JSON parsing error: #{ex.message}", "json", json_string[0..100])
+      rescue ex : ::TypeCastError
+        Logger.error("Type cast error in JSON parsing", error: ex.message.to_s)
+        raise Lapis::TypeCastError.new("Type cast error in JSON parsing: #{ex.message}", ex, "JSON", "JSON::Any", json_string[0..100])
       rescue ex
         Logger.error("Unexpected JSON error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected JSON error: #{ex.message}")
@@ -72,6 +78,9 @@ module Lapis
       rescue ex : YAML::ParseException
         Logger.error("YAML parsing error", error: ex.message.to_s)
         raise ValidationError.new("YAML parsing error: #{ex.message}", "yaml", yaml_string[0..100])
+      rescue ex : ::TypeCastError
+        Logger.error("Type cast error in YAML parsing", error: ex.message.to_s)
+        raise Lapis::TypeCastError.new("Type cast error in YAML parsing: #{ex.message}", ex, "YAML", "YAML::Any", yaml_string[0..100])
       rescue ex
         Logger.error("Unexpected YAML error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected YAML error: #{ex.message}")
@@ -213,13 +222,33 @@ module Lapis
         # Convert primitive types explicitly for type safety
         case json_data.raw
         when String
-          YAML::Any.new(json_data.raw.as(String))
+          begin
+            YAML::Any.new(json_data.raw.as(String))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to String, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Int64
-          YAML::Any.new(json_data.raw.as(Int64))
+          begin
+            YAML::Any.new(json_data.raw.as(Int64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Int64, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Float64
-          YAML::Any.new(json_data.raw.as(Float64))
+          begin
+            YAML::Any.new(json_data.raw.as(Float64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Float64, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Bool
-          YAML::Any.new(json_data.raw.as(Bool))
+          begin
+            YAML::Any.new(json_data.raw.as(Bool))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Bool, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Nil
           YAML::Any.new(nil)
         when Array(JSON::Any)
@@ -252,13 +281,33 @@ module Lapis
         # Convert primitive types explicitly for type safety
         case yaml_data.raw
         when String
-          JSON::Any.new(yaml_data.raw.as(String))
+          begin
+            JSON::Any.new(yaml_data.raw.as(String))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to String, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Int64
-          JSON::Any.new(yaml_data.raw.as(Int64))
+          begin
+            JSON::Any.new(yaml_data.raw.as(Int64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Int64, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Float64
-          JSON::Any.new(yaml_data.raw.as(Float64))
+          begin
+            JSON::Any.new(yaml_data.raw.as(Float64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Float64, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Bool
-          JSON::Any.new(yaml_data.raw.as(Bool))
+          begin
+            JSON::Any.new(yaml_data.raw.as(Bool))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Bool, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Nil
           JSON::Any.new(nil)
         else

@@ -1,6 +1,7 @@
 require "./content"
 require "./navigation"
 require "./collections"
+require "./content_comparison"
 require "yaml"
 require "uri"
 
@@ -284,9 +285,8 @@ module Lapis
     def recent_posts(limit : Int32 = 5) : Array(Content)
       @pages.select(&.kind.single?)
         .tap { |posts| Logger.debug("Found single pages", count: posts.size) }
-        .sort_by { |p| p.date || Time.unix(0) }
+        .sort
         .tap { |sorted| Logger.debug("Sorted by date", first_date: sorted.first?.date.try(&.to_s("%Y-%m-%d"))) }
-        .reverse
         .first(limit)
         .tap { |recent| Logger.debug("Recent posts", count: recent.size) }
     end

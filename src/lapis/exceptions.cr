@@ -115,4 +115,23 @@ module Lapis
       super(message, context)
     end
   end
+
+  # Type casting errors
+  class TypeCastError < LapisError
+    def initialize(message : String, source_type : String? = nil, target_type : String? = nil, value : String? = nil)
+      context = {} of String => String
+      context["source_type"] = source_type if source_type
+      context["target_type"] = target_type if target_type
+      context["value"] = value if value
+      super(message, context)
+    end
+
+    def initialize(message : String, cause : Exception, source_type : String? = nil, target_type : String? = nil, value : String? = nil)
+      context = {} of String => String
+      context["source_type"] = source_type if source_type
+      context["target_type"] = target_type if target_type
+      context["value"] = value if value
+      super(message, cause, context)
+    end
+  end
 end

@@ -9,9 +9,11 @@ require "./logger"
 require "./exceptions"
 require "./data_processor"
 require "./shortcodes"
+require "./content_comparison"
 
 module Lapis
   class Content < BaseContent
+    include Comparable(Content)
     property title : String
     property layout : String
     property date : Time?
@@ -100,7 +102,7 @@ module Lapis
       end
 
       Logger.info("Loaded content files", count: content.size.to_s)
-      content.sort_by { |c| c.date || Time.unix(0) }.reverse
+      content.sort
     end
 
     def self.create_new(type : String, title : String)
@@ -355,6 +357,16 @@ module Lapis
 
     def inspect(io : IO) : Nil
       io << "Content(title: #{title}, file: #{Path[@file_path].basename}, kind: #{@kind}, section: #{@section}, date: #{@date.try(&.to_s("%Y-%m-%d")) || "nil"})"
+    end
+
+    # Comparable implementation
+    def <=>(other : Content) : Int32?
+      # Primary sort by date (newest first)
+      date_comparison = ContentComparison.compare_values(@date || Time.unix(0), other.date || Time.unix(0))
+      return -date_comparison.not_nil! unless date_comparison == 0 # Reverse for newest first
+
+      # Secondary sort by title
+      @title <=> other.title
     end
   end
 end
