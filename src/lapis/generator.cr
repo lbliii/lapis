@@ -3,7 +3,7 @@ require "log"
 require "./config"
 require "./content"
 require "./templates"
-require "./assets"
+require "./unified_asset_processor"
 require "./feeds"
 require "./pagination"
 require "./logger"
@@ -11,7 +11,6 @@ require "./exceptions"
 require "./incremental_builder"
 require "./parallel_processor"
 require "./plugin_system"
-require "./asset_pipeline"
 require "./memory_manager"
 require "./performance_benchmark"
 
@@ -21,24 +20,22 @@ module Lapis
 
     property config : Config
     property template_engine : TemplateEngine
-    property asset_processor : AssetProcessor
-    property asset_pipeline : AssetPipeline
+    property asset_processor : UnifiedAssetProcessor
     property incremental_builder : IncrementalBuilder
     property parallel_processor : ParallelProcessor
     property plugin_manager : PluginManager
 
     def initialize(@config : Config)
       @template_engine = TemplateEngine.new(@config)
-      @asset_processor = AssetProcessor.new(@config)
-      @asset_pipeline = AssetPipeline.new(@config)
+      @asset_processor = UnifiedAssetProcessor.new(@config)
       @incremental_builder = IncrementalBuilder.new(@config.build_config.cache_dir)
       @parallel_processor = ParallelProcessor.new(@config.build_config)
       @plugin_manager = PluginManager.new(@config)
     end
 
     def build
-      puts "DEBUG: Starting build method"
       Logger.build_operation("Starting site build")
+        .tap { puts "DEBUG: Starting build method" }
 
       # Emit before build event
       @plugin_manager.emit_event(PluginEvent::BeforeBuild, self)
@@ -53,13 +50,17 @@ module Lapis
 
         Logger.build_operation("Loading content")
         all_content = load_all_content
+          .tap { |content| Logger.debug("Content loaded", count: content.size) }
 
         # Emit after content load event
         @plugin_manager.emit_event(PluginEvent::AfterContentLoad, self, content: all_content)
 
         Logger.build_operation("Generating pages")
-        puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental}"
-        puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel}"
+        all_content.tap do |content|
+          puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental}"
+          puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel}"
+        end
+
         if @config.build_config.incremental
           puts "DEBUG: Using incremental build strategy"
           generate_content_pages_incremental_v2(all_content)
@@ -69,16 +70,10 @@ module Lapis
         end
 
         Logger.build_operation("Processing assets with optimization")
-        if @config.build_config.parallel
-          # Use advanced asset pipeline
-          @asset_pipeline.process_all_assets
-        else
-          # Use legacy asset processor
-          @asset_processor.process_all_assets
-        end
+        @asset_processor.process_all_assets
 
         Logger.build_operation("Generating index and archive pages")
-        puts "DEBUG: About to call generate_index_page"
+        all_content.tap { puts "DEBUG: About to call generate_index_page" }
         generate_index_page(all_content)
         Logger.debug("About to generate section pages")
         generate_section_pages(all_content)
@@ -177,9 +172,9 @@ module Lapis
     end
 
     private def generate_index_page(all_content : Array(Content))
-      puts "DEBUG: Checking for index page"
       index_path = File.join(@config.content_dir, "index.md")
-      puts "DEBUG: Looking for index at: #{index_path}"
+        .tap { |path| puts "DEBUG: Checking for index page" }
+        .tap { |path| puts "DEBUG: Looking for index at: #{path}" }
 
       if File.exists?(index_path)
         puts "DEBUG: Index file exists, processing it"
@@ -289,8 +284,9 @@ module Lapis
     end
 
     private def generate_themed_index(recent_posts : Array(Content)) : String
-      puts "DEBUG: Using themed index generation"
       Logger.debug("Using themed index generation")
+        .tap { puts "DEBUG: Using themed index generation" }
+
       # Create a temporary content object for the home page
       frontmatter = {
         "title"  => YAML::Any.new(@config.title),
@@ -317,7 +313,7 @@ module Lapis
       end
 
       posts_html = recent_posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         <<-HTML
         <article class="post-summary">
           <h2><a href="#{post.url}">#{post.title}</a></h2>
@@ -333,7 +329,7 @@ module Lapis
 
     private def generate_default_index(recent_posts : Array(Content)) : String
       posts_html = recent_posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         <<-HTML
         <article class="post-summary">
           <h2><a href="#{post.url}">#{post.title}</a></h2>
@@ -570,7 +566,7 @@ module Lapis
 
     private def generate_posts_archive(posts : Array(Content)) : String
       posts_html = posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         tags_html = post.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
 
         <<-HTML
@@ -645,7 +641,7 @@ module Lapis
 
     private def generate_tag_page(tag : String, posts : Array(Content)) : String
       posts_html = posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
 
         <<-HTML
         <article class="post-item">
@@ -725,7 +721,7 @@ module Lapis
       end
 
       posts_html = recent_posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         tags_html = post.tags.first(3).map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
 
         <<-HTML

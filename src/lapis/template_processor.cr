@@ -290,7 +290,7 @@ module Lapis
       when Content
         context["#{item_var}.title"] = item.title
         context["#{item_var}.url"] = item.url
-        context["#{item_var}.date_formatted"] = item.date ? item.date.not_nil!.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
+        context["#{item_var}.date_formatted"] = item.date.try(&.to_s(Lapis::DATE_FORMAT_HUMAN)) || ""
         context["#{item_var}.tags"] = item.tags.join(", ")
         context["#{item_var}.summary"] = PageOperations.new(item, @context.query.site_content).summary
         context["#{item_var}.reading_time"] = PageOperations.new(item, @context.query.site_content).reading_time.to_s

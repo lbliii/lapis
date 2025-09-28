@@ -735,7 +735,7 @@ module Lapis
 
     def content : String
       posts_html = @posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
+        date_str = post.date.try(&.to_s(Lapis::DATE_FORMAT_HUMAN)) || ""
         tags_html = post.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
 
         <<-HTML

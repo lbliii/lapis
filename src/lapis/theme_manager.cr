@@ -178,7 +178,7 @@ module Lapis
 
       # 0. Custom theme directory (highest priority)
       if @custom_theme_dir
-        custom_path = File.expand_path(@custom_theme_dir.not_nil!, @project_root)
+        custom_path = File.expand_path(@custom_theme_dir.try { |dir| dir } || "themes/default", @project_root)
         @theme_paths << custom_path if Dir.exists?(custom_path)
       end
 

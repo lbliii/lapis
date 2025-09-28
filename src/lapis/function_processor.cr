@@ -132,21 +132,21 @@ module Lapis
         if next_if < next_else && next_if < next_endif
           # Found nested if
           nesting_level += 1
-          pos = next_if + if_match.not_nil![0].size
+          pos = next_if + (if_match.try(&.[0].size) || 0)
         elsif next_endif < next_else
           # Found endif
           if nesting_level == 0
             break # This endif closes our block, no else found
           else
             nesting_level -= 1
-            pos = next_endif + endif_match.not_nil![0].size
+            pos = next_endif + (endif_match.try(&.[0].size) || 0)
           end
         else
           # Found else
           if nesting_level == 0
             return next_else # This is our matching else
           else
-            pos = next_else + else_match.not_nil![0].size
+            pos = next_else + (else_match.try(&.[0].size) || 0)
           end
         end
       end

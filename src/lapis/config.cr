@@ -261,6 +261,10 @@ module Lapis
       end
     end
 
+    def inspect(io : IO) : Nil
+      io << "Config(title: #{@title}, theme: #{@theme}, output_dir: #{@output_dir}, incremental: #{@build_config.incremental})"
+    end
+
     def validate
       if @output_dir.empty?
         @output_dir = "public"

@@ -163,7 +163,7 @@ module Lapis
           property_value = get_property_value(content, key.to_s)
           matches_value?(property_value, value)
         end
-      end
+      end.tap { |result| Logger.debug("Filtered content", count: result.size, filters: filters.keys) }
 
       QueryBuilder.new(filtered, @collections)
     end
@@ -183,7 +183,7 @@ module Lapis
         else
           a_value.to_s <=> b_value.to_s
         end
-      end
+      end.tap { |result| Logger.debug("Sorted content", count: result.size, property: property, reverse: reverse) }
 
       final_content = reverse ? sorted.reverse : sorted
       QueryBuilder.new(final_content, @collections)
@@ -191,6 +191,7 @@ module Lapis
 
     def limit(count : Int32) : QueryBuilder
       QueryBuilder.new(@current_content.first(count), @collections)
+        .tap { |result| Logger.debug("Limited content", count: result.count, limit: count) }
     end
 
     def first(count : Int32) : Array(Content)

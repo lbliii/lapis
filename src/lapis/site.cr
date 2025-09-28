@@ -211,8 +211,8 @@ module Lapis
       }
     end
 
-    def generator : String
-      generator_info["generator"]
+    def inspect(io : IO) : Nil
+      io << "Site(title: #{@config.title}, pages: #{@pages.size}, theme: #{@config.theme}, baseurl: #{@config.baseurl})"
     end
 
     def version : String
@@ -259,41 +259,35 @@ module Lapis
 
     def recent_posts(limit : Int32 = 5) : Array(Content)
       @pages.select(&.kind.single?)
+        .tap { |posts| Logger.debug("Found single pages", count: posts.size) }
         .sort_by { |p| p.date || Time.unix(0) }
+        .tap { |sorted| Logger.debug("Sorted by date", first_date: sorted.first?.date.try(&.to_s("%Y-%m-%d"))) }
         .reverse
         .first(limit)
+        .tap { |recent| Logger.debug("Recent posts", count: recent.size) }
     end
 
     def posts_by_year : Hash(Int32, Array(Content))
-      grouped = {} of Int32 => Array(Content)
-      @pages.select(&.kind.single?).each do |page|
-        year = page.date.try(&.year) || 0
-        grouped[year] ||= [] of Content
-        grouped[year] << page
-      end
-      grouped
+      @pages.select(&.kind.single?)
+        .tap { |posts| Logger.debug("Processing posts by year", count: posts.size) }
+        .group_by { |page| page.date.try(&.year) || 0 }
+        .tap { |grouped| Logger.debug("Grouped by year", years: grouped.keys.sort) }
     end
 
     def posts_by_month : Hash(String, Array(Content))
-      grouped = {} of String => Array(Content)
-      @pages.select(&.kind.single?).each do |page|
-        if date = page.date
-          month_key = "#{date.year}-#{date.month.to_s.rjust(2, '0')}"
-          grouped[month_key] ||= [] of Content
-          grouped[month_key] << page
-        end
-      end
-      grouped
+      @pages.select(&.kind.single?)
+        .tap { |posts| Logger.debug("Processing posts by month", count: posts.size) }
+        .compact_map { |page| page.date.try { |date| {page, "#{date.year}-#{date.month.to_s.rjust(2, '0')}"} } }
+        .group_by { |(page, month_key)| month_key }
+        .transform_values { |pairs| pairs.map { |(page, _)| page } }
+        .tap { |grouped| Logger.debug("Grouped by month", months: grouped.keys.sort) }
     end
 
     def tag_cloud : Hash(String, Int32)
-      cloud = {} of String => Int32
-      @pages.each do |page|
-        page.tags.each do |tag|
-          cloud[tag] = cloud.fetch(tag, 0) + 1
-        end
-      end
-      cloud
+      @pages.flat_map(&.tags)
+        .tap { |tags| Logger.debug("Processing tag cloud", total_tags: tags.size) }
+        .tally
+        .tap { |cloud| Logger.debug("Tag cloud generated", unique_tags: cloud.size) }
     end
 
     private def load_site_config

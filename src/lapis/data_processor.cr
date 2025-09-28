@@ -178,14 +178,9 @@ module Lapis
 
       return JSON::Any.new(nil) if data_objects.empty?
 
-      result = data_objects[0]
-
-      data_objects[1..].each do |data|
-        result = merge_single_data(result, data)
-      end
-
-      Logger.debug("Data merge completed")
-      result
+      data_objects[1..].reduce(data_objects[0]) do |result, data|
+        merge_single_data(result, data)
+      end.tap { |merged| Logger.debug("Data merge completed", final_keys: merged.try(&.as_h?.keys) || [] of String) }
     end
 
     private def self.convert_json_to_yaml(json_data : JSON::Any) : String

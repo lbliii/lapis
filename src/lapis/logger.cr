@@ -33,6 +33,35 @@ module Lapis
       @@initialized = true
       Log.info { "Lapis logging system initialized" }
     end
+
+    def self.info(message : String, **context)
+      Log.info { format_message(message, context) }
+    end
+
+    def self.debug(message : String, **context)
+      Log.debug { format_message(message, context) }
+    end
+
+    def self.warn(message : String, **context)
+      Log.warn { format_message(message, context) }
+    end
+
+    def self.error(message : String, **context)
+      Log.error { format_message(message, context) }
+    end
+
+    def self.debug_object(message : String, obj, **context)
+      Log.debug { "#{message} [#{obj.inspect}] #{format_context(context)}" }
+    end
+
+    def self.info_object(message : String, obj, **context)
+      Log.info { "#{message} [#{obj.inspect}] #{format_context(context)}" }
+    end
+
+    def self.warn_object(message : String, obj, **context)
+      Log.warn { "#{message} [#{obj.inspect}] #{format_context(context)}" }
+    end
+
     def self.fatal(message : String, **context)
       Log.fatal { format_message(message, context) }
     end
@@ -87,6 +116,16 @@ module Lapis
       else
         context_str = context.map { |k, v| "#{k}=#{v}" }.join(" ")
         "#{message} [#{context_str}]"
+      end
+    end
+
+    # Format context for object logging
+    private def self.format_context(context : NamedTuple) : String
+      if context.empty?
+        ""
+      else
+        context_str = context.map { |k, v| "#{k}=#{v}" }.join(" ")
+        "[#{context_str}]"
       end
     end
 

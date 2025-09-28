@@ -301,5 +301,29 @@ describe Lapis::FunctionProcessor do
         result.should contain("URL:</strong> /debug-page/")
       end
     end
+
+    it "processes function calls correctly", tags: [TestTags::FAST, TestTags::UNIT] do
+      config = TestDataFactory.create_config("Test Site", "test_output")
+
+      with_temp_directory do |temp_dir|
+        config.root_dir = temp_dir
+
+        # Create test content
+        frontmatter = TestDataFactory.create_content("Test Page", "test-page")
+        content = Lapis::Content.new("content/test-page.md", frontmatter, "Test content")
+
+        # Create template context
+        context = Lapis::TemplateContext.new(config, content)
+
+        # Create function processor
+        processor = Lapis::FunctionProcessor.new(context)
+
+        # Test function calls
+        template = "{{ slugify(\"Hello World!\") }} - {{ upper(\"hello\") }} - {{ add(2, 3) }}"
+        result = processor.process(template)
+
+        result.should eq("hello-world - HELLO - 5.0")
+      end
+    end
   end
 end

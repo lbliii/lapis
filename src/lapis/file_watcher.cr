@@ -160,7 +160,7 @@ module Lapis
       # Debounce rapid changes using config setting
       debounce_ms = @config.live_reload_config.debounce_ms
       now = Time.utc
-      if @debounce_timer && (now - @debounce_timer.not_nil!) < debounce_ms.milliseconds
+      if @debounce_timer && @debounce_timer.try { |timer| (now - timer).total_milliseconds < debounce_ms } || false
         return
       end
       @debounce_timer = now

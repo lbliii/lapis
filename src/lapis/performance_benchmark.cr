@@ -17,7 +17,7 @@ module Lapis
 
       job = Benchmark.measure do
         yield
-      end
+      end.tap { |result| Logger.debug("Benchmark completed", operation: name, real_time: format_time(result.real)) }
 
       @results[name] = job
 
@@ -59,7 +59,7 @@ module Lapis
       # Run benchmark
       job = benchmark(name) do
         yield
-      end
+      end.tap { |result| Logger.debug("Memory-aware benchmark completed", operation: name, real_time: format_time(result.real)) }
 
       # Get final memory stats
       final_memory = Lapis.memory_manager.current_memory_usage

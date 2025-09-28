@@ -308,11 +308,11 @@ module Lapis
 
     private def generate_url : String
       if @permalink
-        return @permalink.not_nil!
+        return @permalink.try { |p| p } || generate_url
       end
 
       if date_based_url?
-        date = @date.not_nil!
+        date = @date.try { |d| d } || Time.utc
         year = date.year.to_s
         month = date.month.to_s.rjust(2, '0')
         day = date.day.to_s.rjust(2, '0')
@@ -340,6 +340,10 @@ module Lapis
     # Process shortcodes in content
     def process_shortcodes(processor : ShortcodeProcessor)
       @content = processor.process(@content)
+    end
+
+    def inspect(io : IO) : Nil
+      io << "Content(title: #{title}, file: #{File.basename(@file_path)}, kind: #{@kind}, section: #{@section}, date: #{@date.try(&.to_s("%Y-%m-%d")) || "nil"})"
     end
   end
 end
