@@ -1,0 +1,49 @@
+# Ameba configuration for Lapis
+# See: https://github.com/crystal-ameba/ameba#configuration
+
+# Enable all rules by default, then disable specific ones
+All:
+  Enabled: true
+
+# Disable rules that might be too strict for this project
+Style/RedundantReturn:
+  Enabled: false
+
+Naming/BlockParameterName:
+  Enabled: false
+
+Lint/NotNil:
+  Enabled: false
+
+Performance/AnyInsteadOfEmpty:
+  Enabled: false
+
+Performance/ChainedCallWithNoBang:
+  Enabled: false
+
+Metrics/CyclomaticComplexity:
+  Enabled: false
+
+Documentation/DocumentationAdmonition:
+  Enabled: false
+
+# Allow certain patterns that are common in this codebase
+Lint/UselessAssign:
+  Enabled: false
+
+Lint/UnusedArgument:
+  Enabled: false
+
+# Keep formatting rules enabled
+Layout/TrailingWhitespace:
+  Enabled: true
+
+Layout/TrailingBlankLines:
+  Enabled: true
+
+Lint/Formatting:
+  Enabled: true
+
+# Temporarily disable boolean property naming rule due to Crystal version compatibility
+Naming/QueryBoolMethods:
+  Enabled: false

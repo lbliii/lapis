@@ -1,10 +1,10 @@
 require "./lapis/*"
 
 module Lapis
-  VERSION = "0.3.0"
-  
+  VERSION = "0.4.0"
+
   # Standard date formats used throughout the application
-  DATE_FORMAT = "%Y-%m-%d %H:%M:%S UTC"
+  DATE_FORMAT       = "%Y-%m-%d %H:%M:%S UTC"
   DATE_FORMAT_SHORT = "%Y-%m-%d"
   DATE_FORMAT_HUMAN = "%B %d, %Y"
 end

@@ -1,7 +1,13 @@
 require "yaml"
 require "markd"
+require "log"
 require "./base_content"
 require "./page_kinds"
+require "./content_types"
+require "./logger"
+require "./exceptions"
+require "./data_processor"
+require "./shortcodes"
 
 module Lapis
   class Content < BaseContent
@@ -23,10 +29,16 @@ module Lapis
     property url : String
     property kind : PageKind
     property section : String
+    property content_type : ContentType
 
     def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String, content_dir : String = "content")
       @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(File.basename(@file_path, ".md"))
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
+      @content_type = if type_from_frontmatter = @frontmatter["type"]?.try(&.as_s)
+                        ContentType.parse(type_from_frontmatter)
+                      else
+                        infer_content_type
+                      end
       @date = parse_date(@frontmatter["date"]?)
       @tags = parse_array(@frontmatter["tags"]?)
       @categories = parse_array(@frontmatter["categories"]?)
@@ -36,7 +48,7 @@ module Lapis
       @author = @frontmatter["author"]?.try(&.as_s)
       @toc = @frontmatter["toc"]?.try(&.as_bool) || true
       @raw_content = @body
-      @content = @body  # Will be processed later with config
+      @content = @body # Will be processed later with config
 
       # Detect page kind and section
       @kind = PageKindDetector.detect(@file_path, content_dir)
@@ -46,32 +58,56 @@ module Lapis
     end
 
     def self.load(file_path : String, content_dir : String = "content") : Content
-      content = File.read(file_path)
-      frontmatter, body = parse_frontmatter(content)
-      new(file_path, frontmatter, body, content_dir)
+      Logger.file_operation("loading content", file_path)
+
+      File.open(file_path, "r") do |file|
+        file.set_encoding("UTF-8")
+        content = file.gets_to_end
+        frontmatter, body = parse_frontmatter(content)
+        new(file_path, frontmatter, body, content_dir)
+      end
+    rescue ex : File::NotFoundError
+      Logger.error("Content file not found", file: file_path)
+      raise ContentError.new("Content file not found: #{file_path}", file_path)
+    rescue ex : IO::Error
+      Logger.error("Error reading content file", file: file_path, error: ex.message)
+      raise ContentError.new("Error reading content file #{file_path}: #{ex.message}", file_path)
+    rescue ex : YAML::ParseException
+      Logger.error("YAML parsing error in content file", file: file_path, error: ex.message)
+      raise ContentError.new("YAML parsing error in #{file_path}: #{ex.message}", file_path)
+    rescue ex : ValidationError
+      Logger.error("Content validation error", file: file_path, error: ex.message)
+      raise ContentError.new("Content validation error in #{file_path}: #{ex.message}", file_path)
     end
 
     def self.load_all(directory : String) : Array(Content)
+      Logger.info("Loading all content from directory", directory: directory)
       content = [] of Content
 
       if Dir.exists?(directory)
         Dir.glob(File.join(directory, "**", "*.md")).each do |file_path|
           begin
             content << load(file_path, directory)
+          rescue ex : ContentError
+            Logger.warn("Skipping invalid content file", file: file_path, error: ex.message)
           rescue ex
-            puts "Warning: Could not load #{file_path}: #{ex.message}"
+            Logger.warn("Unexpected error loading content", file: file_path, error: ex.message)
           end
         end
+      else
+        Logger.warn("Content directory does not exist", directory: directory)
       end
 
-      content.sort_by(&.date).reverse
+      Logger.info("Loaded content files", count: content.size.to_s)
+      content.sort_by { |c| c.date || Time.unix(0) }.reverse
     end
 
     def self.create_new(type : String, title : String)
       filename = title.downcase.gsub(/[^a-z0-9]+/, "-").strip("-")
+      content_type = ContentType.parse(type)
 
-      case type
-      when "post"
+      case content_type
+      when .article?
         dir = "content/posts"
         path = File.join(dir, "#{filename}.md")
         layout = "post"
@@ -89,47 +125,94 @@ module Lapis
       content += "layout: \"#{layout}\"\n"
       content += "draft: false\n"
 
-      if type == "post"
+      if content_type.article?
         content += "tags: []\n"
       end
       content += "---\n\n"
       content += "# #{title}\n\n"
       content += "Write your content here...\n"
 
-      File.write(path, content)
+      write_file_atomically(path, content)
       puts "Created #{path}"
     end
 
-    def is_post? : Bool
-      @file_path.includes?("/posts/")
+    private def self.write_file_atomically(path : String, content : String)
+      temp_path = "#{path}.tmp"
+
+      File.open(temp_path, "w") do |file|
+        file.set_encoding("UTF-8")
+        file.print(content)
+        file.flush
+      end
+
+      File.rename(temp_path, path)
+    rescue ex : IO::Error
+      File.delete(temp_path) if temp_path && File.exists?(temp_path)
+      raise "Error writing content file #{path}: #{ex.message}"
     end
 
-    def is_page? : Bool
-      !is_post?
+    def page? : Bool
+      true # All content is now treated as pages
+    end
+
+    # Check if this content should be included in feeds and archives
+    def feedable? : Bool
+      @content_type.feedable? && !@draft
+    end
+
+    # Check if this content should use date-based URLs
+    def date_based_url? : Bool
+      @content_type.date_based_url? && @date != nil
+    end
+
+    # Legacy methods for backward compatibility - will be removed
+    def post? : Bool
+      @content_type.article?
+    end
+
+    def post_layout? : Bool
+      post?
+    end
+
+    private def infer_content_type : ContentType
+      # Infer content type based on file path and layout
+      if @layout == "post" || @layout == "article"
+        ContentType::Article
+      elsif @file_path.includes?("/posts/") || @file_path.includes?("/articles/")
+        ContentType::Article
+      elsif @file_path.includes?("/pages/")
+        ContentType::Page
+      elsif @file_path.includes?("/glossary/")
+        ContentType::Glossary
+      elsif @file_path.includes?("/docs/")
+        ContentType::Documentation
+      else
+        ContentType::Page
+      end
     end
 
     # Page kind helpers
-    def is_single? : Bool
+    def single? : Bool
       @kind.single?
     end
 
-    def is_list? : Bool
+    def list? : Bool
       @kind.list? || @kind.section? || @kind.taxonomy? || @kind.home?
     end
 
-    def is_section? : Bool
+    def section? : Bool
       @kind.section?
     end
 
-    def is_taxonomy? : Bool
+    def taxonomy? : Bool
       @kind.taxonomy?
     end
 
-    def is_term? : Bool
+    def term? : Bool
       @kind.term?
     end
 
-    def is_home? : Bool
+    def home? : Bool
       @kind.home?
     end
 
@@ -171,9 +254,9 @@ module Lapis
     private def humanize_filename(text : String) : String
       # Convert filename-like strings to human readable format
       text.gsub(/[-_]/, " ")
-          .split(" ")
-          .map(&.capitalize)
-          .join(" ")
+        .split(" ")
+        .map(&.capitalize)
+        .join(" ")
     end
 
     private def process_markdown(markdown : String, config : Config) : String
@@ -192,15 +275,22 @@ module Lapis
     private def parse_date(date_value : YAML::Any?) : Time?
       return nil unless date_value
 
-      date_str = date_value.as_s
-      begin
-        Time.parse(date_str, Lapis::DATE_FORMAT_SHORT, Time::Location::UTC)
-      rescue Time::Format::Error
+      # Handle both string and Time objects from YAML
+      if date_value.raw.is_a?(Time)
+        return date_value.raw.as(Time)
+      elsif date_value.raw.is_a?(String)
+        date_str = date_value.raw.as(String)
         begin
-          Time.parse(date_str, Lapis::DATE_FORMAT, Time::Location::UTC)
+          Time.parse(date_str, Lapis::DATE_FORMAT_SHORT, Time::Location::UTC)
         rescue Time::Format::Error
-          nil
+          begin
+            Time.parse(date_str, Lapis::DATE_FORMAT, Time::Location::UTC)
+          rescue Time::Format::Error
+            nil
+          end
         end
+      else
+        nil
       end
     end
 
@@ -221,7 +311,7 @@ module Lapis
         return @permalink.not_nil!
       end
 
-      if is_post? && @date
+      if date_based_url?
         date = @date.not_nil!
         year = date.year.to_s
         month = date.month.to_s.rjust(2, '0')
@@ -229,13 +319,27 @@ module Lapis
         slug = File.basename(@file_path, ".md")
         "/#{year}/#{month}/#{day}/#{slug}/"
       else
-        slug = File.basename(@file_path, ".md")
-        if slug == "index"
-          "/"
+        # For section pages (_index.md), use the section name instead of filename
+        if @kind.section? || @kind.list?
+          if @section.empty?
+            "/"
+          else
+            "/#{@section}/"
+          end
         else
-          "/#{slug}/"
+          slug = File.basename(@file_path, ".md")
+          if slug == "index"
+            "/"
+          else
+            "/#{slug}/"
+          end
         end
       end
+    end
+
+    # Process shortcodes in content
+    def process_shortcodes(processor : ShortcodeProcessor)
+      @content = processor.process(@content)
     end
   end
 end

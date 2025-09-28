@@ -1,24 +1,23 @@
 module Lapis
   # Theme helper methods for CSS and asset management
   module ThemeHelpers
-
     # Build CSS includes with proper cascade priority:
-    # 1. Theme base CSS (themes/default/static/css/style.css)
-    # 2. Site custom CSS (static/css/custom.css)
+    # 1. Theme base CSS (themes/default/static/css/*.css)
+    # 2. Site custom CSS (static/css/*.css)
     # 3. Page-specific CSS (static/css/page-name.css)
     def build_css_includes(page_name : String? = nil) : Array(String)
       css_files = [] of String
 
       # 1. Theme base CSS - always loaded first
-      theme_css = theme_css_path("style.css")
-      if File.exists?(theme_css)
-        css_files << %(<link rel="stylesheet" href="/assets/css/style.css">)
+      theme_css_files = discover_theme_css_files
+      theme_css_files.each do |css_file|
+        css_files << %(<link rel="stylesheet" href="/assets/css/#{File.basename(css_file)}">)
       end
 
       # 2. Site custom CSS - overrides theme
-      site_custom = site_css_path("custom.css")
-      if File.exists?(site_custom)
-        css_files << %(<link rel="stylesheet" href="/assets/css/custom.css">)
+      site_css_files = discover_site_css_files
+      site_css_files.each do |css_file|
+        css_files << %(<link rel="stylesheet" href="/assets/css/#{File.basename(css_file)}">)
       end
 
       # 3. Page-specific CSS - highest priority
@@ -30,6 +29,34 @@ module Lapis
       end
 
       css_files
+    end
+
+    # Discover all CSS files in theme
+    def discover_theme_css_files : Array(String)
+      css_files = [] of String
+      theme_css_dir = File.join(@config.theme_dir, "static", "css")
+
+      if Dir.exists?(theme_css_dir)
+        Dir.glob(File.join(theme_css_dir, "*.css")).each do |file_path|
+          css_files << file_path
+        end
+      end
+
+      css_files.sort
+    end
+
+    # Discover all CSS files in site
+    def discover_site_css_files : Array(String)
+      css_files = [] of String
+      site_css_dir = File.join(@config.static_dir, "css")
+
+      if Dir.exists?(site_css_dir)
+        Dir.glob(File.join(site_css_dir, "*.css")).each do |file_path|
+          css_files << file_path
+        end
+      end
+
+      css_files.sort
     end
 
     # Get theme CSS file path
@@ -56,7 +83,7 @@ module Lapis
     def list_available_css : Hash(String, Array(String))
       {
         "theme" => list_theme_css,
-        "site" => list_site_css
+        "site"  => list_site_css,
       }
     end
 

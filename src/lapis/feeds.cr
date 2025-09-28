@@ -6,7 +6,7 @@ module Lapis
     end
 
     def generate_rss(posts : Array(Content), limit : Int32 = 20) : String
-      recent_posts = posts.select(&.is_post?).first(limit)
+      recent_posts = posts.select(&.feedable?).first(limit)
 
       <<-XML
       <?xml version="1.0" encoding="UTF-8"?>
@@ -26,7 +26,7 @@ module Lapis
     end
 
     def generate_atom(posts : Array(Content), limit : Int32 = 20) : String
-      recent_posts = posts.select(&.is_post?).first(limit)
+      recent_posts = posts.select(&.feedable?).first(limit)
       updated = recent_posts.first?.try(&.date) || Time.utc
 
       <<-XML
@@ -45,33 +45,44 @@ module Lapis
     end
 
     def generate_json_feed(posts : Array(Content), limit : Int32 = 20) : String
-      recent_posts = posts.select(&.is_post?).first(limit)
+      recent_posts = posts.select(&.feedable?).first(limit)
 
-      items = recent_posts.map do |post|
-        {
-          "id" => "#{@config.baseurl}#{post.url}",
-          "title" => post.title,
-          "content_html" => post.content,
-          "url" => "#{@config.baseurl}#{post.url}",
-          "date_published" => post.date.try(&.to_rfc3339) || "",
-          "date_modified" => post.date.try(&.to_rfc3339) || "",
-          "author" => {
-            "name" => post.author || @config.author
-          },
-          "tags" => post.tags
-        }
+      # Use JSON::Builder for structured JSON generation
+      JSON.build do |json|
+        json.object do
+          json.field "version", "https://jsonfeed.org/version/1"
+          json.field "title", @config.title
+          json.field "description", @config.description
+          json.field "home_page_url", @config.baseurl
+          json.field "feed_url", "#{@config.baseurl}/feed.json"
+          json.field "items" do
+            json.array do
+              recent_posts.each do |post|
+                json.object do
+                  json.field "id", "#{@config.baseurl}#{post.url}"
+                  json.field "title", post.title
+                  json.field "content_html", post.content
+                  json.field "url", "#{@config.baseurl}#{post.url}"
+                  json.field "date_published", post.date.try(&.to_rfc3339) || ""
+                  json.field "date_modified", post.date.try(&.to_rfc3339) || ""
+                  json.field "author" do
+                    json.object do
+                      json.field "name", post.author || @config.author
+                    end
+                  end
+                  json.field "tags" do
+                    json.array do
+                      post.tags.each do |tag|
+                        json.string tag
+                      end
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
       end
-
-      feed = {
-        "version" => "https://jsonfeed.org/version/1",
-        "title" => @config.title,
-        "description" => @config.description,
-        "home_page_url" => @config.baseurl,
-        "feed_url" => "#{@config.baseurl}/feed.json",
-        "items" => items
-      }
-
-      feed.to_json
     end
 
     private def generate_rss_items(posts : Array(Content)) : String
@@ -125,10 +136,10 @@ module Lapis
 
     private def escape_xml(text : String) : String
       text.gsub("&", "&amp;")
-          .gsub("<", "&lt;")
-          .gsub(">", "&gt;")
-          .gsub("\"", "&quot;")
-          .gsub("'", "&#39;")
+        .gsub("<", "&lt;")
+        .gsub(">", "&gt;")
+        .gsub("\"", "&quot;")
+        .gsub("'", "&#39;")
     end
   end
 
@@ -163,8 +174,8 @@ module Lapis
     private def generate_content_entries(content : Array(Content)) : String
       content.map do |item|
         last_mod = item.date ? item.date.not_nil!.to_s(Lapis::DATE_FORMAT_SHORT) : Time.utc.to_s(Lapis::DATE_FORMAT_SHORT)
-        priority = item.is_post? ? "0.8" : "0.9"
-        changefreq = item.is_post? ? "monthly" : "yearly"
+        priority = item.feedable? ? "0.8" : "0.9"
+        changefreq = item.feedable? ? "monthly" : "yearly"
 
         <<-XML
         <url>
@@ -181,7 +192,7 @@ module Lapis
       entries = [] of String
 
       # Posts archive
-      if content.any?(&.is_post?)
+      if content.any?(&.feedable?)
         entries << <<-XML
         <url>
           <loc>#{@config.baseurl}/posts/</loc>

@@ -47,6 +47,63 @@ shards install
 crystal build src/lapis.cr --release -o bin/lapis
 ```
 
+## 🛠️ Development
+
+### Setup Development Environment
+
+```bash
+# Install dependencies
+make install
+# or
+shards install
+
+# Run tests
+make test
+# or
+crystal spec
+
+# Run linter
+make lint
+# or
+./bin/ameba
+
+# Auto-fix linting issues
+make lint-fix
+# or
+./bin/ameba --fix
+
+# Build the project
+make build
+# or
+crystal build src/lapis.cr --release
+```
+
+### Code Quality
+
+This project uses [Ameba](https://github.com/crystal-ameba/ameba) for linting and code quality checks.
+
+#### Pre-commit Hooks
+
+Set up pre-commit hooks to automatically run Ameba before commits:
+
+```bash
+# Simple setup (recommended)
+make setup-hooks
+# or
+./scripts/setup-hooks.sh
+
+# Advanced setup with pre-commit framework
+pip install pre-commit
+pre-commit install
+```
+
+#### CI/CD
+
+The project includes GitHub Actions workflows that automatically:
+- Run Ameba linting
+- Execute tests across multiple Crystal versions
+- Build the project
+
 ### Create Your First Site
 
 ```bash
@@ -362,7 +419,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Inspired by [Hugo](https://gohugo.io/) for its speed and simplicity
+- Inspired by modern static site generators for their speed and simplicity
 - Inspired by [Sphinx](https://www.sphinx-doc.org/) for its documentation features
 - Built with [Crystal](https://crystal-lang.org/) for performance and developer happiness
 

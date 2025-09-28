@@ -1,0 +1,17 @@
+name: "default"
+version: "1.0.0"
+description: "Default theme for Lapis static site generator"
+author: "Lapis Team"
+license: "MIT"
+homepage: "https://github.com/lapis-lang/lapis"
+
+# Theme features
+features:
+  - "Responsive design"
+  - "Dark mode support"
+  - "Syntax highlighting"
+  - "Live reload"
+  - "SEO optimized"
+
+# Theme requirements
+min_lapis_version: "0.4.0"

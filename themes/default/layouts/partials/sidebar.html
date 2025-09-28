@@ -1,0 +1,101 @@
+<aside class="site-sidebar">
+  <div class="sidebar-content">
+    <!-- Site Navigation -->
+    <nav class="sidebar-nav">
+      <h3 class="sidebar-title">Navigation</h3>
+      <ul class="sidebar-menu">
+        <li class="sidebar-item">
+          <a href="/" class="sidebar-link {{ if eq page.url "/" }}active{{ end }}">
+            <span class="sidebar-icon">🏠</span>
+            Home
+          </a>
+        </li>
+        
+        {{ range site.regular_pages }}
+          {{ if and (ne .url "/") (not .draft) }}
+            <li class="sidebar-item">
+              <a href="{{ .url }}" class="sidebar-link {{ if eq .url page.url }}active{{ end }}">
+                <span class="sidebar-icon">
+                  {{ if eq .title "About" }}ℹ️{{ else if eq .title "Features" }}⭐{{ else if eq .title "Documentation" }}📚{{ else if eq .title "Showcase" }}🎨{{ else if eq .title "Performance" }}⚡{{ else }}📄{{ end }}
+                </span>
+                {{ .title }}
+              </a>
+            </li>
+          {{ end }}
+        {{ end }}
+        
+        <li class="sidebar-item">
+          <a href="/posts/" class="sidebar-link {{ if eq page.url "/posts/" }}active{{ end }}">
+            <span class="sidebar-icon">📝</span>
+            Posts
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Table of Contents -->
+    {{ if page.toc }}
+    <div class="sidebar-toc">
+      <h3 class="sidebar-title">Contents</h3>
+      <nav class="toc-nav">
+        {{ page.table_of_contents }}
+      </nav>
+    </div>
+    {{ end }}
+
+    <!-- Recent Posts -->
+    {{ if eq page.url "/" }}
+    <div class="sidebar-recent">
+      <h3 class="sidebar-title">Recent Posts</h3>
+      <ul class="recent-posts">
+        {{ range first 5 site.posts }}
+          <li class="recent-post">
+            <a href="{{ .url }}" class="recent-link">
+              <span class="recent-title">{{ .title }}</span>
+              <span class="recent-date">{{ dateFormat "Jan 2, 2006" .date }}</span>
+            </a>
+          </li>
+        {{ end }}
+      </ul>
+    </div>
+    {{ end }}
+
+    <!-- Tags Cloud -->
+    {{ if site.tags }}
+    <div class="sidebar-tags">
+      <h3 class="sidebar-title">Tags</h3>
+      <div class="tag-cloud">
+        {{ range $tag, $pages := site.tags }}
+          {{ $count := len $pages }}
+          {{ $size := add (mul $count 2) 12 }}
+          <a href="/tags/{{ urlize $tag }}" 
+             class="tag-link" 
+             style="font-size: {{ $size }}px"
+             title="{{ $count }} posts">
+            {{ $tag }}
+          </a>
+        {{ end }}
+      </div>
+    </div>
+    {{ end }}
+
+    <!-- Site Info -->
+    <div class="sidebar-info">
+      <h3 class="sidebar-title">Site Info</h3>
+      <div class="site-stats">
+        <div class="stat">
+          <span class="stat-number">{{ len site.pages }}</span>
+          <span class="stat-label">Pages</span>
+        </div>
+        <div class="stat">
+          <span class="stat-number">{{ len site.posts }}</span>
+          <span class="stat-label">Posts</span>
+        </div>
+        <div class="stat">
+          <span class="stat-number">{{ len site.tags }}</span>
+          <span class="stat-label">Tags</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>

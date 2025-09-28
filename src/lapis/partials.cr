@@ -1,30 +1,32 @@
+require "./function_processor"
+require "./theme_manager"
+
 module Lapis
-  # Hugo-style partials system for reusable template components
+  # Partials system for reusable template components
   # Usage: {{ partial "head" . }} or {{ partial "header" . }}
   module Partials
-
     # Process partial function calls in templates
-    def self.process_partials(template : String, context : TemplateContext, theme_dir : String) : String
+    def self.process_partials(template : String, context : TemplateContext, theme_manager : ThemeManager) : String
       result = template
 
       # Process all {{ partial "name" . }} calls
       result = result.gsub(/\{\{\s*partial\s+"([^"]+)"\s+\.\s*\}\}/) do |match|
         partial_name = $1
-        render_partial(partial_name, context, theme_dir)
+        render_partial(partial_name, context, theme_manager)
       end
 
       result
     end
 
     # Render a specific partial template
-    def self.render_partial(name : String, context : TemplateContext, theme_dir : String) : String
-      partial_path = find_partial(name, theme_dir)
+    def self.render_partial(name : String, context : TemplateContext, theme_manager : ThemeManager) : String
+      partial_path = theme_manager.resolve_file("#{name}.html", "partial")
 
-      if partial_path && File.exists?(partial_path)
-        partial_content = File.read(partial_path)
+      if partial_path
+        partial_content = read_partial_file(partial_path)
 
         # Process the partial content with context
-        process_partial_content(partial_content, context, theme_dir)
+        process_partial_content(partial_content, context, theme_manager)
       else
         # Fallback to built-in partial if custom one doesn't exist
         generate_builtin_partial(name, context)
@@ -45,32 +47,24 @@ module Lapis
     end
 
     # Process partial content with template variables
-    def self.process_partial_content(content : String, context : TemplateContext, theme_dir : String) : String
+    def self.process_partial_content(content : String, context : TemplateContext, theme_manager : ThemeManager) : String
       # Process nested partials first
-      result = process_partials(content, context, theme_dir)
+      result = process_partials(content, context, theme_manager)
 
-      # Process template variables
-      result = process_template_variables(result, context)
+      # Use the advanced function processor for advanced template syntax
+      function_processor = FunctionProcessor.new(context)
+      result = function_processor.process(result)
+
+      # Auto CSS discovery (legacy support)
+      result = result.gsub("{{ auto_css }}", generate_auto_css(context))
 
       result
     end
 
-    # Process basic template variables in partial content
+    # Legacy method kept for compatibility but deprecated
     def self.process_template_variables(content : String, context : TemplateContext) : String
-      result = content
-
-      # Basic variables
-      result = result.gsub("{{ title }}", context.content.title)
-      result = result.gsub("{{ description }}", context.content.description || context.content.excerpt)
-      result = result.gsub("{{ site.title }}", context.site_title)
-      result = result.gsub("{{ site.description }}", context.site_description)
-      result = result.gsub("{{ site.author }}", context.site_author)
-      result = result.gsub("{{ site.baseurl }}", context.site_baseurl)
-
-      # Auto CSS discovery
-      result = result.gsub("{{ auto_css }}", generate_auto_css(context))
-
-      result
+      # This method is deprecated - use FunctionProcessor instead
+      content
     end
 
     # Generate built-in partials when custom ones don't exist
@@ -140,7 +134,7 @@ module Lapis
       HTML
     end
 
-    # Automatic CSS discovery - Hugo-style asset pipeline
+    # Automatic CSS discovery - advanced asset pipeline
     def self.generate_auto_css(context : TemplateContext) : String
       css_files = [] of String
 
@@ -168,6 +162,17 @@ module Lapis
       end
 
       css_files.join("\n  ")
+    end
+
+    private def self.read_partial_file(file_path : String) : String
+      File.open(file_path, "r") do |file|
+        file.set_encoding("UTF-8")
+        file.gets_to_end
+      end
+    rescue ex : File::NotFoundError
+      raise "Partial file not found: #{file_path}"
+    rescue ex : IO::Error
+      raise "Error reading partial file #{file_path}: #{ex.message}"
     end
   end
 end

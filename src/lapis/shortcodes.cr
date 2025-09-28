@@ -133,15 +133,15 @@ module Lapis
     private def generate_alert(content : String, alert_type : String) : String
       icon = case alert_type
              when "info"
-                "ℹ️"
+               "ℹ️"
              when "warning"
-                "⚠️"
+               "⚠️"
              when "error", "danger"
-                "🚨"
+               "🚨"
              when "success"
-                "✅"
+               "✅"
              else
-                "📝"
+               "📝"
              end
 
       <<-HTML.strip
@@ -212,25 +212,18 @@ module Lapis
 
     private def escape_html(text : String) : String
       text.gsub("&", "&amp;")
-          .gsub("<", "&lt;")
-          .gsub(">", "&gt;")
-          .gsub("\"", "&quot;")
-          .gsub("'", "&#39;")
+        .gsub("<", "&lt;")
+        .gsub(">", "&gt;")
+        .gsub("\"", "&quot;")
+        .gsub("'", "&#39;")
     end
 
     private def humanize(text : String) : String
       # Convert filename-like strings to human readable format
       text.gsub(/[-_]/, " ")
-          .split(" ")
-          .map(&.capitalize)
-          .join(" ")
-    end
-  end
-
-  # Extension to the Content class to process shortcodes
-  class Content
-    def process_shortcodes(processor : ShortcodeProcessor)
-      @content = processor.process(@content)
+        .split(" ")
+        .map(&.capitalize)
+        .join(" ")
     end
   end
 end

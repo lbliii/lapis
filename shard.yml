@@ -1,5 +1,5 @@
 name: lapis
-version: 0.2.0
+version: 0.4.0
 
 authors:
   - Lapis Contributors
@@ -23,5 +23,5 @@ targets:
     main: src/lapis.cr
 
 description: |
-  A fast static site generator built in Crystal, inspired by Hugo and Sphinx.
+  A fast static site generator built in Crystal, inspired by modern static site generators.
   Combines speed with powerful documentation features.

@@ -34,6 +34,10 @@ Thumbs.db
 # Example site build output
 /exampleSite/public/
 
+# Cache directories
+.lapis-cache/
+.lapis_cache/
+
 # Log files
 *.log
 

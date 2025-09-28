@@ -2,29 +2,29 @@ module Lapis
   # Template manager for creating sites from predefined templates
   #
   # Standard: Use "exampleSite" directory for the official example/demo site
-  # This follows Hugo's convention and provides a single reference implementation
+  # This provides a single reference implementation
   class TemplateManager
     BUILTIN_TEMPLATES = {
       "blog" => {
-        "name" => "Personal Blog",
+        "name"        => "Personal Blog",
         "description" => "A clean, responsive blog template perfect for personal writing",
-        "files" => ["config.yml", "content/index.md", "content/about.md", "content/posts/welcome.md", "static/css/custom.css"]
+        "files"       => ["config.yml", "content/index.md", "content/about.md", "content/posts/welcome.md", "static/css/custom.css"],
       },
       "docs" => {
-        "name" => "Documentation Site",
+        "name"        => "Documentation Site",
         "description" => "Technical documentation template with sidebar navigation",
-        "files" => ["config.yml", "content/index.md", "content/getting-started.md", "content/api/overview.md", "static/css/docs.css"]
+        "files"       => ["config.yml", "content/index.md", "content/getting-started.md", "content/api/overview.md", "static/css/docs.css"],
       },
       "portfolio" => {
-        "name" => "Portfolio Site",
+        "name"        => "Portfolio Site",
         "description" => "Showcase your work with this portfolio template",
-        "files" => ["config.yml", "content/index.md", "content/portfolio/project1.md", "static/css/portfolio.css"]
+        "files"       => ["config.yml", "content/index.md", "content/portfolio/project1.md", "static/css/portfolio.css"],
       },
       "minimal" => {
-        "name" => "Minimal Site",
+        "name"        => "Minimal Site",
         "description" => "Ultra-clean template focusing on content",
-        "files" => ["config.yml", "content/index.md", "static/css/minimal.css"]
-      }
+        "files"       => ["config.yml", "content/index.md", "static/css/minimal.css"],
+      },
     }
 
     def self.list_templates
@@ -74,7 +74,6 @@ module Lapis
         puts "  • Responsive design"
         puts "  • Dark mode support"
         puts "  • SEO optimized"
-
       rescue File::AlreadyExistsError
         puts "Error: Directory '#{site_name}' already exists"
         exit(1)

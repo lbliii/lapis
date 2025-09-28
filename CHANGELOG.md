@@ -9,15 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🚀 Major Features
 
-#### Hugo-Style Page Kinds System
-- **Professional Content Architecture**: Implemented Hugo-style page kinds for structured content organization
+#### Professional Page Kinds System
+- **Professional Content Architecture**: Implemented page kinds for structured content organization
   - `single` - Individual content pages (blog posts, articles)
   - `list` - Archive pages that list multiple items
   - `section` - Directory-based content grouping (e.g., `/posts/`, `/projects/`)
   - `taxonomy` - Category/tag listing pages (e.g., `/tags/`)
   - `term` - Individual taxonomy pages (e.g., `/tags/crystal/`)
   - `home` - Site homepage (special case of list)
-- **Intelligent Template Resolution**: Hugo-style template lookup with hierarchical fallbacks
+- **Intelligent Template Resolution**: Template lookup with hierarchical fallbacks
   - Section-specific templates: `layouts/posts/single.html`
   - Default templates: `layouts/_default/single.html`
   - Theme inheritance with automatic fallbacks
@@ -144,17 +144,17 @@ outputs:
 - **Smart Content Creation**: Intelligent defaults for new pages and posts
 
 #### Professional Theme System
-- **Hugo-Style Theme Configuration**: Configure themes via `theme: "name"` in config.yml
+- **Theme Configuration**: Configure themes via `theme: "name"` in config.yml
 - **Smart Theme Resolution**: Automatic fallback from site themes → built-in themes → default
 - **CSS Cascade Priority**: Theme base styles → site overrides → page-specific styles
 - **Theme Asset Processing**: Automatic copying of theme assets with override support
 - **Clean Architecture**: Single theme location, no duplicates or confusion
-- **Hugo-Style Partials**: `{{ partial "head" . }}` for reusable template components
+- **Partials System**: `{{ partial "head" . }}` for reusable template components
 - **Automatic CSS Discovery**: `{{ auto_css }}` eliminates manual CSS management
 - **Partial Hierarchy**: Site partials override theme partials with intelligent fallbacks
 
 #### Advanced Layout System
-- **Hugo-Style Partials System**: Complete `{{ partial "name" . }}` implementation following Hugo conventions
+- **Partials System**: Complete `{{ partial "name" . }}` implementation following established conventions
 - **Built-in Partials**: Automatic head, header, footer partials with intelligent fallbacks
 - **Partial Override Hierarchy**: Site partials → theme partials → built-in partials
 - **Automatic Asset Discovery**: Zero-configuration CSS loading with theme cascade
@@ -171,7 +171,7 @@ outputs:
 - **Performance Reporting**: Build analytics integrated into CLI output
 
 #### Project Structure
-- **Standardized Example Site**: Unified `exampleSite/` directory following Hugo conventions
+- **Standardized Example Site**: Unified `exampleSite/` directory following established conventions
 - **Comprehensive Documentation**: Enhanced README with feature showcase
 - **Clean Architecture**: Removed scattered test directories for better organization
 
@@ -184,7 +184,7 @@ outputs:
 - **Unified Theme Architecture**: Eliminated duplicate theme directories and confusion
 - **Config-Driven Themes**: Added `theme` configuration parameter with intelligent resolution
 - **CSS Cascade System**: Proper inheritance from theme → site → page-specific styles
-- **Hugo-Style Partials**: Complete partials system with `{{ partial "name" . }}` support
+- **Partials System**: Complete partials system with `{{ partial "name" . }}` support
 - **Automatic CSS Discovery**: Replaced manual `css_includes` with intelligent auto-discovery
 - **Partial Template Hierarchy**: Site partials override theme partials with built-in fallbacks
 - **Template CLI Updates**: Generate override files instead of theme replacements
@@ -203,7 +203,7 @@ outputs:
 - **Optimized Assets**: Smart caching and compression
 
 #### Template Engine
-- **Partials Module**: Complete Hugo-compatible partials system
+- **Partials Module**: Complete partials system
 - **Automatic Discovery**: CSS and partial auto-detection with fallbacks
 - **Template Hierarchy**: Site → theme → built-in template resolution
 - **Legacy Support**: Backwards compatibility with existing `css_includes`
