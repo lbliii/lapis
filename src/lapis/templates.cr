@@ -22,6 +22,10 @@ module Lapis
     property theme_layouts_dir : String
     property theme_manager : ThemeManager
 
+    # Compile-time regexes for frequently used patterns
+    private EXTENDS_PATTERN = /\{\{\s*extends\s+"([^"]+)"\s*\}\}/
+    private BLOCK_PATTERN   = /\{\{\s*block\s+"([^"]+)"\s*\}\}(.*?)\{\{\s*endblock\s*\}\}/m
+
     def initialize(@config : Config)
       @layouts_dir = @config.layouts_dir
       @theme_layouts_dir = Path[@config.theme_dir].join("layouts").to_s
@@ -49,7 +53,7 @@ module Lapis
           layout_content = File.read(layout_path)
 
           # Check if this layout extends another layout
-          if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
+          if extends_match = layout_content.match(EXTENDS_PATTERN, options: Regex::MatchOptions::None)
             parent_layout = extends_match[1]
             render_with_parent(layout_content, parent_layout, context)
           else
@@ -114,7 +118,7 @@ module Lapis
         layout_content = File.read(layout_path)
 
         # Check if this layout extends another layout
-        if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
+        if extends_match = layout_content.match(EXTENDS_PATTERN, options: Regex::MatchOptions::None)
           parent_layout = extends_match[1]
           render_with_parent(layout_content, parent_layout, context)
         else
@@ -787,7 +791,8 @@ module Lapis
       if text.size <= length
         text
       else
-        text[0...length] + "..."
+        range = 0...length
+        text[range] + "..."
       end
     end
 

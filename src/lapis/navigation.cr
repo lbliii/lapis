@@ -68,7 +68,9 @@ module Lapis
       breadcrumbs
     end
 
+    # Enhanced NamedTuple-based safe navigation access
     def site_menu(menu_name : String = "main") : Array(MenuItem)
+      # Use Hash.dig? for safe nested access (Hash already has dig? method)
       menu_config = @site_config.dig?("menus", menu_name)
       return [] of MenuItem unless menu_config
 

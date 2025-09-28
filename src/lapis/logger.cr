@@ -1,5 +1,6 @@
 require "log"
 require "colorize"
+require "./pretty_print_utils"
 
 module Lapis
   # Custom cute log backend
@@ -59,8 +60,8 @@ module Lapis
       @@log_level =
         if config && config.debug
           Log::Severity::Debug
-        elsif ENV["LAPIS_LOG_LEVEL"]?
-          case ENV["LAPIS_LOG_LEVEL"].downcase
+        elsif ENV.has_key?("LAPIS_LOG_LEVEL")
+          case ENV.fetch("LAPIS_LOG_LEVEL").downcase
           when "debug" then Log::Severity::Debug
           when "info"  then Log::Severity::Info
           when "warn"  then Log::Severity::Warn
@@ -106,6 +107,97 @@ module Lapis
 
     def self.warn_object(message : String, obj, **context)
       Log.warn { "#{message} [#{obj.inspect}] #{format_context(context)}" }
+    end
+
+    # Pretty print objects with structured formatting
+    def self.debug_pretty(message : String, obj, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      # Use PrettyPrint for structured output
+      io = IO::Memory.new
+      PrettyPrintUtils.format(obj, io, 80, 4) # 4-space indent for nested content
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" } # Additional indent for pretty printed content
+      end
+    end
+
+    def self.info_pretty(message : String, obj, **context)
+      if context.empty?
+        Log.info { "#{message}:" }
+      else
+        Log.info { "#{message} #{format_context(context)}:" }
+      end
+
+      # Use PrettyPrint for structured output
+      io = IO::Memory.new
+      PrettyPrintUtils.format(obj, io, 80, 4)
+      io.to_s.each_line do |line|
+        Log.info { "    #{line}" }
+      end
+    end
+
+    # Pretty print configuration objects
+    def self.debug_config(message : String, config : Config, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_config(config, io, 80)
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" }
+      end
+    end
+
+    # Pretty print content objects
+    def self.debug_content(message : String, content : Content, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_content(content, io, 80)
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" }
+      end
+    end
+
+    # Pretty print error context
+    def self.error_context(message : String, context : Hash, **additional_context)
+      Log.error { "#{message}:" }
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_error_context(context, io, 80)
+      io.to_s.each_line do |line|
+        Log.error { "    #{line}" }
+      end
+
+      unless additional_context.empty?
+        Log.error { "Additional context: #{format_context(additional_context)}" }
+      end
+    end
+
+    # Pretty print data structures
+    def self.debug_data(message : String, data : JSON::Any | YAML::Any, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_data_structure(data, io, 80)
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" }
+      end
     end
 
     def self.fatal(message : String, **context)

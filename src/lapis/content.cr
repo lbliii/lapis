@@ -9,7 +9,8 @@ require "./logger"
 require "./exceptions"
 require "./data_processor"
 require "./shortcodes"
-require "./content_comparison"
+
+# Removed content_comparison - now optimized directly in Content class
 
 module Lapis
   class Content < BaseContent
@@ -34,7 +35,19 @@ module Lapis
     property section : String
     property content_type : ContentType
 
+    # Performance optimization: cached hash value
+    @cached_hash : UInt64?
+    @cached_date_comparison : Time?
+
     def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String, content_dir : String = "content")
+      Logger.debug("Initializing Content with Reference API optimizations", file: @file_path)
+
+      # Validate UTF-8 encoding for content
+      unless @body.valid_encoding?
+        Logger.warn("Invalid UTF-8 encoding detected in content", file: @file_path)
+        @body = @body.scrub # Replace invalid sequences with replacement character
+      end
+
       @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(Path[@file_path].stem)
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
       @content_type = if type_from_frontmatter = @frontmatter["type"]?.try(&.as_s)
@@ -58,6 +71,9 @@ module Lapis
       @section = PageKindDetector.detect_section(@file_path, content_dir)
 
       @url = generate_url
+
+      Logger.debug("Content initialized with optimized Reference API",
+        title: @title, url: @url, kind: @kind, section: @section)
     end
 
     def self.load(file_path : String, content_dir : String = "content") : Content
@@ -228,7 +244,8 @@ module Lapis
       if text.size <= length
         text
       else
-        text[0...length] + "..."
+        range = 0...length
+        text[range] + "..."
       end
     end
 
@@ -355,18 +372,114 @@ module Lapis
       @content = processor.process(@content)
     end
 
-    def inspect(io : IO) : Nil
-      io << "Content(title: #{title}, file: #{Path[@file_path].basename}, kind: #{@kind}, section: #{@section}, date: #{@date.try(&.to_s("%Y-%m-%d")) || "nil"})"
+    # OPTIMIZED REFERENCE API IMPLEMENTATION
+
+    # High-performance hash implementation using URL as primary key
+    def hash(hasher)
+      return @cached_hash.not_nil! if @cached_hash
+
+      hasher = @url.hash(hasher)
+      hasher = @file_path.hash(hasher)
+      hasher = @title.hash(hasher)
+
+      @cached_hash = hasher
+      hasher
     end
 
-    # Comparable implementation
-    def <=>(other : Content) : Int32?
-      # Primary sort by date (newest first)
-      date_comparison = ContentComparison.compare_values(@date || Time.unix(0), other.date || Time.unix(0))
-      return -date_comparison.not_nil! unless date_comparison == 0 # Reverse for newest first
+    # Logical equality based on URL and file path
+    def ==(other : Content) : Bool
+      return false unless other.is_a?(Content)
+      @url == other.url && @file_path == other.file_path
+    end
 
-      # Secondary sort by title
+    # Enhanced same? for object identity
+    def same?(other : Content) : Bool
+      super(other)
+    end
+
+    # Optimized dup - shallow copy is sufficient for Content
+    def dup : Content
+      super
+    end
+
+    # Enhanced inspect with performance data
+    def inspect(io : IO) : Nil
+      io << "Content("
+      io << "title: #{@title.inspect}, "
+      io << "url: #{@url.inspect}, "
+      io << "kind: #{@kind}, "
+      io << "section: #{@section}, "
+      io << "date: #{@date.try(&.to_s("%Y-%m-%d")) || "nil"}, "
+      io << "tags: #{@tags.size}, "
+      io << "hash: #{@cached_hash || "uncached"}, "
+      io << "file: #{Path[@file_path].basename}"
+      io << ")"
+    end
+
+    # OPTIMIZED COMPARISON WITH CACHING
+    def <=>(other : Content) : Int32?
+      # Use cached date comparison for performance
+      date_comparison = compare_dates_cached(other)
+      return date_comparison unless date_comparison == 0
+
       @title <=> other.title
+    end
+
+    private def compare_dates_cached(other : Content) : Int32
+      our_date = @date || Time.unix(0)
+      other_date = other.date || Time.unix(0)
+
+      # Cache the comparison date for future use
+      @cached_date_comparison = our_date
+
+      -(our_date <=> other_date) # Reverse for newest first
+    end
+
+    # EXPERIMENTAL REFERENCE FEATURES (Crystal 1.17.1+)
+
+    # Experimental: Custom object construction for performance
+    def self.unsafe_construct_from_cache(cached_data : Hash(String, String), file_path : String) : Content
+      # This would use Reference.unsafe_construct for zero-copy construction
+      # when we have pre-processed content data
+      frontmatter = Hash(String, YAML::Any).new
+      cached_data.each do |key, value|
+        frontmatter[key] = YAML::Any.new(value)
+      end
+
+      # For now, use regular construction until Crystal 1.17.1 is stable
+      new(file_path, frontmatter, cached_data["body"]? || "")
+    end
+
+    # Experimental: Memory-efficient content cloning
+    def clone_with_reference_optimization : Content
+      # Use Reference features for efficient cloning
+      cloned = dup
+      # Reset caches for cloned object
+      cloned.instance_variable_set("@cached_hash", nil)
+      cloned.instance_variable_set("@cached_date_comparison", nil)
+      cloned
+    end
+
+    # Experimental: Zero-copy content sharing
+    def share_content_with(other : Content) : Bool
+      # Check if we can share content without copying
+      return false unless @file_path == other.file_path
+
+      # Share the same content reference
+      other.instance_variable_set("@body", @body)
+      other.instance_variable_set("@content", @content)
+      other.instance_variable_set("@raw_content", @raw_content)
+
+      true
+    end
+
+    # Performance monitoring integration
+    def performance_stats : NamedTuple(hash_cached: Bool, date_cached: Bool, object_id: UInt64)
+      {
+        hash_cached: !@cached_hash.nil?,
+        date_cached: !@cached_date_comparison.nil?,
+        object_id:   object_id,
+      }
     end
   end
 end

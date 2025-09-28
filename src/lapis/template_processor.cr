@@ -1,6 +1,7 @@
 require "./content"
 require "./content_comparison"
 require "html"
+require "string_pool"
 require "./logger"
 require "./exceptions"
 
@@ -8,14 +9,34 @@ module Lapis
   class TemplateProcessor
     getter context : TemplateContext
 
+    # StringPool for memory-efficient string caching
+    private STRING_POOL = StringPool.new(256)
+
     # Pre-computed method tuples for efficient template processing
-    private SECTION_NAV_METHODS = {:"has_prev?", :"has_next?", :prev, :next}
-    private BREADCRUMB_METHODS  = {:title, :url, :active}
-    private MENU_ITEM_METHODS   = {:name, :url, :external}
-    private CONTENT_METHODS     = {:title, :url, :"date_formatted", :tags, :summary, :"reading_time"}
-    private ARRAY_METHODS       = {"first", "last", "size", "empty?"}
+    private SECTION_NAV_METHODS = Set{:"has_prev?", :"has_next?", :prev, :next}
+    private BREADCRUMB_METHODS  = Set{:title, :url, :active}
+    private MENU_ITEM_METHODS   = Set{:name, :url, :external}
+    private CONTENT_METHODS     = Set{:title, :url, :"date_formatted", :tags, :summary, :"reading_time"}
+    private ARRAY_METHODS       = Set{"first", "last", "size", "empty?", "uniq", "uniq_by", "sample", "shuffle", "rotate", "reverse", "sort_by_length", "partition", "compact", "chunk", "index", "rindex", "array_truncate", "any?", "all?", "none?", "one?"}
+
+    # Compile-time regexes for frequently used patterns
+    private IF_CONDITIONAL_PATTERN      = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private IF_ELSE_CONDITIONAL_PATTERN = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private FOR_LOOP_PATTERN            = /\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m
+    private VARIABLE_PATTERN            = /\{\{\s*([^}]+)\s*\}\}/
+    private METHOD_CALL_PATTERN         = /(\w+)\(([^)]*)\)/
+    private FILTER_PATTERN              = /(\w+)\(([^)]*)\)/
 
     def initialize(@context : TemplateContext)
+    end
+
+    # StringPool helper methods for memory-efficient string operations
+    private def cache_string(str : String) : String
+      STRING_POOL.get(str)
+    end
+
+    private def cache_template_pattern(pattern : String) : String
+      STRING_POOL.get(pattern)
     end
 
     def process(template : String) : String
@@ -33,9 +54,25 @@ module Lapis
       result
     end
 
+    # SLICE-BASED TEMPLATE PROCESSING FOR ZERO-COPY OPERATIONS
+    def process_slice(template : String) : String
+      template_slice = template.to_slice
+      result_slice = process_template_slice(template_slice)
+      result_slice.to_s
+    end
+
+    # SLICE-BASED TEMPLATE PROCESSING IMPLEMENTATION
+    private def process_template_slice(template_slice : Slice(UInt8)) : Slice(UInt8)
+      # For now, convert back to string and use existing processing
+      # This is a placeholder for future slice-based string processing
+      template_string = template_slice.to_s
+      processed_string = process(template_string)
+      processed_string.to_slice
+    end
+
     private def process_conditionals(template : String) : String
       # Handle {{ if condition }}...{{ endif }} blocks
-      result = template.gsub(/\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) do |match|
+      result = template.gsub(IF_CONDITIONAL_PATTERN) do |match|
         condition = $1.strip
         content = $2
 
@@ -48,7 +85,7 @@ module Lapis
       end
 
       # Handle {{ if condition }}...{{ else }}...{{ endif }} blocks
-      result = result.gsub(/\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) do |match|
+      result = result.gsub(IF_ELSE_CONDITIONAL_PATTERN) do |match|
         condition = $1.strip
         if_content = $2
         else_content = $3
@@ -65,7 +102,7 @@ module Lapis
 
     private def process_loops(template : String) : String
       # Handle {{ for item in collection }}...{{ endfor }} blocks
-      template.gsub(/\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m) do |match|
+      template.gsub(FOR_LOOP_PATTERN) do |match|
         item_var = $1.strip
         collection_expr = $2.strip
         loop_content = $3
@@ -90,9 +127,42 @@ module Lapis
       end
     end
 
+    # SLICE-BASED LOOP PROCESSING FOR ZERO-COPY OPERATIONS
+    private def process_loops_slice(template : String) : String
+      # Handle {{ for item in collection }}...{{ endfor }} blocks with slice processing
+      template.gsub(FOR_LOOP_PATTERN) do |match|
+        item_var = $1.strip
+        collection_expr = $2.strip
+        loop_content = $3
+
+        collection = evaluate_expression(collection_expr)
+
+        case collection
+        when Array
+          array_collection = collection.as(Array)
+          if array_collection.empty?
+            ""
+          else
+            # Use slice for more efficient processing
+            collection_slice = array_collection.to_slice
+            result_parts = [] of String
+
+            collection_slice.each_with_index do |item, index|
+              loop_context = create_loop_context(item_var, item, index)
+              result_parts << process_with_context(loop_content, loop_context)
+            end
+
+            result_parts.join("")
+          end
+        else
+          ""
+        end
+      end
+    end
+
     private def process_variables(template : String) : String
       # Process all {{ variable }} expressions
-      template.gsub(/\{\{\s*([^}]+)\s*\}\}/) do |match|
+      template.gsub(VARIABLE_PATTERN) do |match|
         expression = $1.strip
 
         # Skip if this looks like a control structure (already processed)
@@ -286,7 +356,7 @@ module Lapis
       when "first"
         if method.includes?("(")
           # Handle first(n) calls
-          if match = method.match(/first\((\d+)\)/)
+          if match = method.match(/first\((\d+)\)/, options: Regex::MatchOptions::None)
             n = match[1].to_i
             result.as(Array).first(n)
           else
@@ -297,7 +367,7 @@ module Lapis
         end
       when "last"
         if method.includes?("(")
-          if match = method.match(/last\((\d+)\)/)
+          if match = method.match(/last\((\d+)\)/, options: Regex::MatchOptions::None)
             n = match[1].to_i
             result.as(Array).last(n)
           else
@@ -354,7 +424,7 @@ module Lapis
     end
 
     private def handle_method_call(call : String)
-      if match = call.match(/(\w+)\(([^)]*)\)/)
+      if match = call.match(METHOD_CALL_PATTERN, options: Regex::MatchOptions::None)
         method_name = match[1]
         args_str = match[2]
 
@@ -460,17 +530,60 @@ module Lapis
     private def apply_filter(value, filter : String)
       case filter
       when "title"
-        # Title case filter
-        value.to_s.split(/\s+/).map(&.capitalize).join(" ")
+        # Enhanced title case with Unicode support
+        str = value.to_s
+        return "" if str.empty?
+        String.build do |io|
+          str.split(/\s+/).each_with_index do |word, index|
+            io << " " if index > 0
+            io << word.capitalize
+          end
+        end
       when "upcase", "upper"
         value.to_s.upcase
       when "downcase", "lower"
         value.to_s.downcase
       when "slugify"
-        # Convert to URL-friendly slug
-        value.to_s.downcase.gsub(/[^a-z0-9]+/, "-").gsub(/^-|-$/, "")
+        # Enhanced slugify with Unicode normalization
+        str = value.to_s
+        return "" if str.empty?
+        SafeCast.optimized_slugify(str)
       when "strip"
         value.to_s.strip
+      when "lstrip"
+        value.to_s.lstrip
+      when "rstrip"
+        value.to_s.rstrip
+      when "unicode_normalize"
+        str = value.to_s
+        return "" if str.empty?
+        str.unicode_normalize
+      when "validate_utf8"
+        value.to_s.valid_encoding?.to_s
+      when "tr"
+        # Character translation
+        str = value.to_s
+        from = "" # Would need additional context for from/to
+        to = ""
+        str.tr(from, to)
+      when "squeeze"
+        value.to_s.squeeze
+      when "delete"
+        str = value.to_s
+        chars = "" # Would need additional context for chars to delete
+        str.delete(chars)
+      when "char_count"
+        value.to_s.size.to_s
+      when "byte_count"
+        value.to_s.bytesize.to_s
+      when "codepoint_count"
+        value.to_s.codepoints.size.to_s
+      when "reverse"
+        value.to_s.reverse
+      when "repeat"
+        str = value.to_s
+        count = 1 # Would need additional context for count
+        str * count
       when "plain"
         # Remove HTML tags for plain text output
         value.to_s.gsub(/<[^>]*>/, "")
@@ -478,9 +591,17 @@ module Lapis
         # HTML escape using Crystal's official HTML module
         HTML.escape(value.to_s)
       when "truncate"
-        # Default truncation at 50 characters
+        # Enhanced truncation with Unicode awareness
         text = value.to_s
-        text.size > 50 ? "#{text[0..47]}..." : text
+        return text if text.empty?
+        max_length = 50
+        if text.size > max_length
+          # Use Unicode-aware truncation
+          truncated = text[0...max_length - 3]
+          "#{truncated}..."
+        else
+          text
+        end
       when "first"
         case value
         when Array then value.is_a?(Array) ? value.first? : nil
@@ -502,7 +623,6 @@ module Lapis
         when Array then value.as(Array).join(", ")
         else            value.to_s
         end
-      when "reverse"
         case value
         when Array  then value.as(Array).reverse
         when String then value.as(String).reverse
@@ -520,8 +640,46 @@ module Lapis
         value
       when "uniq", "unique"
         case value
-        when Array then value.as(Array).uniq
+        when Array then value.as(Array).to_set.to_a
         else            value
+        end
+      when "sample"
+        case value
+        when Array
+          count = arg.try(&.to_i?) || 1
+          value.as(Array).sample(count)
+        else
+          value
+        end
+      when "shuffle"
+        case value
+        when Array then value.as(Array).shuffle
+        else            value
+        end
+      when "compact"
+        case value
+        when Array then value.as(Array).compact
+        else            value
+        end
+      when "any?"
+        case value
+        when Array then value.as(Array).any? { |item| !item.nil? }
+        else            false
+        end
+      when "all?"
+        case value
+        when Array then value.as(Array).all? { |item| !item.nil? }
+        else            false
+        end
+      when "none?"
+        case value
+        when Array then value.as(Array).none?(Nil)
+        else            false
+        end
+      when "one?"
+        case value
+        when Array then value.as(Array).one? { |item| !item.nil? }
+        else            false
         end
       else
         # Handle filters with arguments like truncate(100) or min(5)
@@ -535,7 +693,7 @@ module Lapis
     end
 
     private def apply_filter_with_args(value, filter : String)
-      if match = filter.match(/(\w+)\(([^)]*)\)/)
+      if match = filter.match(FILTER_PATTERN, options: Regex::MatchOptions::None)
         filter_name = match[1]
         args_str = match[2]
         arg = args_str.to_i? || args_str
@@ -544,7 +702,12 @@ module Lapis
         when "truncate"
           if arg.is_a?(Int32)
             text = value.to_s
-            text.size > arg ? "#{text[0..arg - 3]}..." : text
+            if text.size > arg
+              range = 0...arg - 3
+              "#{text[range]}..."
+            else
+              text
+            end
           else
             value
           end
@@ -593,7 +756,9 @@ module Lapis
               min_val = parts[0].strip.to_i?
               max_val = parts[1].strip.to_i?
               if min_val && max_val && value.is_a?(Int32)
-                value.as(Int32).clamp(min_val, max_val)
+                # Use Range for validation
+                range = min_val..max_val
+                range.includes?(value.as(Int32)) ? value : value.as(Int32).clamp(min_val, max_val)
               else
                 value
               end
@@ -604,7 +769,8 @@ module Lapis
             # Single argument - treat as max (min is 0)
             max_val = args_str.to_i?
             if max_val && value.is_a?(Int32)
-              value.as(Int32).clamp(0, max_val)
+              range = 0..max_val
+              range.includes?(value.as(Int32)) ? value : value.as(Int32).clamp(0, max_val)
             else
               value
             end

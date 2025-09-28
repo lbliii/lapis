@@ -75,7 +75,7 @@ module Lapis
     end
 
     def build_draft : Bool
-      ENV["LAPIS_BUILD_DRAFTS"]? == "true"
+      ENV.fetch("LAPIS_BUILD_DRAFTS", "false") == "true"
     end
 
     def future : Bool

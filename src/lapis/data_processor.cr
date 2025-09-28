@@ -3,6 +3,7 @@ require "yaml"
 require "log"
 require "./logger"
 require "./exceptions"
+require "./pretty_print_utils"
 
 module Lapis
   # Enhanced JSON/YAML processing with validation
@@ -134,12 +135,15 @@ module Lapis
       end
     end
 
-    # Pretty print JSON
+    # Pretty print JSON with enhanced formatting
     def self.pretty_json(data : JSON::Any) : String
       Logger.debug("Pretty printing JSON")
 
       begin
-        pretty = data.to_pretty_json
+        # Use PrettyPrintUtils for enhanced formatting
+        io = IO::Memory.new
+        PrettyPrintUtils.format_data_structure(data, io, 80)
+        pretty = io.to_s
         Logger.debug("JSON pretty printing successful")
         pretty
       rescue ex
@@ -148,18 +152,42 @@ module Lapis
       end
     end
 
-    # Pretty print YAML
+    # Pretty print YAML with enhanced formatting
     def self.pretty_yaml(data : YAML::Any) : String
       Logger.debug("Pretty printing YAML")
 
       begin
-        pretty = data.to_yaml
+        # Use PrettyPrintUtils for enhanced formatting
+        io = IO::Memory.new
+        PrettyPrintUtils.format_data_structure(data, io, 80)
+        pretty = io.to_s
         Logger.debug("YAML pretty printing successful")
         pretty
       rescue ex
         Logger.error("YAML pretty printing failed", error: ex.message)
         raise ValidationError.new("YAML pretty printing failed: #{ex.message}")
       end
+    end
+
+    # Enhanced pretty print with custom formatting options
+    def self.pretty_print(data : JSON::Any | YAML::Any, width : Int32 = 80, indent : Int32 = 2) : String
+      Logger.debug("Pretty printing data structure", width: width.to_s, indent: indent.to_s)
+
+      begin
+        io = IO::Memory.new
+        PrettyPrintUtils.format_data_structure(data, io, width, indent)
+        pretty = io.to_s
+        Logger.debug("Data structure pretty printing successful")
+        pretty
+      rescue ex
+        Logger.error("Data structure pretty printing failed", error: ex.message)
+        raise ValidationError.new("Data structure pretty printing failed: #{ex.message}")
+      end
+    end
+
+    # Pretty print with debug logging
+    def self.debug_pretty_print(data : JSON::Any | YAML::Any, message : String = "Data structure", **context)
+      Logger.debug_data(message, data, **context)
     end
 
     # Extract specific fields from JSON/YAML

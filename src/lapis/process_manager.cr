@@ -17,7 +17,7 @@ module Lapis
     # Setup graceful termination handler using Process.on_terminate
     private def setup_termination_handler
       # Skip if in test mode or if handler is already set up
-      return if ENV["LAPIS_TEST_MODE"]? == "true"
+      return if ENV.fetch("LAPIS_TEST_MODE", "false") == "true"
       Process.on_terminate do |reason|
         case reason
         when .interrupted?

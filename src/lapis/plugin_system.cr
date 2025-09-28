@@ -5,6 +5,11 @@ require "./exceptions"
 require "./config"
 
 module Lapis
+  # NamedTuple type definitions for plugin configuration
+  alias PluginConfigStructure = NamedTuple(
+    enabled: Bool?,
+    options: Hash(String, String)?)
+
   # Plugin lifecycle events
   enum PluginEvent
     BeforeBuild
@@ -161,23 +166,34 @@ module Lapis
       load_builtin_plugins
     end
 
+    # Enhanced NamedTuple-based plugin configuration conversion
     private def load_builtin_plugins
-      # SEO Plugin
+      # SEO Plugin with type-safe configuration
       if seo_config = @config.plugins["seo"]?
-        register_plugin(SEOPlugin.new(convert_yaml_hash(seo_config.as_h)))
+        plugin_config = convert_yaml_to_plugin_config(seo_config.as_h)
+        register_plugin(SEOPlugin.new(plugin_config))
       end
 
-      # Analytics Plugin
+      # Analytics Plugin with type-safe configuration
       if analytics_config = @config.plugins["analytics"]?
-        register_plugin(AnalyticsPlugin.new(convert_yaml_hash(analytics_config.as_h)))
+        plugin_config = convert_yaml_to_plugin_config(analytics_config.as_h)
+        register_plugin(AnalyticsPlugin.new(plugin_config))
       end
 
-      # Sitemap Plugin
+      # Sitemap Plugin with type-safe configuration
       if sitemap_config = @config.plugins["sitemap"]?
-        register_plugin(SitemapPlugin.new(convert_yaml_hash(sitemap_config.as_h)))
+        plugin_config = convert_yaml_to_plugin_config(sitemap_config.as_h)
+        register_plugin(SitemapPlugin.new(plugin_config))
       end
     end
 
+    # Enhanced conversion using NamedTuple.from for type safety
+    private def convert_yaml_to_plugin_config(yaml_hash : Hash(YAML::Any, YAML::Any)) : PluginConfigStructure
+      # Use NamedTuple.from for automatic type casting
+      PluginConfigStructure.from(yaml_hash.transform_values(&.raw))
+    end
+
+    # Legacy method for backward compatibility
     private def convert_yaml_hash(yaml_hash : Hash(YAML::Any, YAML::Any)) : Hash(String, YAML::Any)
       result = Hash(String, YAML::Any).new
       yaml_hash.each do |key, value|
@@ -187,10 +203,27 @@ module Lapis
     end
   end
 
-  # Built-in SEO Plugin
+  # Built-in SEO Plugin with enhanced NamedTuple support
   class SEOPlugin < Plugin
-    def initialize(config : Hash(String, YAML::Any))
-      super("seo", "1.0.0", config)
+    def initialize(config : Hash(String, YAML::Any) | PluginConfigStructure)
+      # Convert NamedTuple to Hash if needed for backward compatibility
+      config_hash = case config
+                    when Hash(String, YAML::Any)
+                      config
+                    when PluginConfigStructure
+                      convert_named_tuple_to_hash(config)
+                    else
+                      raise ArgumentError.new("Invalid config type")
+                    end
+      super("seo", "1.0.0", config_hash)
+    end
+
+    private def convert_named_tuple_to_hash(config_tuple : PluginConfigStructure) : Hash(String, YAML::Any)
+      result = Hash(String, YAML::Any).new
+      config_tuple.each do |key, value|
+        result[key.to_s] = YAML::Any.new(value)
+      end
+      result
     end
 
     def on_before_build(generator : Generator) : Nil
@@ -270,9 +303,27 @@ module Lapis
   end
 
   # Built-in Analytics Plugin
+  # Built-in Analytics Plugin with enhanced NamedTuple support
   class AnalyticsPlugin < Plugin
-    def initialize(config : Hash(String, YAML::Any))
-      super("analytics", "1.0.0", config)
+    def initialize(config : Hash(String, YAML::Any) | PluginConfigStructure)
+      # Convert NamedTuple to Hash if needed for backward compatibility
+      config_hash = case config
+                    when Hash(String, YAML::Any)
+                      config
+                    when PluginConfigStructure
+                      convert_named_tuple_to_hash(config)
+                    else
+                      raise ArgumentError.new("Invalid config type")
+                    end
+      super("analytics", "1.0.0", config_hash)
+    end
+
+    private def convert_named_tuple_to_hash(config_tuple : PluginConfigStructure) : Hash(String, YAML::Any)
+      result = Hash(String, YAML::Any).new
+      config_tuple.each do |key, value|
+        result[key.to_s] = YAML::Any.new(value)
+      end
+      result
     end
 
     def on_before_build(generator : Generator) : Nil
@@ -311,9 +362,27 @@ module Lapis
   end
 
   # Built-in Sitemap Plugin
+  # Built-in Sitemap Plugin with enhanced NamedTuple support
   class SitemapPlugin < Plugin
-    def initialize(config : Hash(String, YAML::Any))
-      super("sitemap", "1.0.0", config)
+    def initialize(config : Hash(String, YAML::Any) | PluginConfigStructure)
+      # Convert NamedTuple to Hash if needed for backward compatibility
+      config_hash = case config
+                    when Hash(String, YAML::Any)
+                      config
+                    when PluginConfigStructure
+                      convert_named_tuple_to_hash(config)
+                    else
+                      raise ArgumentError.new("Invalid config type")
+                    end
+      super("sitemap", "1.0.0", config_hash)
+    end
+
+    private def convert_named_tuple_to_hash(config_tuple : PluginConfigStructure) : Hash(String, YAML::Any)
+      result = Hash(String, YAML::Any).new
+      config_tuple.each do |key, value|
+        result[key.to_s] = YAML::Any.new(value)
+      end
+      result
     end
 
     def on_before_build(generator : Generator) : Nil

@@ -2,6 +2,7 @@ require "./functions"
 require "./site"
 require "./page"
 require "./navigation"
+require "string_pool"
 require "./logger"
 require "./exceptions"
 
@@ -9,31 +10,42 @@ module Lapis
   # Enhanced template processor with advanced functions
   class FunctionProcessor
     getter context : TemplateContext
+
+    # StringPool for memory-efficient string caching in type conversions
+    private STRING_POOL = StringPool.new(512)
     getter site : Site
     getter page : Page?
 
-    # Pre-computed symbol tuples for performance optimization
-    private SITE_METHODS = {
+    # Pre-computed symbol sets for O(1) performance optimization
+    private SITE_METHODS = Set{
       :Title, :BaseURL, :Pages, :RegularPages, :Params, :Data, :Menus, :Author,
       :Copyright, :Hugo, :title, :"base_url", :theme, :"theme_dir", :"layouts_dir",
       :"static_dir", :"output_dir", :"content_dir", :debug, :"build_config",
       :"live_reload_config", :"bundling_config",
     }
 
-    private PAGE_METHODS = {
+    private PAGE_METHODS = Set{
       :Title, :Content, :Summary, :URL, :Permalink, :Date, :Tags, :Categories,
       :WordCount, :ReadingTime, :Next, :Prev, :Parent, :Children, :Related,
       :Section, :Kind, :Type, :Layout, :Params, :title, :content, :summary,
       :url, :permalink, :date, :tags, :categories, :kind, :layout, :"file_path",
     }
 
-    private CONTENT_METHODS            = {:Title, :URL, :Date, :Summary}
-    private TIME_METHODS               = {:Year, :Month, :Day, :Format}
-    private ARRAY_METHODS              = {:len, :first, :last}
-    private MENUITEM_METHODS           = {:name, :url, :weight, :external}
-    private BUILD_CONFIG_METHODS       = {:enabled, :incremental, :parallel, :"cache_dir", :"max_workers"}
-    private LIVE_RELOAD_CONFIG_METHODS = {:enabled, :"websocket_path", :"debounce_ms"}
-    private BUNDLING_CONFIG_METHODS    = {:enabled, :minify, :"source_maps", :autoprefix}
+    private CONTENT_METHODS = Set{:Title, :URL, :Date, :Summary}
+
+    # Compile-time regexes for frequently used patterns
+    private FUNCTION_CALL_PATTERN       = /\{\{\s*(\w+)\s*\(([^)]*)\)\s*\}\}/
+    private IF_CONDITIONAL_PATTERN      = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private IF_ELSE_CONDITIONAL_PATTERN = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private FOR_LOOP_PATTERN            = /\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m
+    private VARIABLE_PATTERN            = /\{\{\s*([^}]+)\s*\}\}/
+    private RANGE_LOOP_PATTERN          = /\{\{\s*range\s+([^}]+)\s*\}\}(.*?)\{\{\s*end\s*\}\}/m
+    private TIME_METHODS                = Set{:Year, :Month, :Day, :Format}
+    private ARRAY_METHODS               = Set{:len, :first, :last, :uniq, :uniq_by, :sample, :shuffle, :rotate, :reverse, :sort_by_length, :partition, :compact, :chunk, :index, :rindex, :"array_truncate", :size, :empty?, :any?, :all?, :none?, :one?}
+    private MENUITEM_METHODS            = Set{:name, :url, :weight, :external}
+    private BUILD_CONFIG_METHODS        = Set{:enabled, :incremental, :parallel, :"cache_dir", :"max_workers"}
+    private LIVE_RELOAD_CONFIG_METHODS  = Set{:enabled, :"websocket_path", :"debounce_ms"}
+    private BUNDLING_CONFIG_METHODS     = Set{:enabled, :minify, :"source_maps", :autoprefix}
 
     def initialize(@context : TemplateContext)
       @site = Site.new(@context.config, @context.query.site_content)
@@ -222,11 +234,25 @@ module Lapis
     end
 
     private def handle_array_method(object, method : Symbol) : String?
+      return nil unless object.is_a?(Array)
+      array = object.as(Array)
+
       case method
-      when :len   then object.is_a?(Array) ? object.as(Array).size.to_s : nil
-      when :first then object.is_a?(Array) ? object.as(Array).first?.to_s : nil
-      when :last  then object.is_a?(Array) ? object.as(Array).last?.to_s : nil
-      else             nil
+      when :len     then array.size.to_s
+      when :first   then array.first?.to_s
+      when :last    then array.last?.to_s
+      when :uniq    then array.uniq.to_s
+      when :sample  then array.sample.to_s
+      when :shuffle then array.shuffle.to_s
+      when :reverse then array.reverse.to_s
+      when :compact then array.compact.to_s
+      when :empty?  then array.empty?.to_s
+      when :any?    then array.any? { |item| !item.nil? }.to_s
+      when :all?    then array.all? { |item| !item.nil? }.to_s
+      when :none?   then array.none?(Nil).to_s
+      when :one?    then array.one? { |item| !item.nil? }.to_s
+      when :size    then array.size.to_s
+      else               nil
       end
     end
 
@@ -293,7 +319,7 @@ module Lapis
 
     private def process_function_calls(template : String) : String
       # Process {{ function(args) }} calls
-      template.gsub(/\{\{\s*(\w+)\s*\(([^)]*)\)\s*\}\}/) do |match|
+      template.gsub(FUNCTION_CALL_PATTERN) do |match|
         function_name = $1
         args_str = $2
 
@@ -319,7 +345,7 @@ module Lapis
       loop do
         original_result = result
 
-        result = result.gsub(/\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) do |match|
+        result = result.gsub(IF_CONDITIONAL_PATTERN) do |match|
           condition = $1.strip
           content = $2
 
@@ -328,7 +354,8 @@ module Lapis
             # Find the correct else - account for nested if/endif blocks
             else_pos = find_matching_else(content)
             if else_pos
-              if_content = content[0...else_pos]
+              range = 0...else_pos
+              if_content = content[range]
               else_content = content[else_pos + 10..-1] # Skip "{{ else }}"
             else
               # Fallback to simple split if we can't find matching else
@@ -369,9 +396,9 @@ module Lapis
 
       while pos < content.size
         # Find the next occurrence of if, else, or endif
-        if_match = content.match(if_pattern, pos)
-        else_match = content.match(else_pattern, pos)
-        endif_match = content.match(endif_pattern, pos)
+        if_match = content.match(if_pattern, pos, options: Regex::MatchOptions::None)
+        else_match = content.match(else_pattern, pos, options: Regex::MatchOptions::None)
+        endif_match = content.match(endif_pattern, pos, options: Regex::MatchOptions::None)
 
         # Find which comes first
         next_if = if_match ? if_match.begin(0) : Int32::MAX
@@ -405,7 +432,7 @@ module Lapis
 
     private def process_loops(template : String) : String
       # Handle {{ range collection }} loops
-      result = template.gsub(/\{\{\s*range\s+([^}]+)\s*\}\}(.*?)\{\{\s*end\s*\}\}/m) do |match|
+      result = template.gsub(RANGE_LOOP_PATTERN) do |match|
         range_expr = $1.strip
         loop_content = $2
 
@@ -428,7 +455,7 @@ module Lapis
       end
 
       # Handle alternative {{ for item in collection }} loops
-      result = result.gsub(/\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m) do |match|
+      result = result.gsub(FOR_LOOP_PATTERN) do |match|
         item_name = $1.strip
         collection_expr = $2.strip
         loop_content = $3
@@ -455,7 +482,7 @@ module Lapis
     end
 
     private def process_variables(template : String) : String
-      template.gsub(/\{\{\s*([^}]+)\s*\}\}/) do |match|
+      template.gsub(VARIABLE_PATTERN) do |match|
         expression = $1.strip
 
         # Skip control structures
@@ -748,14 +775,14 @@ module Lapis
 
     private def format_value(value) : String
       case value
-      when String        then value
-      when Int32, Int64  then value.to_s
-      when Bool          then value.to_s
-      when Time          then value.to_s("%Y-%m-%d")
-      when Array(String) then value.join(", ")
-      when Array         then value.size.to_s # For other arrays, show count
+      when String        then STRING_POOL.get(value)
+      when Int32, Int64  then STRING_POOL.get(value.to_s)
+      when Bool          then STRING_POOL.get(value.to_s)
+      when Time          then STRING_POOL.get(value.to_s("%Y-%m-%d"))
+      when Array(String) then STRING_POOL.get(value.join(", "))
+      when Array         then STRING_POOL.get(value.size.to_s) # For other arrays, show count
       when Nil           then ""
-      else                    value.to_s
+      else                    STRING_POOL.get(value.to_s)
       end
     end
 
@@ -788,42 +815,42 @@ module Lapis
     private def convert_to_string(value) : String
       case value
       when String
-        value
+        STRING_POOL.get(value)
       when Content
-        value.title
+        STRING_POOL.get(value.title)
       when Page
-        value.title
+        STRING_POOL.get(value.title)
       when Site
-        value.title
+        STRING_POOL.get(value.title)
       when MenuItem
-        value.name
+        STRING_POOL.get(value.name)
       when Array(Content)
-        value.map(&.title).join(", ")
+        STRING_POOL.get(value.map(&.title).join(", "))
       when Array(MenuItem)
-        value.map(&.name).join(", ")
+        STRING_POOL.get(value.map(&.name).join(", "))
       when Hash(String, Array(MenuItem))
         # Convert menu hash to string representation
         pairs = [] of String
         value.each do |menu_name, items|
           pairs << "#{menu_name}: #{items.map(&.name).join(", ")}"
         end
-        pairs.join("; ")
+        STRING_POOL.get(pairs.join("; "))
       when Hash(String, String)
         # Convert string hash to string representation
         pairs = [] of String
         value.each do |key, val|
           pairs << "#{key}: #{val}"
         end
-        pairs.join("; ")
+        STRING_POOL.get(pairs.join("; "))
       when Hash(String, YAML::Any)
         # Convert YAML hash to string representation
         pairs = [] of String
         value.each do |key, val|
           pairs << "#{key}: #{val}"
         end
-        pairs.join("; ")
+        STRING_POOL.get(pairs.join("; "))
       else
-        value.to_s
+        STRING_POOL.get(value.to_s)
       end
     end
   end

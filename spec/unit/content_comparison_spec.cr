@@ -1,132 +1,100 @@
 require "../spec_helper"
 require "../../src/lapis/content"
-require "../../src/lapis/content_comparison"
-
-describe Lapis::ContentComparison do
-  describe ".compare_values" do
-    it "compares Time objects" do
-      time1 = Time.utc(2023, 1, 1)
-      time2 = Time.utc(2023, 1, 2)
-
-      Lapis::ContentComparison.compare_values(time1, time2).should eq(-1)
-      Lapis::ContentComparison.compare_values(time2, time1).should eq(1)
-      Lapis::ContentComparison.compare_values(time1, time1).should eq(0)
-    end
-
-    it "compares String objects" do
-      Lapis::ContentComparison.compare_values("apple", "banana").should eq(-1)
-      Lapis::ContentComparison.compare_values("banana", "apple").should eq(1)
-      Lapis::ContentComparison.compare_values("apple", "apple").should eq(0)
-    end
-
-    it "compares Number objects" do
-      Lapis::ContentComparison.compare_values(1, 2).should eq(-1)
-      Lapis::ContentComparison.compare_values(2, 1).should eq(1)
-      Lapis::ContentComparison.compare_values(1, 1).should eq(0)
-    end
-
-    it "handles nil values" do
-      Lapis::ContentComparison.compare_values(nil, nil).should eq(0)
-      Lapis::ContentComparison.compare_values(nil, "test").should eq(-1)
-      Lapis::ContentComparison.compare_values("test", nil).should eq(1)
-    end
-
-    it "falls back to string comparison for unknown types" do
-      Lapis::ContentComparison.compare_values(true, false).should eq(1) # "true" > "false"
-    end
-  end
-
-  describe ".compare_by_property" do
-    it "compares content by title" do
-      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
-      content1.title = "Apple"
-
-      content2 = Lapis::Content.new("test2.md", {} of String => YAML::Any, "body", "content")
-      content2.title = "Banana"
-
-      Lapis::ContentComparison.compare_by_property(content1, content2, "title").should eq(-1)
-      Lapis::ContentComparison.compare_by_property(content2, content1, "title").should eq(1)
-    end
-
-    it "compares content by date" do
-      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
-      content1.date = Time.utc(2023, 1, 1)
-
-      content2 = Lapis::Content.new("test2.md", {} of String => YAML::Any, "body", "content")
-      content2.date = Time.utc(2023, 1, 2)
-
-      Lapis::ContentComparison.compare_by_property(content1, content2, "date").should eq(-1)
-      Lapis::ContentComparison.compare_by_property(content2, content1, "date").should eq(1)
-    end
-
-    it "handles nil dates" do
-      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
-      content1.date = nil
-
-      content2 = Lapis::Content.new("test2.md", {} of String => YAML::Any, "body", "content")
-      content2.date = Time.utc(2023, 1, 1)
-
-      Lapis::ContentComparison.compare_by_property(content1, content2, "date").should eq(-1)
-      Lapis::ContentComparison.compare_by_property(content2, content1, "date").should eq(1)
-    end
-  end
-
-  describe ".sort_by_property" do
-    it "sorts content by title" do
-      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
-      content1.title = "Charlie"
-
-      content2 = Lapis::Content.new("test2.md", {} of String => YAML::Any, "body", "content")
-      content2.title = "Alpha"
-
-      content3 = Lapis::Content.new("test3.md", {} of String => YAML::Any, "body", "content")
-      content3.title = "Beta"
-
-      content_array = [content1, content2, content3]
-      sorted = Lapis::ContentComparison.sort_by_property(content_array, "title")
-
-      sorted[0].title.should eq("Alpha")
-      sorted[1].title.should eq("Beta")
-      sorted[2].title.should eq("Charlie")
-    end
-
-    it "sorts content by date" do
-      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
-      content1.date = Time.utc(2023, 1, 3)
-
-      content2 = Lapis::Content.new("test2.md", {} of String => YAML::Any, "body", "content")
-      content2.date = Time.utc(2023, 1, 1)
-
-      content3 = Lapis::Content.new("test3.md", {} of String => YAML::Any, "body", "content")
-      content3.date = Time.utc(2023, 1, 2)
-
-      content_array = [content1, content2, content3]
-      sorted = Lapis::ContentComparison.sort_by_property(content_array, "date")
-
-      sorted[0].date.should eq(Time.utc(2023, 1, 1))
-      sorted[1].date.should eq(Time.utc(2023, 1, 2))
-      sorted[2].date.should eq(Time.utc(2023, 1, 3))
-    end
-
-    it "supports reverse sorting" do
-      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
-      content1.title = "Alpha"
-
-      content2 = Lapis::Content.new("test2.md", {} of String => YAML::Any, "body", "content")
-      content2.title = "Beta"
-
-      content_array = [content1, content2]
-      sorted = Lapis::ContentComparison.sort_by_property(content_array, "title", reverse: true)
-
-      sorted[0].title.should eq("Beta")
-      sorted[1].title.should eq("Alpha")
-    end
-  end
-end
 
 describe Lapis::Content do
-  describe "Comparable implementation" do
-    it "compares content by date first, then title" do
+  describe "Reference API Implementation" do
+    it "implements custom hash method", tags: [TestTags::FAST, TestTags::UNIT] do
+      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content1.url = "/test1/"
+      content1.title = "Test 1"
+
+      content2 = Lapis::Content.new("test2.md", {} of String => YAML::Any, "body", "content")
+      content2.url = "/test2/"
+      content2.title = "Test 2"
+
+      # Hash should be different for different URLs
+      content1.hash.should_not eq(content2.hash)
+
+      # Hash should be cached after first call
+      first_hash = content1.hash
+      second_hash = content1.hash
+      first_hash.should eq(second_hash)
+    end
+
+    it "implements logical equality", tags: [TestTags::FAST, TestTags::UNIT] do
+      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content1.url = "/test/"
+      content1.title = "Test"
+
+      content2 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content2.url = "/test/"
+      content2.title = "Different Title"
+
+      # Should be equal based on URL and file path
+      (content1 == content2).should be_true
+
+      # But not same object
+      content1.same?(content2).should be_false
+    end
+
+    it "implements object identity comparison", tags: [TestTags::FAST, TestTags::UNIT] do
+      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content2 = content1.dup
+
+      # Same object should be same
+      content1.same?(content1).should be_true
+
+      # Different objects should not be same
+      content1.same?(content2).should be_false
+    end
+
+    it "implements optimized dup method", tags: [TestTags::FAST, TestTags::UNIT] do
+      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content1.title = "Original"
+      content1.url = "/original/"
+
+      content2 = content1.dup
+
+      # Should be different objects
+      content1.same?(content2).should be_false
+
+      # But should have same content
+      content2.title.should eq("Original")
+      content2.url.should eq("/original/")
+    end
+
+    it "implements enhanced inspect method", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content.title = "Test Post"
+      content.url = "/test/"
+      content.tags = ["test", "crystal"]
+
+      inspect_output = content.inspect
+      inspect_output.should contain("title: \"Test Post\"")
+      inspect_output.should contain("url: \"/test/\"")
+      inspect_output.should contain("tags: 2")
+      inspect_output.should contain("file: test1.md")
+    end
+
+    it "provides performance stats", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+
+      stats = content.performance_stats
+      stats.should be_a(NamedTuple(hash_cached: Bool, date_cached: Bool, object_id: UInt64))
+
+      # Initially not cached
+      stats[:hash_cached].should be_false
+      stats[:date_cached].should be_false
+
+      # After hash call, should be cached
+      content.hash
+      stats = content.performance_stats
+      stats[:hash_cached].should be_true
+    end
+  end
+
+  describe "Optimized Comparison" do
+    it "compares content by date first, then title", tags: [TestTags::FAST, TestTags::UNIT] do
       content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
       content1.title = "Alpha"
       content1.date = Time.utc(2023, 1, 1)
@@ -144,7 +112,7 @@ describe Lapis::Content do
       comparison.should eq(0)
     end
 
-    it "uses title as tiebreaker when dates are equal" do
+    it "uses title as tiebreaker when dates are equal", tags: [TestTags::FAST, TestTags::UNIT] do
       content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
       content1.title = "Alpha"
       content1.date = Time.utc(2023, 1, 1)
@@ -159,7 +127,7 @@ describe Lapis::Content do
       comparison.should eq(1)
     end
 
-    it "handles nil dates" do
+    it "handles nil dates", tags: [TestTags::FAST, TestTags::UNIT] do
       content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
       content1.title = "Alpha"
       content1.date = nil
@@ -175,7 +143,7 @@ describe Lapis::Content do
       comparison.should eq(-1)
     end
 
-    it "supports direct comparison operators" do
+    it "supports direct comparison operators", tags: [TestTags::FAST, TestTags::UNIT] do
       content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
       content1.title = "Alpha"
       content1.date = Time.utc(2023, 1, 1)
@@ -191,7 +159,7 @@ describe Lapis::Content do
       (content1 == content2).should be_false
     end
 
-    it "supports array sorting" do
+    it "supports array sorting", tags: [TestTags::FAST, TestTags::UNIT] do
       content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
       content1.title = "Charlie"
       content1.date = Time.utc(2023, 1, 3)
@@ -211,6 +179,58 @@ describe Lapis::Content do
       sorted[0].title.should eq("Charlie") # newest date
       sorted[1].title.should eq("Beta")    # middle date
       sorted[2].title.should eq("Alpha")   # oldest date
+    end
+  end
+
+  describe "Experimental Reference Features" do
+    it "supports unsafe construction from cache", tags: [TestTags::FAST, TestTags::UNIT] do
+      cached_data = {
+        "title" => "Cached Post",
+        "body"  => "Cached content",
+        "date"  => "2024-01-15",
+      }
+
+      content = Lapis::Content.unsafe_construct_from_cache(cached_data, "cached.md")
+
+      content.title.should eq("Cached Post")
+      content.body.should eq("Cached content")
+      content.file_path.should eq("cached.md")
+    end
+
+    it "supports optimized cloning", tags: [TestTags::FAST, TestTags::UNIT] do
+      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content1.title = "Original"
+
+      # Prime the cache
+      content1.hash
+
+      content2 = content1.clone_with_reference_optimization
+
+      # Should be different objects
+      content1.same?(content2).should be_false
+
+      # Should have same content
+      content2.title.should eq("Original")
+
+      # Cache should be reset
+      stats = content2.performance_stats
+      stats[:hash_cached].should be_false
+    end
+
+    it "supports content sharing", tags: [TestTags::FAST, TestTags::UNIT] do
+      content1 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "body", "content")
+      content1.title = "Original"
+      content1.body = "Original body"
+
+      content2 = Lapis::Content.new("test1.md", {} of String => YAML::Any, "different", "content")
+      content2.title = "Different"
+
+      # Should be able to share content
+      result = content1.share_content_with(content2)
+      result.should be_true
+
+      # Should now have same body
+      content2.body.should eq("Original body")
     end
   end
 end

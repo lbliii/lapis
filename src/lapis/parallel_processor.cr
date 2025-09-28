@@ -39,6 +39,63 @@ module Lapis
     def initialize(@config : BuildConfig)
     end
 
+    # Task type matchers using Proc#=== for pattern matching
+    private def create_task_matchers
+      {
+        content_matcher:  ->(task : Task) { task.task_type == :content_process },
+        asset_matcher:    ->(task : Task) { task.task_type == :asset_process },
+        template_matcher: ->(task : Task) { task.task_type == :template_process },
+        data_matcher:     ->(task : Task) { task.task_type == :data_process },
+      }
+    end
+
+    # Enhanced task routing using Proc#=== pattern matching
+    private def route_task_by_type(task : Task, processor : Proc(Task, Result)) : Result
+      matchers = create_task_matchers
+
+      case task
+      when matchers[:content_matcher]
+        Logger.debug("Routing content task", task_id: task.id)
+        processor.call(task)
+      when matchers[:asset_matcher]
+        Logger.debug("Routing asset task", task_id: task.id)
+        processor.call(task)
+      when matchers[:template_matcher]
+        Logger.debug("Routing template task", task_id: task.id)
+        processor.call(task)
+      when matchers[:data_matcher]
+        Logger.debug("Routing data task", task_id: task.id)
+        processor.call(task)
+      else
+        Logger.warn("Unknown task type, using default processor", task_id: task.id, task_type: task.task_type)
+        processor.call(task)
+      end
+    end
+
+    # Base processor template using Proc#partial for specialization
+    private def create_base_processor(processor : Proc(String, String)) : Proc(Task, Result)
+      ->(proc : Proc(String, String), task : Task) do
+        start_time = Time.monotonic
+        Logger.debug("Processing task", task_id: task.id, file: task.file_path)
+
+        begin
+          output = proc.call(task.file_path)
+          duration = Time.monotonic - start_time
+          Logger.debug("Task completed successfully",
+            task_id: task.id,
+            duration_ms: duration.total_milliseconds.to_i.to_s)
+          Result.new(task.id, true, output, nil, duration)
+        rescue ex
+          duration = Time.monotonic - start_time
+          Logger.error("Task failed",
+            task_id: task.id,
+            error: ex.message,
+            duration_ms: duration.total_milliseconds.to_i.to_s)
+          Result.new(task.id, false, nil, ex.message, duration)
+        end
+      end.partial(processor)
+    end
+
     def process_parallel(tasks : Array(Task), processor : Proc(Task, Result), timeout : Time::Span? = nil) : Array(Result)
       return [] of Result if tasks.empty?
 
@@ -58,7 +115,9 @@ module Lapis
             Logger.debug("Processing task", task_id: task.id, file: task.file_path)
 
             begin
-              result = processor.call(task)
+              # Clone processor for thread safety using Proc#clone
+              cloned_processor = processor.clone
+              result = route_task_by_type(task, cloned_processor)
               duration = Time.monotonic - start_time
 
               if result.success
@@ -111,27 +170,8 @@ module Lapis
         Task.new("content_#{index}", file_path, :content_process)
       end
 
-      content_processor = ->(task : Task) do
-        start_time = Time.monotonic
-        Logger.debug("Processing task", task_id: task.id, file: task.file_path)
-
-        begin
-          output = processor.call(task.file_path)
-          duration = Time.monotonic - start_time
-          Logger.debug("Task completed successfully",
-            task_id: task.id,
-            duration_ms: duration.total_milliseconds.to_i.to_s)
-          Result.new(task.id, true, output, nil, duration)
-        rescue ex
-          duration = Time.monotonic - start_time
-          Logger.error("Task failed",
-            task_id: task.id,
-            error: ex.message,
-            duration_ms: duration.total_milliseconds.to_i.to_s)
-          Result.new(task.id, false, nil, ex.message, duration)
-        end
-      end
-
+      # Use Proc#partial to create specialized content processor
+      content_processor = create_base_processor(processor)
       process_parallel(tasks, content_processor)
     end
 
@@ -140,19 +180,8 @@ module Lapis
         Task.new("asset_#{index}", file_path, :asset_process)
       end
 
-      asset_processor = ->(task : Task) do
-        start_time = Time.monotonic
-
-        begin
-          output = processor.call(task.file_path)
-          duration = Time.monotonic - start_time
-          Result.new(task.id, true, output, nil, duration)
-        rescue ex
-          duration = Time.monotonic - start_time
-          Result.new(task.id, false, nil, ex.message, duration)
-        end
-      end
-
+      # Use Proc#partial to create specialized asset processor
+      asset_processor = create_base_processor(processor)
       process_parallel(tasks, asset_processor)
     end
   end

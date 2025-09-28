@@ -336,6 +336,22 @@ module Lapis
     @[YAML::Field(emit_null: true)]
     property permalink : String = "/:year/:month/:day/:title/"
 
+    # Socket configuration options
+    @[YAML::Field(emit_null: true)]
+    property socket_reuse_address : Bool = true
+
+    @[YAML::Field(emit_null: true)]
+    property socket_keepalive : Bool = true
+
+    @[YAML::Field(emit_null: true)]
+    property socket_timeout : Int32 = 30 # seconds
+
+    @[YAML::Field(emit_null: true)]
+    property socket_send_buffer_size : Int32 = 65536 # 64KB
+
+    @[YAML::Field(emit_null: true)]
+    property socket_recv_buffer_size : Int32 = 65536 # 64KB
+
     def initialize
     end
 
@@ -368,6 +384,9 @@ module Lapis
           # Load output formats from YAML data
           config.output_formats.load_from_config(yaml_data.transform_keys(&.to_s))
 
+          # Apply environment variable overrides
+          config.apply_env_overrides
+
           Logger.info("Configuration loaded successfully",
             path: path,
             incremental: config.build_config.incremental?,
@@ -375,11 +394,8 @@ module Lapis
             cache_dir: config.build_config.cache_dir,
             theme: config.theme)
 
-          # Debug: Show raw config values
-          Logger.debug("Raw config values",
-            build_incremental: config.build_config.incremental?,
-            build_parallel: config.build_config.parallel?,
-            build_max_workers: config.build_config.max_workers)
+          # Debug: Show config with PrettyPrint formatting
+          Logger.debug_config("Loaded configuration", config, path: path)
           config
         rescue ex : YAML::ParseException
           raise ConfigError.new("Failed to parse config file: #{ex.message}")
@@ -392,6 +408,8 @@ module Lapis
       else
         Logger.warn("Config file not found, using defaults", path: path)
         config = new
+        # Apply environment variable overrides to defaults too
+        config.apply_env_overrides
         Logger.info("Using default configuration",
           incremental: config.build_config.incremental?,
           parallel: config.build_config.parallel?,
@@ -399,6 +417,53 @@ module Lapis
           theme: config.theme)
         config
       end
+    end
+
+    # Apply environment variable overrides to configuration
+    def apply_env_overrides
+      # Override port if specified
+      if ENV.has_key?("LAPIS_PORT")
+        @port = ENV.fetch("LAPIS_PORT").to_i
+      end
+
+      # Override output directory if specified
+      if ENV.has_key?("LAPIS_OUTPUT_DIR")
+        @output_dir = ENV.fetch("LAPIS_OUTPUT_DIR")
+      end
+
+      # Override cache directory if specified
+      if ENV.has_key?("LAPIS_CACHE_DIR")
+        @build_config.cache_dir = ENV.fetch("LAPIS_CACHE_DIR")
+      end
+
+      # Override debug mode if specified
+      if ENV.has_key?("LAPIS_DEBUG")
+        @debug = ENV.fetch("LAPIS_DEBUG") == "true"
+      end
+
+      # Override log level if specified
+      if ENV.has_key?("LAPIS_LOG_LEVEL")
+        @log_level = ENV.fetch("LAPIS_LOG_LEVEL")
+      end
+
+      # Override host if specified
+      if ENV.has_key?("LAPIS_HOST")
+        @host = ENV.fetch("LAPIS_HOST")
+      end
+
+      # Override theme if specified
+      if ENV.has_key?("LAPIS_THEME")
+        @theme = ENV.fetch("LAPIS_THEME")
+      end
+
+      Logger.debug("Applied environment variable overrides",
+        port: @port,
+        output_dir: @output_dir,
+        cache_dir: @build_config.cache_dir,
+        debug: @debug,
+        log_level: @log_level,
+        host: @host,
+        theme: @theme)
     end
 
     def inspect(io : IO) : Nil

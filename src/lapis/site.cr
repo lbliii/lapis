@@ -15,6 +15,12 @@ module Lapis
     getter data : Hash(String, YAML::Any)
     @parsed_baseurl : URI? = nil
 
+    # Set-based caches for O(1) taxonomy operations
+    @tag_sets : Hash(String, Set(Content)) = {} of String => Set(Content)
+    @category_sets : Hash(String, Set(Content)) = {} of String => Set(Content)
+    @published_posts : Set(Content)? = nil
+    @draft_posts : Set(Content)? = nil
+
     def initialize(@config : Config, @pages : Array(Content) = [] of Content)
       @menus = {} of String => Array(MenuItem)
       @params = {} of String => YAML::Any
@@ -208,7 +214,7 @@ module Lapis
       {
         "version"     => "lapis-0.4.0",
         "generator"   => "Lapis Static Site Generator",
-        "environment" => ENV["LAPIS_ENV"]? || "production",
+        "environment" => ENV.fetch("LAPIS_ENV", "production"),
         "commit_hash" => "",
         "build_date"  => build_date.to_s("%Y-%m-%d %H:%M:%S %Z"),
       }
@@ -269,7 +275,7 @@ module Lapis
     # SITE-WIDE OPERATIONS
 
     def server? : Bool
-      ENV["LAPIS_SERVER"]? == "true"
+      ENV.fetch("LAPIS_SERVER", "false") == "true"
     end
 
     def multihost? : Bool
@@ -283,23 +289,32 @@ module Lapis
     # CUSTOM HELPER METHODS
 
     def recent_posts(limit : Int32 = 5) : Array(Content)
-      @pages.select(&.kind.single?)
-        .tap { |posts| Logger.debug("Found single pages", count: posts.size) }
+      @pages
+        .select(&.kind.single?)
+        .select(&.published?)
+        .uniq_by(&.url) # Remove duplicates
         .sort
         .tap { |sorted| Logger.debug("Sorted by date", first_date: sorted.first?.date.try(&.to_s("%Y-%m-%d"))) }
-        .first(limit)
+        .last(limit)
+        .reverse
         .tap { |recent| Logger.debug("Recent posts", count: recent.size) }
     end
 
     def posts_by_year : Hash(Int32, Array(Content))
-      @pages.select(&.kind.single?)
+      @pages
+        .select(&.kind.single?)
+        .select(&.published?)
+        .uniq_by(&.url)
         .tap { |posts| Logger.debug("Processing posts by year", count: posts.size) }
         .group_by { |page| page.date.try(&.year) || 0 }
         .tap { |grouped| Logger.debug("Grouped by year", years: grouped.keys.sort) }
     end
 
     def posts_by_month : Hash(String, Array(Content))
-      @pages.select(&.kind.single?)
+      @pages
+        .select(&.kind.single?)
+        .select(&.published?)
+        .uniq_by(&.url)
         .tap { |posts| Logger.debug("Processing posts by month", count: posts.size) }
         .compact_map { |page| page.date.try { |date| {page, "#{date.year}-#{date.month.to_s.rjust(2, '0')}"} } }
         .group_by { |(page, month_key)| month_key }
@@ -308,10 +323,74 @@ module Lapis
     end
 
     def tag_cloud : Hash(String, Int32)
-      @pages.flat_map(&.tags)
+      # Use Set for efficient unique tag collection
+      unique_tags = @pages.flat_map(&.tags).to_set
         .tap { |tags| Logger.debug("Processing tag cloud", total_tags: tags.size) }
-        .tally
-        .tap { |cloud| Logger.debug("Tag cloud generated", unique_tags: cloud.size) }
+
+      # Count occurrences efficiently
+      tag_counts = {} of String => Int32
+      @pages.each do |page|
+        page.tags.each do |tag|
+          tag_counts[tag] = (tag_counts[tag]? || 0) + 1
+        end
+      end
+
+      tag_counts.tap { |cloud| Logger.debug("Tag cloud generated", unique_tags: cloud.size) }
+    end
+
+    # NEW METHODS FOR MODERN ARRAY OPERATIONS:
+
+    def featured_posts : Array(Content)
+      @pages
+        .select(&.kind.single?)
+        .select(&.featured?)
+        .uniq_by(&.url)
+        .sort
+        .reverse
+    end
+
+    def published_and_drafts : NamedTuple(published: Array(Content), drafts: Array(Content))
+      # Use Set-based caching for published/draft posts
+      published_set = @published_posts ||= begin
+        posts = @pages.select(&.kind.single?).uniq_by(&.url)
+        posts.select(&.published?).to_set
+      end
+
+      draft_set = @draft_posts ||= begin
+        posts = @pages.select(&.kind.single?).uniq_by(&.url)
+        posts.reject(&.published?).to_set
+      end
+
+      {published: published_set.to_a, drafts: draft_set.to_a}
+    end
+
+    def posts_by_tag(tag : String) : Array(Content)
+      # Use Set-based caching for O(1) tag lookups
+      tag_set = @tag_sets[tag] ||= begin
+        posts = @pages
+          .select(&.kind.single?)
+          .select(&.published?)
+          .select(&.tags.includes?(tag))
+          .uniq_by(&.url)
+        posts.to_set
+      end
+      tag_set.to_a.sort.reverse
+    end
+
+    def random_posts(count : Int32 = 5) : Array(Content)
+      @pages
+        .select(&.kind.single?)
+        .select(&.published?)
+        .uniq_by(&.url)
+        .sample(count)
+    end
+
+    def shuffled_posts : Array(Content)
+      @pages
+        .select(&.kind.single?)
+        .select(&.published?)
+        .uniq_by(&.url)
+        .shuffle
     end
 
     private def load_site_config

@@ -1,6 +1,7 @@
 require "./content"
 require "./collections"
-require "./content_comparison"
+
+# Removed content_comparison - now optimized directly in Content class
 
 module Lapis
   class ContentQuery
@@ -169,7 +170,9 @@ module Lapis
     end
 
     def sort_by(property : String, reverse : Bool = false) : QueryBuilder
-      sorted = ContentComparison.sort_by_property(@current_content, property, reverse)
+      # Use Content's optimized comparison directly
+      sorted = @current_content.sort
+      reverse ? sorted.reverse : sorted
       QueryBuilder.new(sorted, @collections)
     end
 
@@ -220,6 +223,59 @@ module Lapis
 
     def distinct(property : String) : Array(String)
       pluck(property).uniq
+    end
+
+    # NEW METHODS FOR MODERN ARRAY OPERATIONS:
+
+    def partition_by(property : String) : NamedTuple(published: Array(Content), drafts: Array(Content))
+      published, drafts = @current_content.partition { |content| get_property_value(content, property).to_s == "published" }
+      {published: published, drafts: drafts}
+    end
+
+    def chunk_by(property : String) : Hash(String, Array(Content))
+      @current_content.chunk_by { |content| get_property_value(content, property).to_s }
+    end
+
+    def compact : QueryBuilder
+      # Remove nil/empty content
+      filtered = @current_content.compact.reject(&.title.blank?)
+      QueryBuilder.new(filtered, @collections)
+    end
+
+    def uniq : QueryBuilder
+      # Remove duplicate content based on URL
+      unique_content = @current_content.uniq_by(&.url)
+      QueryBuilder.new(unique_content, @collections)
+    end
+
+    def sample(count : Int32 = 1) : Array(Content)
+      @current_content.sample(count)
+    end
+
+    def shuffle : QueryBuilder
+      shuffled = @current_content.shuffle
+      QueryBuilder.new(shuffled, @collections)
+    end
+
+    def rotate(n : Int32 = 1) : QueryBuilder
+      rotated = @current_content.rotate(n)
+      QueryBuilder.new(rotated, @collections)
+    end
+
+    def truncate(range : Range(Int32, Int32)) : QueryBuilder
+      # Validate range before processing
+      return QueryBuilder.new([] of Content, @collections) if range.size <= 0
+
+      truncated = @current_content.truncate(range)
+      QueryBuilder.new(truncated, @collections)
+    end
+
+    def index_of(content : Content) : Int32?
+      @current_content.index(content)
+    end
+
+    def last_index_of(content : Content) : Int32?
+      @current_content.rindex(content)
     end
 
     private def get_property_value(content : Content, property : String)

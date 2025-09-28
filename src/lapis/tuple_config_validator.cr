@@ -2,7 +2,7 @@ require "./logger"
 require "./exceptions"
 
 module Lapis
-  # Tuple-based configuration validation system
+  # Enhanced tuple-based configuration validation system with NamedTuple features
   class TupleConfigValidator
     # Pre-computed validation tuples for performance
     private REQUIRED_CONFIG_KEYS = {
@@ -21,6 +21,29 @@ module Lapis
     private VALID_BUILD_MODES = {
       :development, :production, :test,
     }
+
+    # NamedTuple type definitions for type-safe configuration handling
+    alias ConfigStructure = NamedTuple(
+      title: String,
+      base_url: String,
+      theme: String,
+      output_dir: String,
+      content_dir: String,
+      description: String?,
+      author: String?,
+      copyright: String?,
+      debug: Bool?)
+
+    alias BuildConfigStructure = NamedTuple(
+      build_options: Int32?,
+      cache_dir: String?,
+      max_workers: Int32?)
+
+    alias LiveReloadConfigStructure = NamedTuple(
+      enabled: Bool?,
+      websocket_path: String?,
+      debounce_ms: Int32?,
+      watch_options: Int32?)
 
     def initialize
     end
@@ -273,16 +296,38 @@ module Lapis
       normalized
     end
 
-    # Tuple-based configuration merging
+    # Enhanced NamedTuple-based configuration merging
     def merge_configs(base_config : Hash(String, YAML::Any), override_config : Hash(String, YAML::Any)) : Hash(String, YAML::Any)
-      merged = base_config.dup
+      # Convert to NamedTuple for type-safe merging
+      base_tuple = convert_hash_to_config_tuple(base_config)
+      override_tuple = convert_hash_to_config_tuple(override_config)
 
-      # Use tuple operations for efficient merging
-      override_config.each do |key, value|
-        merged[key] = value
-      end
+      # Use NamedTuple.merge for type-safe merging
+      merged_tuple = base_tuple.merge(override_tuple)
 
-      merged
+      # Convert back to Hash for compatibility
+      convert_config_tuple_to_hash(merged_tuple)
+    end
+
+    # NamedTuple-based safe nested access using dig?
+    def safe_config_access(config : Hash(String, YAML::Any), *keys) : YAML::Any?
+      config_tuple = convert_hash_to_config_tuple(config)
+      config_tuple.dig?(*keys)
+    end
+
+    # Convert Hash to type-safe ConfigStructure NamedTuple
+    private def convert_hash_to_config_tuple(config : Hash(String, YAML::Any)) : ConfigStructure
+      ConfigStructure.from(config.transform_values(&.raw))
+    end
+
+    # Convert ConfigStructure NamedTuple back to Hash
+    private def convert_config_tuple_to_hash(config_tuple : ConfigStructure) : Hash(String, YAML::Any)
+      config_tuple.to_h.transform_values { |v| YAML::Any.new(v) }
+    end
+
+    # Enhanced configuration merging with type safety
+    def merge_configs_typed(base_config : ConfigStructure, override_config : ConfigStructure) : ConfigStructure
+      base_config.merge(override_config)
     end
 
     # Tuple-based configuration comparison

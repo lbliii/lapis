@@ -64,6 +64,10 @@ module Lapis
       total_output_size = @file_sizes.values.sum
       largest_files = @file_sizes.to_a.sort_by(&.[1]).reverse.first(5)
 
+      # SLICE-BASED FILE SIZE PROCESSING FOR ZERO-COPY OPERATIONS
+      # For now, use regular array operations - slice ops need more work
+      total_output_size_slice = @file_sizes.values.sum
+
       performance_insights = generate_performance_insights
 
       report = <<-REPORT
@@ -210,6 +214,16 @@ module Lapis
       }
     end
 
+    # SLICE-BASED STATS FOR ZERO-COPY OPERATIONS
+    def stats_for_slice(operation : String) : NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64)
+      times = @operations[operation]
+      return {count: 0, total: 0.0, average: 0.0, min: 0.0, max: 0.0} if times.empty?
+
+      # Convert to slice for zero-copy operations
+      times_slice = times.to_slice
+      compute_stats_from_slice(times_slice)
+    end
+
     # Tuple-based stats computation using tuple operations
     private def compute_stats_tuple(times : Array(Float64)) : Tuple(Int32, Float64, Float64, Float64, Float64)
       return {0, 0.0, 0.0, 0.0, 0.0} if times.empty?
@@ -225,6 +239,21 @@ module Lapis
       max = sorted_times.last
 
       {count, total, average, min, max}
+    end
+
+    # SLICE-BASED STATS COMPUTATION FOR ZERO-COPY OPERATIONS
+    private def compute_stats_from_slice(times_slice : Slice(Float64)) : NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64)
+      return {count: 0, total: 0.0, average: 0.0, min: 0.0, max: 0.0} if times_slice.empty?
+
+      count = times_slice.size
+      total = times_slice.sum
+      average = total / count
+
+      # Use Slice operations for min/max - more efficient than sorting
+      min = times_slice.min
+      max = times_slice.max
+
+      {count: count, total: total, average: average, min: min, max: max}
     end
 
     # Enhanced stats with tuple-based percentile calculations
@@ -284,33 +313,43 @@ module Lapis
       report_tuple.join("\n")
     end
 
-    # Tuple-based report generation using tuple operations
+    # Enhanced NamedTuple-based report generation using map operations
     private def generate_report_tuple : Tuple(String)
       lines = ["Performance Profile:"]
 
-      # Use tuple operations for efficient iteration
-      operation_tuples = @operations.map { |op, times| {op, stats_for(op)} }
-
-      # Use tuple to_a and map for efficient processing
-      report_lines = operation_tuples.map do |op_tuple|
-        operation = op_tuple[0]
-        stats = op_tuple[1]
-        "  #{operation}: #{stats[:count]} calls, avg #{(stats[:average] * 1000).round(1)}ms"
-      end
+      # Use NamedTuple.map for efficient processing
+      report_lines = @operations.map do |operation, times|
+        stats = stats_for(operation)
+        # Use NamedTuple.map to transform stats into formatted string
+        stats.map { |key, value|
+          case key
+          when :count   then "#{operation}: #{value} calls"
+          when :average then "avg #{(value * 1000).round(1)}ms"
+          else               ""
+          end
+        }.reject(&.empty?).join(", ")
+      end.map { |line| "  #{line}" }
 
       lines.concat(report_lines)
       {lines.join("\n")}
     end
 
-    # Batch operations using tuple transformations
+    # Enhanced batch operations using NamedTuple transformations
     def batch_stats_for(operations : Array(String)) : Array(NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64))
-      # Use tuple operations for efficient batch processing
-      operations_tuple = operations.to_a
+      # Use NamedTuple.map for efficient batch processing
+      operations.map { |operation| stats_for(operation) }
+    end
 
-      # Use tuple map for efficient transformation
-      operations_tuple.map do |operation|
-        stats_for(operation)
-      end
+    # New method: Merge multiple stats using NamedTuple.merge
+    def merge_stats(stats1 : NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64),
+                    stats2 : NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64)) : NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64)
+      {
+        count:   stats1[:count] + stats2[:count],
+        total:   stats1[:total] + stats2[:total],
+        average: (stats1[:total] + stats2[:total]) / (stats1[:count] + stats2[:count]),
+        min:     [stats1[:min], stats2[:min]].min,
+        max:     [stats1[:max], stats2[:max]].max,
+      }
     end
 
     # Tuple-based operation categorization

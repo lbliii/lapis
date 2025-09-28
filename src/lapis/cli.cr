@@ -7,6 +7,7 @@ require "./logger"
 require "./exceptions"
 require "./theme_manager"
 require "./config"
+require "./pretty_print_utils"
 
 module Lapis
   class CLI
@@ -48,7 +49,7 @@ module Lapis
           exit(1)
         end
       rescue ex : LapisError
-        Logger.error("Lapis error", error: ex.message, context: ex.context)
+        Logger.error_context("Lapis error: #{ex.message}", ex.context)
         puts "Error: #{ex.message}".colorize(:red).bold
         exit(1)
       rescue ex
@@ -70,9 +71,9 @@ module Lapis
         site_name = @args[3]?
 
         unless template_name && site_name
-          puts "Error: Template name and site name required"
-          puts "Usage: lapis init --template <template-name> <site-name>"
-          puts "       lapis init --template list"
+          puts "Error: Template name and site name required".colorize(:red).bold
+          puts ""
+          PrettyPrintUtils.format_help_section("Usage:", "lapis init --template <template-name> <site-name>\nlapis init --template list")
           exit(1)
         end
 
@@ -82,10 +83,9 @@ module Lapis
 
       site_name = @args[1]?
       unless site_name
-        puts "Error: Site name required"
-        puts "Usage: lapis init <site-name>"
-        puts "       lapis init --template <template-name> <site-name>"
-        puts "       lapis init --template list"
+        puts "Error: Site name required".colorize(:red).bold
+        puts ""
+        PrettyPrintUtils.format_help_section("Usage:", "lapis init <site-name>\nlapis init --template <template-name> <site-name>\nlapis init --template list")
         exit(1)
       end
 
@@ -104,7 +104,7 @@ module Lapis
           puts "💡 Tip: Try 'lapis init --template list' to see available templates"
         end
       rescue File::AlreadyExistsError
-        puts "Error: Directory '#{site_name}' already exists"
+        puts "Error: Directory '#{site_name}' already exists".colorize(:red).bold
         exit(1)
       end
     end
@@ -128,7 +128,16 @@ module Lapis
     end
 
     private def serve_site
+      # Parse serve command arguments
+      auto_open = @args.includes?("--open") || @args.includes?("-o")
+      port_arg = @args.index("--port").try { |i| @args[i + 1]?.try(&.to_i?) }
+
       config = Config.load
+
+      # Override port if specified
+      if port_arg
+        config.port = port_arg
+      end
 
       # Check for port conflicts
       if port_in_use?(config.port)
@@ -142,7 +151,8 @@ module Lapis
         puts "Options:".colorize(:cyan)
         puts "  1. Stop the existing server: lapis stop"
         puts "  2. Use a different port: lapis serve --port <port>"
-        puts "  3. Kill processes using port #{config.port}"
+        puts "  3. Start with auto-open: lapis serve --open --port <port>"
+        puts "  4. Kill processes using port #{config.port}"
         puts ""
 
         print "Continue anyway? [y/N]: ".colorize(:yellow)
@@ -155,6 +165,23 @@ module Lapis
       end
 
       puts "🚀 Starting development server...".colorize(:green).bold
+
+      # Show clickable server URL
+      server_url = "http://#{config.host}:#{config.port}"
+      puts "📍 Server will be available at: #{server_url}".colorize(:cyan)
+      puts "   💡 Click the link above or copy-paste it into your browser".colorize(:dim)
+
+      # Open browser automatically if requested or ask user
+      if auto_open
+        puts "   🚀 Opening browser automatically...".colorize(:green)
+        spawn open_in_browser(server_url)
+      else
+        print "   🚀 Open in browser automatically? [Y/n]: ".colorize(:yellow)
+        response = gets.try(&.strip.downcase)
+        if response.nil? || response.empty? || response == "y" || response == "yes"
+          spawn open_in_browser(server_url)
+        end
+      end
 
       # Save server info for management
       save_server_info(config.port, config.host)
@@ -215,12 +242,19 @@ module Lapis
       puts "Running Lapis servers:"
       servers.each do |server_info|
         status_icon = server_info[:responding].as(Bool) ? "🟢" : "🔴"
-        puts "  #{status_icon} Port #{server_info[:port]} (PID: #{server_info[:pid]})"
+        port = server_info[:port].as(Int32)
+        host = server_info[:host]? || "localhost"
+        server_url = "http://#{host}:#{port}"
+
+        puts "  #{status_icon} Port #{port} (PID: #{server_info[:pid]})"
+        puts "     🌐 #{server_url}".colorize(:cyan)
+        puts "     💡 Click the link above to open in browser".colorize(:dim)
+
         if config_file = server_info[:config_file]
-          puts "     Config: #{config_file}"
+          puts "     📄 Config: #{config_file}"
         end
         if project_dir = server_info[:project_dir]
-          puts "     Project: #{project_dir}"
+          puts "     📁 Project: #{project_dir}"
         end
         puts ""
       end
@@ -566,7 +600,7 @@ module Lapis
 
     private def setup_signal_handlers(port : Int32)
       # Skip signal handling in test mode
-      return if ENV["LAPIS_TEST_MODE"]? == "true"
+      return if ENV.fetch("LAPIS_TEST_MODE", "false") == "true"
 
       # Use Process.on_terminate for modern signal handling
       Process.on_terminate do |reason|
@@ -681,49 +715,130 @@ module Lapis
     end
 
     private def port_responding?(port : Int32) : Bool
-      # Simple check to see if port responds to HTTP
+      # Enhanced port check with timeout and proper Socket error handling
       socket = TCPSocket.new("localhost", port)
       socket.close
       true
-    rescue
+    rescue Socket::ConnectError
+      # Port is not responding - likely not in use
       false
+    rescue Socket::Error | IO::TimeoutError
+      # Socket errors or timeout - port might be in use or unreachable
+      true
+    rescue
+      # Any other error - assume port is in use
+      true
+    end
+
+    private def socket_health_check(host : String, port : Int32) : Hash(String, Bool | String)
+      # Comprehensive socket health check with detailed diagnostics
+      result = {
+        "reachable"     => false,
+        "error"         => nil,
+        "response_time" => nil,
+      } of String => Bool | String
+
+      start_time = Time.monotonic
+
+      begin
+        socket = TCPSocket.new(host, port)
+
+        # Test if we can actually communicate
+        socket.puts "GET / HTTP/1.1\r\nHost: #{host}\r\nConnection: close\r\n\r\n"
+
+        response_time = Time.monotonic - start_time
+        result["reachable"] = true
+        result["response_time"] = "#{response_time.total_milliseconds}ms"
+
+        socket.close
+      rescue Socket::ConnectError
+        result["error"] = "Connection refused"
+      rescue Socket::Error
+        result["error"] = "Socket error"
+      rescue IO::TimeoutError
+        result["error"] = "Connection timeout"
+      rescue ex
+        result["error"] = "Unexpected error: #{ex.message}"
+      end
+
+      result
     end
 
     private def show_version
       puts DESCRIPTION
     end
 
+    private def open_in_browser(url : String)
+      # Cross-platform browser opening
+      case
+      when system("which open > /dev/null 2>&1")
+        system("open #{url}")
+      when system("which xdg-open > /dev/null 2>&1")
+        system("xdg-open #{url}")
+      when system("which start > /dev/null 2>&1")
+        system("start #{url}")
+      else
+        puts "   ⚠️  Could not automatically open browser. Please open #{url} manually.".colorize(:yellow)
+      end
+    end
+
     private def show_help
       puts DESCRIPTION
       puts ""
-      puts "Usage: lapis [command] [options]"
-      puts ""
-      puts "Commands:"
-      puts "  init <name>         Create a new site"
-      puts "  build               Build the site"
-      puts "  serve               Start development server (with live reload)"
-      puts "  stop                Stop running development servers"
-      puts "  status              Show running server status"
-      puts "  new [type] <title>  Create new content (page or post)"
-      puts "  theme <command>     Theme management commands"
-      puts "  version             Show version information"
-      puts "  help                Show this help"
-      puts ""
-      puts "Examples:"
-      puts "  lapis init my-blog"
-      puts "  lapis new post \"My First Post\""
-      puts "  lapis build"
-      puts "  lapis serve"
-      puts "  lapis stop"
-      puts "  lapis status"
-      puts "  lapis theme list"
-      puts "  lapis theme install <theme-name>"
-      puts ""
-      puts "Server Management:"
-      puts "  lapis serve --port 4000   Start server on specific port"
-      puts "  lapis stop --port 3000    Stop server on specific port"
-      puts "  lapis stop --force        Force kill all servers"
-      puts "  lapis status              Show all running servers"
+
+      PrettyPrintUtils.format_help_section("Usage", "lapis [command] [options]")
+
+      PrettyPrintUtils.format_help_section("Commands",
+        "init <name>         Create a new site\n" +
+        "build               Build the site\n" +
+        "serve               Start development server (with live reload)\n" +
+        "stop                Stop running development servers\n" +
+        "status              Show running server status\n" +
+        "new [type] <title>  Create new content (page or post)\n" +
+        "theme <command>     Theme management commands\n" +
+        "version             Show version information\n" +
+        "help                Show this help"
+      )
+
+      PrettyPrintUtils.format_help_section("Examples",
+        "lapis init my-blog\n" +
+        "lapis new post \"My First Post\"\n" +
+        "lapis build\n" +
+        "lapis serve\n" +
+        "lapis stop\n" +
+        "lapis status\n" +
+        "lapis theme list\n" +
+        "lapis theme install <theme-name>"
+      )
+
+      PrettyPrintUtils.format_help_section("Server Management",
+        "lapis serve --port 4000   Start server on specific port\n" +
+        "lapis serve --open        Start server and open browser automatically\n" +
+        "lapis serve -o            Short form of --open\n" +
+        "lapis stop --port 3000    Stop server on specific port\n" +
+        "lapis stop --force        Force kill all servers\n" +
+        "lapis status              Show all running servers"
+      )
+
+      PrettyPrintUtils.format_help_section("Environment Variables",
+        "LAPIS_LOG_LEVEL          Set logging level (debug, info, warn, error)\n" +
+        "LAPIS_ENV                Set environment (development, production)\n" +
+        "LAPIS_BUILD_DRAFTS       Include drafts in builds (true/false)\n" +
+        "LAPIS_SERVER             Enable server mode (true/false)\n" +
+        "LAPIS_PORT               Override server port\n" +
+        "LAPIS_HOST               Override server host\n" +
+        "LAPIS_OUTPUT_DIR         Override output directory\n" +
+        "LAPIS_CACHE_DIR          Override cache directory\n" +
+        "LAPIS_DEBUG              Enable debug mode (true/false)\n" +
+        "LAPIS_THEME              Override theme\n" +
+        "LAPIS_TEST_MODE          Disable signal handlers (true/false)"
+      )
+
+      PrettyPrintUtils.format_help_section("Environment Examples",
+        "LAPIS_LOG_LEVEL=debug lapis build\n" +
+        "LAPIS_PORT=4000 lapis serve\n" +
+        "LAPIS_BUILD_DRAFTS=true lapis build"
+      )
     end
 
     private def create_site_structure

@@ -240,7 +240,156 @@ describe Lapis::ContentCollections do
     end
   end
 
-  describe "Error handling" do
+  describe "Performance Optimization Features" do
+    it "provides O(1) URL lookups", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [
+        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"),
+        TestDataFactory.create_content_item("Post 2", "2024-01-16", ["crystal"], "posts"),
+      ]
+      content[0].url = "/post-1/"
+      content[1].url = "/post-2/"
+
+      collections = Lapis::ContentCollections.new(content)
+
+      # O(1) lookup by URL
+      found = collections.find_by_url("/post-1/")
+      found.should_not be_nil
+      found.not_nil!.title.should eq("Post 1")
+
+      # Should return nil for non-existent URL
+      not_found = collections.find_by_url("/nonexistent/")
+      not_found.should be_nil
+    end
+
+    it "provides O(1) object_id lookups", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [
+        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"),
+        TestDataFactory.create_content_item("Post 2", "2024-01-16", ["crystal"], "posts"),
+      ]
+
+      collections = Lapis::ContentCollections.new(content)
+      object_id = content[0].object_id
+
+      # O(1) lookup by object_id
+      found = collections.find_by_object_id(object_id)
+      found.should_not be_nil
+      found.not_nil!.title.should eq("Post 1")
+
+      # Should return nil for non-existent object_id
+      not_found = collections.find_by_object_id(999999999)
+      not_found.should be_nil
+    end
+
+    it "provides performance statistics", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [
+        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"),
+        TestDataFactory.create_content_item("Post 2", "2024-01-16", ["crystal"], "posts"),
+      ]
+
+      collections = Lapis::ContentCollections.new(content)
+
+      # Perform some operations
+      collections.find_by_url("/post-1/")
+      collections.find_by_object_id(content[0].object_id)
+      collections.where("posts", draft: false)
+
+      stats = collections.performance_stats
+      stats.should be_a(Hash(String, Int32))
+      stats["url_lookup"].should eq(1)
+      stats["object_id_lookup"].should eq(1)
+      stats["where_posts"].should eq(1)
+    end
+
+    it "supports performance stats reset", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts")]
+      collections = Lapis::ContentCollections.new(content)
+
+      # Perform operation
+      collections.find_by_url("/post-1/")
+
+      # Check stats
+      stats = collections.performance_stats
+      stats["url_lookup"].should eq(1)
+
+      # Reset stats
+      collections.reset_performance_stats
+      # Check stats are reset
+      stats = collections.performance_stats
+      stats["url_lookup"].should eq(0)
+    end
+  end
+
+  describe "Collection Performance Features" do
+    it "provides O(1) URL lookups in collections", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [
+        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"),
+        TestDataFactory.create_content_item("Post 2", "2024-01-16", ["crystal"], "posts"),
+      ]
+      content[0].url = "/post-1/"
+      content[1].url = "/post-2/"
+
+      collections = Lapis::ContentCollections.new(content)
+      collection = collections.get_collection("posts").not_nil!
+
+      # O(1) lookup by URL
+      found = collection.find_by_url("/post-1/")
+      found.should_not be_nil
+      found.not_nil!.title.should eq("Post 1")
+    end
+
+    it "supports deduplication by identity", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [
+        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"),
+        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"), # Duplicate
+      ]
+
+      collections = Lapis::ContentCollections.new(content)
+      collection = collections.get_collection("posts").not_nil!
+
+      # Should have 2 items initially
+      collection.size.should eq(2)
+
+      # Deduplicate by identity
+      deduplicated = collection.deduplicate_by_identity
+      deduplicated.size.should eq(1) # Should remove duplicate
+    end
+
+    it "supports deduplication by URL", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [
+        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"),
+        TestDataFactory.create_content_item("Post 2", "2024-01-16", ["crystal"], "posts"),
+      ]
+      content[0].url = "/same-url/"
+      content[1].url = "/same-url/" # Same URL
+
+      collections = Lapis::ContentCollections.new(content)
+      collection = collections.get_collection("posts").not_nil!
+
+      # Should have 2 items initially
+      collection.size.should eq(2)
+
+      # Deduplicate by URL
+      deduplicated = collection.deduplicate_by_url
+      deduplicated.size.should eq(1) # Should remove duplicate
+    end
+
+    it "provides collection performance statistics", tags: [TestTags::FAST, TestTags::UNIT] do
+      content = [TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts")]
+      collections = Lapis::ContentCollections.new(content)
+      collection = collections.get_collection("posts").not_nil!
+
+      # Perform operations
+      collection.find_by_url("/post-1/")
+      collection.deduplicate_by_identity
+
+      stats = collection.performance_stats
+      stats.should be_a(Hash(String, Int32))
+      stats["url_lookup"].should eq(1)
+      stats["deduplicate_identity"].should eq(1)
+    end
+  end
+
+  describe "Edge cases" do
     it "handles empty collections gracefully", tags: [TestTags::FAST, TestTags::UNIT] do
       collections = Lapis::ContentCollections.new([] of Lapis::Content)
 
