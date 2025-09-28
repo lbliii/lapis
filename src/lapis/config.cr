@@ -3,6 +3,9 @@ require "./output_formats"
 require "./content_types"
 
 module Lapis
+  # Maximum number of workers allowed for parallel processing
+  MAX_WORKERS_LIMIT = 8
+
   class LiveReloadConfig
     include YAML::Serializable
 
@@ -57,7 +60,7 @@ module Lapis
 
     def max_workers : Int32
       # Use system CPU count but cap at reasonable limit
-      [@max_workers, System.cpu_count, 8].min.to_i32
+      [@max_workers, System.cpu_count, MAX_WORKERS_LIMIT].min.to_i32
     end
   end
 

@@ -1,5 +1,6 @@
 require "digest/sha1"
 require "base64"
+require "./logger"
 
 module Lapis
   class LiveReload
@@ -33,7 +34,7 @@ module Lapis
             return true
           end
         rescue ex
-          puts "Failed to upgrade to WebSocket: #{ex.message}"
+          Logger.error("Failed to upgrade to WebSocket", error: ex.message)
           return false
         end
       end
@@ -45,21 +46,21 @@ module Lapis
       websocket_handler = HTTP::WebSocketHandler.new do |socket|
         @websocket_handler.add_connection(socket)
 
-        puts "WebSocket connection established for #{context.request.path}"
+        Logger.websocket_event("Connection established", path: context.request.path)
 
         # Set up message handlers
         socket.on_message do |message|
-          puts "Received WebSocket message: #{message}"
+          Logger.websocket_event("Message received", message: message)
           # Handle incoming messages if needed
         end
 
         socket.on_close do |code, message|
-          puts "WebSocket connection closed: #{code} - #{message}"
+          Logger.websocket_event("Connection closed", code: code.to_s, message: message)
           @websocket_handler.remove_connection(socket)
         end
 
         socket.on_ping do |message|
-          puts "Received WebSocket ping"
+          Logger.websocket_event("Ping received")
           socket.pong(message)
         end
       end
@@ -67,11 +68,11 @@ module Lapis
       # Handle the WebSocket upgrade
       websocket_handler.call(context)
     rescue ex
-      puts "Error handling WebSocket connection: #{ex.message}"
+      Logger.error("Error handling WebSocket connection", error: ex.message)
     end
 
     private def handle_file_change(file_path : String)
-      puts "Handling file change: #{file_path}"
+      Logger.debug("Handling file change", file_path: file_path)
 
       # Determine what needs to be rebuilt
       if should_rebuild_site?(file_path)
@@ -107,24 +108,24 @@ module Lapis
     end
 
     private def rebuild_and_notify(file_path : String)
-      puts "Rebuilding site due to: #{file_path}"
+      Logger.build_operation("Rebuilding site", file_path: file_path)
 
       begin
         @generator.build
         @last_build_time = Time.utc
-        puts "Site rebuilt successfully"
+        Logger.build_operation("Site rebuilt successfully")
 
         # Notify clients to reload
         @websocket_handler.broadcast_reload(file_path)
       rescue ex
-        puts "Error rebuilding site: #{ex.message}"
+        Logger.error("Error rebuilding site", error: ex.message)
         # Still notify clients in case they need to refresh to see error pages
         @websocket_handler.broadcast_full_reload
       end
     end
 
     private def notify_asset_change(file_path : String)
-      puts "Asset changed: #{file_path}"
+      Logger.debug("Asset changed", file_path: file_path)
 
       ext = File.extname(file_path).downcase
       case ext
