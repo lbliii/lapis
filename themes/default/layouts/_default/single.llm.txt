@@ -1,0 +1,8 @@
+Title: {{ title }}
+Date: {{ date_formatted }}
+URL: {{ url }}
+Section: {{ section }}
+Tags: {{ tags | plain }}
+Categories: {{ categories | plain }}
+
+{{ content | plain }}

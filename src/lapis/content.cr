@@ -1,6 +1,7 @@
 require "yaml"
 require "markd"
 require "./base_content"
+require "./page_kinds"
 
 module Lapis
   class Content < BaseContent
@@ -20,8 +21,10 @@ module Lapis
     property raw_content : String
     property file_path : String
     property url : String
+    property kind : PageKind
+    property section : String
 
-    def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String)
+    def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String, content_dir : String = "content")
       @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(File.basename(@file_path, ".md"))
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
       @date = parse_date(@frontmatter["date"]?)
@@ -34,13 +37,18 @@ module Lapis
       @toc = @frontmatter["toc"]?.try(&.as_bool) || true
       @raw_content = @body
       @content = @body  # Will be processed later with config
+
+      # Detect page kind and section
+      @kind = PageKindDetector.detect(@file_path, content_dir)
+      @section = PageKindDetector.detect_section(@file_path, content_dir)
+
       @url = generate_url
     end
 
-    def self.load(file_path : String) : Content
+    def self.load(file_path : String, content_dir : String = "content") : Content
       content = File.read(file_path)
       frontmatter, body = parse_frontmatter(content)
-      new(file_path, frontmatter, body)
+      new(file_path, frontmatter, body, content_dir)
     end
 
     def self.load_all(directory : String) : Array(Content)
@@ -49,7 +57,7 @@ module Lapis
       if Dir.exists?(directory)
         Dir.glob(File.join(directory, "**", "*.md")).each do |file_path|
           begin
-            content << load(file_path)
+            content << load(file_path, directory)
           rescue ex
             puts "Warning: Could not load #{file_path}: #{ex.message}"
           end
@@ -98,6 +106,31 @@ module Lapis
 
     def is_page? : Bool
       !is_post?
+    end
+
+    # Page kind helpers
+    def is_single? : Bool
+      @kind.single?
+    end
+
+    def is_list? : Bool
+      @kind.list? || @kind.section? || @kind.taxonomy? || @kind.home?
+    end
+
+    def is_section? : Bool
+      @kind.section?
+    end
+
+    def is_taxonomy? : Bool
+      @kind.taxonomy?
+    end
+
+    def is_term? : Bool
+      @kind.term?
+    end
+
+    def is_home? : Bool
+      @kind.home?
     end
 
     def process_content(config : Config)
