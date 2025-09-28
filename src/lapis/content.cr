@@ -448,10 +448,26 @@ module Lapis
 
     # Experimental: Memory-efficient content cloning
     def clone_with_reference_optimization : Content
-      # Use Reference features for efficient cloning
-      cloned = dup
-      # Reset caches for cloned object - create new instance with reset caches
+      # Create new instance with current properties
       cloned = Content.new(@file_path, @frontmatter, @body)
+      # Copy any modified properties
+      cloned.title = @title
+      cloned.layout = @layout
+      cloned.date = @date
+      cloned.tags = @tags.dup
+      cloned.categories = @categories.dup
+      cloned.permalink = @permalink
+      cloned.draft = @draft
+      cloned.description = @description
+      cloned.author = @author
+      cloned.toc = @toc
+      cloned.body = @body
+      cloned.content = @content
+      cloned.raw_content = @raw_content
+      cloned.url = @url
+      cloned.kind = @kind
+      cloned.section = @section
+      cloned.content_type = @content_type
       cloned
     end
 
@@ -460,8 +476,11 @@ module Lapis
       # Check if we can share content without copying
       return false unless @file_path == other.file_path
 
-      # For now, just return true as we can't modify other object's instance variables
-      # This would need to be implemented differently in a real scenario
+      # Share the content by updating the other object's properties
+      # This is a simplified implementation for testing
+      other.body = @body
+      other.content = @content
+      other.raw_content = @raw_content
       true
     end
 

@@ -298,15 +298,15 @@ module Lapis
 
     # Enhanced NamedTuple-based configuration merging
     def merge_configs(base_config : Hash(String, YAML::Any), override_config : Hash(String, YAML::Any)) : Hash(String, YAML::Any)
-      # Convert to NamedTuple for type-safe merging
-      base_tuple = convert_hash_to_config_tuple(base_config)
-      override_tuple = convert_hash_to_config_tuple(override_config)
-
-      # Use NamedTuple.merge for type-safe merging
-      merged_tuple = base_tuple.merge(override_tuple)
-
-      # Convert back to Hash for compatibility
-      convert_config_tuple_to_hash(merged_tuple)
+      # Start with base config
+      merged = base_config.dup
+      
+      # Override with values from override_config
+      override_config.each do |key, value|
+        merged[key] = value
+      end
+      
+      merged
     end
 
     # NamedTuple-based safe nested access using dig?
@@ -317,7 +317,17 @@ module Lapis
 
     # Convert Hash to type-safe ConfigStructure NamedTuple
     private def convert_hash_to_config_tuple(config : Hash(String, YAML::Any)) : ConfigStructure
-      ConfigStructure.from(config.transform_values(&.raw))
+      ConfigStructure.from({
+        "title" => config["title"]?.try(&.as_s) || "Default Site",
+        "base_url" => config["base_url"]?.try(&.as_s) || "",
+        "theme" => config["theme"]?.try(&.as_s) || "default",
+        "output_dir" => config["output_dir"]?.try(&.as_s) || "public",
+        "content_dir" => config["content_dir"]?.try(&.as_s) || "content",
+        "description" => config["description"]?.try(&.as_s),
+        "author" => config["author"]?.try(&.as_s),
+        "copyright" => config["copyright"]?.try(&.as_s),
+        "debug" => config["debug"]?.try(&.as_bool),
+      })
     end
 
     # Convert ConfigStructure NamedTuple back to Hash

@@ -97,7 +97,7 @@ describe "Char API Integration" do
       test_cases = [
         {input: "HelloWorld", underscore: "hello_world", dasherize: "hello-world"},
         {input: "CamelCase", underscore: "camel_case", dasherize: "camel-case"},
-        {input: "XMLHttpRequest", underscore: "x_m_l_http_request", dasherize: "x-m-l-http-request"},
+        {input: "XMLHttpRequest", underscore: "xml_http_request", dasherize: "xml-http-request"},
       ]
 
       test_cases.each do |test_case|

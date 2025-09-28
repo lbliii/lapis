@@ -18,6 +18,7 @@ module Lapis
     end
 
     def total_pages : Int32
+      return 0 if @per_page <= 0
       (@items.size.to_f / @per_page).ceil.to_i
     end
 

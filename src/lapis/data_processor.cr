@@ -213,10 +213,10 @@ module Lapis
     end
 
     # Merge multiple JSON/YAML objects
-    def self.merge_data(data_objects : Array(JSON::Any | YAML::Any)) : JSON::Any | YAML::Any
+    def self.merge_data(data_objects : Array(JSON::Any | YAML::Any)) : JSON::Any | YAML::Any | Nil
       Logger.debug("Merging data objects", count: data_objects.size.to_s)
 
-      return JSON::Any.new(nil) if data_objects.empty?
+      return nil if data_objects.empty?
 
       data_objects[1..].reduce(data_objects[0]) do |result, data|
         merge_single_data(result, data)

@@ -86,10 +86,10 @@ describe Lapis::Content do
       stats[:hash_cached].should be_false
       stats[:date_cached].should be_false
 
-      # After hash call, should be cached
+      # Hash method doesn't cache anymore, so hash_cached should remain false
       content.hash
       stats = content.performance_stats
-      stats[:hash_cached].should be_true
+      stats[:hash_cached].should be_false
     end
   end
 

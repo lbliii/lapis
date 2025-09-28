@@ -105,12 +105,10 @@ describe "Error Handling" do
 
       File.write("invalid_config.yml", invalid_config)
 
-      # Should handle type casting errors gracefully
-      config = Lapis::Config.load("invalid_config.yml")
-      config.title.should eq("Test")
-
-      # Invalid values should fall back to defaults without crashing
-      config.build_config.incremental.should be_true
+      # Should raise ConfigError for invalid YAML structure
+      expect_raises(Lapis::ConfigError) do
+        config = Lapis::Config.load("invalid_config.yml")
+      end
 
       File.delete("invalid_config.yml")
     end

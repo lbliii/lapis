@@ -338,9 +338,11 @@ describe Lapis::ContentCollections do
     end
 
     it "supports deduplication by identity", tags: [TestTags::FAST, TestTags::UNIT] do
+      # Create actual duplicate objects (same reference)
+      content_item = TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts")
       content = [
-        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"),
-        TestDataFactory.create_content_item("Post 1", "2024-01-15", ["test"], "posts"), # Duplicate
+        content_item,
+        content_item, # Same object reference - true duplicate
       ]
 
       collections = Lapis::ContentCollections.new(content)

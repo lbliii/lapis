@@ -180,7 +180,12 @@ module Lapis
         # Automatic arity validation using FUNCTION_ARITY registry
         expected_arity = FUNCTION_ARITY[symbol_name]?
         if expected_arity && expected_arity != args.size
-          raise ArgumentError.new("#{name} expects #{expected_arity} argument#{expected_arity == 1 ? "" : "s"}, got #{args.size}")
+          # Special case for date function - allow 0 or 1 arguments
+          if symbol_name == :date && args.size == 0
+            # Allow date() with no arguments
+          else
+            raise ArgumentError.new("#{name} expects #{expected_arity} argument#{expected_arity == 1 ? "" : "s"}, got #{args.size}")
+          end
         end
         func.call(args)
       else
@@ -878,10 +883,11 @@ module Lapis
         Time.utc.to_s("%Y-%m-%d %H:%M:%S")
       end
 
-      register_function(:date, 1) do |args|
+      FUNCTIONS[:date] = ->(args : Array(String)) : String {
         format = args[0]? || "%Y-%m-%d"
         Time.utc.to_s(format)
-      end
+      }
+      FUNCTION_ARITY[:date] = 1
 
       register_function(:time, 1) do |args|
         format = args[0]? || "%H:%M:%S"

@@ -1,9 +1,0 @@
-  title: "Test"
-  build:
-    incremental: "not_a_boolean"
-    max_workers: "not_a_number"
-  theme:
-    name: "test-theme"
-    config:
-      colors:
-        primary: "not_a_color_object"
