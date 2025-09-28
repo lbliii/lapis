@@ -1,4 +1,13 @@
 module Lapis
+  struct PageInfo
+    getter number : Int32
+    getter url : String
+    getter current : Bool
+
+    def initialize(@number : Int32, @url : String, @current : Bool = false)
+    end
+  end
+
   class Paginator
     property items : Array(Content)
     property per_page : Int32
@@ -58,6 +67,51 @@ module Lapis
       start_page = [@current_page - window, 1].max
       end_page = [@current_page + window, total_pages].min
       (start_page..end_page).to_a
+    end
+
+    def page_numbers(window : Int32 = 5) : Array(PageInfo)
+      return [] of PageInfo if total_pages <= 1
+
+      pages = [] of PageInfo
+      half_window = window // 2
+
+      # Calculate start and end of the window
+      start_page = [@current_page - half_window, 1].max
+      end_page = [start_page + window - 1, total_pages].min
+
+      # Adjust start if we're near the end
+      if end_page - start_page + 1 < window && start_page > 1
+        start_page = [end_page - window + 1, 1].max
+      end
+
+      # Add first page if not in window
+      if start_page > 1
+        pages << PageInfo.new(1, page_url(1))
+        if start_page > 2
+          pages << PageInfo.new(-1, "", false) # Ellipsis marker
+        end
+      end
+
+      # Add pages in window
+      (start_page..end_page).each do |page|
+        pages << PageInfo.new(page, page_url(page), page == @current_page)
+      end
+
+      # Add last page if not in window
+      if end_page < total_pages
+        if end_page < total_pages - 1
+          pages << PageInfo.new(-1, "", false) # Ellipsis marker
+        end
+        pages << PageInfo.new(total_pages, page_url(total_pages))
+      end
+
+      pages
+    end
+
+    def summary : String
+      start_item = (@current_page - 1) * @per_page + 1
+      end_item = [start_item + @per_page - 1, @items.size].min
+      "Showing #{start_item}-#{end_item} of #{@items.size} items"
     end
 
     def generate_pagination_html : String

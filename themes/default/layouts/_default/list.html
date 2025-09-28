@@ -3,6 +3,23 @@
 {{ block "main" }}
 <main class="main-content">
   <div class="content-area">
+    <!-- Breadcrumb navigation -->
+    {{ if breadcrumbs }}
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <ol class="breadcrumb-list">
+        {{ for crumb in breadcrumbs }}
+        <li class="breadcrumb-item{{ if crumb.active }} active{{ endif }}">
+          {{ if crumb.active }}
+            <span aria-current="page">{{ crumb.title }}</span>
+          {{ else }}
+            <a href="{{ crumb.url }}">{{ crumb.title }}</a>
+          {{ endif }}
+        </li>
+        {{ endfor }}
+      </ol>
+    </nav>
+    {{ endif }}
+
     <header class="list-header">
       <h1 class="list-title">{{ title }}</h1>
       {{ if description }}
@@ -13,6 +30,80 @@
     <div class="content-list">
       {{ content }}
     </div>
+
+    <!-- Enhanced content listing with v0.4.0 features -->
+    <section class="enhanced-content-list">
+      <!-- Recent posts in this section -->
+      {{ if content_by_section(page.section) }}
+      <div class="section-content">
+        <h2>Content in {{ page.section | title }}</h2>
+        <div class="content-grid">
+          {{ for post in content_by_section(page.section).first(6) }}
+          <article class="content-card">
+            <h3><a href="{{ post.url }}">{{ post.title }}</a></h3>
+            <div class="content-meta">
+              <time>{{ post.date_formatted }}</time>
+              {{ if post.tags }}
+              <div class="content-tags">
+                {{ for tag in post.tags.first(3) }}
+                <span class="tag">{{ tag }}</span>
+                {{ endfor }}
+              </div>
+              {{ endif }}
+            </div>
+            <p class="content-summary">{{ post.summary }}</p>
+            <div class="content-stats">
+              <span class="reading-time">{{ post.reading_time }} min read</span>
+            </div>
+          </article>
+          {{ endfor }}
+        </div>
+      </div>
+      {{ endif }}
+
+      <!-- Tag cloud for this section -->
+      {{ if tag_cloud }}
+      <aside class="tag-cloud-section">
+        <h3>Popular Tags</h3>
+        <div class="tag-cloud">
+          {{ for tag, count in tag_cloud }}
+          <a href="/tags/{{ tag | slugify }}/" class="tag-link tag-size-{{ count | min: 5 }}">
+            {{ tag }} <span class="tag-count">({{ count }})</span>
+          </a>
+          {{ endfor }}
+        </div>
+      </aside>
+      {{ endif }}
+
+      <!-- Archive by year -->
+      {{ if archive_by_year }}
+      <aside class="archive-section">
+        <h3>Archive</h3>
+        <div class="archive-list">
+          {{ for year, posts in archive_by_year }}
+          {{ if year > 0 }}
+          <div class="archive-year">
+            <h4>{{ year }}</h4>
+            <ul class="archive-posts">
+              {{ for post in posts.first(5) }}
+              <li class="archive-item">
+                <a href="{{ post.url }}">{{ post.title }}</a>
+                <time>{{ post.date_formatted }}</time>
+              </li>
+              {{ endfor }}
+              {{ if posts.size > 5 }}
+              <li class="archive-more">
+                <a href="/{{ year }}/">View all {{ posts.size }} posts from {{ year }}</a>
+              </li>
+              {{ endif }}
+            </ul>
+          </div>
+          {{ endif }}
+          {{ endfor }}
+        </div>
+      </aside>
+      {{ endif }}
+    </section>
   </div>
 </main>
 {{ endblock }}

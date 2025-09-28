@@ -1,10 +1,24 @@
 <header class="site-header">
   <nav class="site-nav">
     <a href="/" class="site-title">{{ site.title }}</a>
+
+    <!-- Navigation links -->
     <div class="nav-links">
-      <a href="/">Home</a>
-      <a href="/posts/">Posts</a>
-      <a href="/about/">About</a>
+      {{ for item in site.regular_pages }}
+        {{ if item.title }}
+        <a href="{{ item.url }}" class="nav-link">{{ item.title }}</a>
+        {{ endif }}
+      {{ endfor }}
+
+      <!-- Fallback navigation -->
+      <a href="/" class="nav-link">Home</a>
+      <a href="/posts/" class="nav-link">Posts</a>
+      <a href="/about/" class="nav-link">About</a>
     </div>
+
+    <!-- Mobile menu toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu">
+      <span class="menu-icon"></span>
+    </button>
   </nav>
 </header>

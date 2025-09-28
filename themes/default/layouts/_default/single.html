@@ -3,20 +3,43 @@
 {{ block "main" }}
 <main class="main-content">
   <div class="content-area">
+    <!-- Breadcrumb navigation -->
+    {{ if breadcrumbs }}
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <ol class="breadcrumb-list">
+        {{ for crumb in breadcrumbs }}
+        <li class="breadcrumb-item{{ if crumb.active }} active{{ endif }}">
+          {{ if crumb.active }}
+            <span aria-current="page">{{ crumb.title }}</span>
+          {{ else }}
+            <a href="{{ crumb.url }}">{{ crumb.title }}</a>
+          {{ endif }}
+        </li>
+        {{ endfor }}
+      </ol>
+    </nav>
+    {{ endif }}
+
     <article class="single-post">
       <header class="post-header">
         <h1 class="post-title">{{ title }}</h1>
         {{ if date }}
         <div class="post-meta">
           <time class="post-date" datetime="{{ date }}">{{ date_formatted }}</time>
+          <span class="reading-time">{{ reading_time }} min read</span>
+          <span class="word-count">{{ word_count }} words</span>
           {{ if tags }}
           <div class="post-tags">
-            {{ tags }}
+            {{ for tag in tags }}
+            <a href="/tags/{{ tag | slugify }}/" class="tag">{{ tag }}</a>
+            {{ endfor }}
           </div>
           {{ endif }}
           {{ if categories }}
           <div class="post-categories">
-            {{ categories }}
+            {{ for category in categories }}
+            <a href="/categories/{{ category | slugify }}/" class="category">{{ category }}</a>
+            {{ endfor }}
           </div>
           {{ endif }}
         </div>
@@ -27,11 +50,69 @@
         {{ content }}
       </div>
 
-      {{ if page.section }}
-      <nav class="post-navigation">
-        <a href="/{{ page.section }}/" class="back-to-section">← Back to {{ page.section | title }}</a>
-      </nav>
-      {{ endif }}
+      <footer class="post-footer">
+        <!-- Section navigation (prev/next in section) -->
+        {{ if section_nav.has_prev? or section_nav.has_next? }}
+        <nav class="section-navigation">
+          <div class="nav-links">
+            {{ if section_nav.has_prev? }}
+            <div class="nav-prev">
+              <a href="{{ section_nav.prev.url }}" class="nav-link">
+                <span class="nav-direction">← Previous</span>
+                <span class="nav-title">{{ section_nav.prev.title }}</span>
+              </a>
+            </div>
+            {{ endif }}
+            {{ if section_nav.has_next? }}
+            <div class="nav-next">
+              <a href="{{ section_nav.next.url }}" class="nav-link">
+                <span class="nav-direction">Next →</span>
+                <span class="nav-title">{{ section_nav.next.title }}</span>
+              </a>
+            </div>
+            {{ endif }}
+          </div>
+        </nav>
+        {{ endif }}
+
+        <!-- Related content -->
+        {{ if related_content }}
+        <aside class="related-content">
+          <h3>Related Articles</h3>
+          <ul class="related-list">
+            {{ for post in related_content }}
+            <li class="related-item">
+              <a href="{{ post.url }}" class="related-link">
+                <span class="related-title">{{ post.title }}</span>
+                <time class="related-date">{{ post.date_formatted }}</time>
+              </a>
+            </li>
+            {{ endfor }}
+          </ul>
+        </aside>
+        {{ endif }}
+
+        <!-- Backlinks -->
+        {{ if backlinks }}
+        <aside class="backlinks">
+          <h3>Referenced by</h3>
+          <ul class="backlink-list">
+            {{ for link in backlinks }}
+            <li class="backlink-item">
+              <a href="{{ link.url }}" class="backlink-link">{{ link.title }}</a>
+            </li>
+            {{ endfor }}
+          </ul>
+        </aside>
+        {{ endif }}
+
+        <!-- Back to section -->
+        {{ if page.section }}
+        <nav class="post-navigation">
+          <a href="/{{ page.section }}/" class="back-to-section">← Back to {{ page.section | title }}</a>
+        </nav>
+        {{ endif }}
+      </footer>
     </article>
   </div>
 </main>

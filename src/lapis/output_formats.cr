@@ -1,3 +1,5 @@
+require "./page_kinds"
+
 module Lapis
   # Represents a media type for output formats
   struct MediaType

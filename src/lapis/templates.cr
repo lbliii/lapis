@@ -2,6 +2,13 @@ require "ecr"
 require "./base_content"
 require "./theme_helpers"
 require "./partials"
+require "./page_operations"
+require "./navigation"
+require "./collections"
+require "./content_query"
+require "./cross_references"
+require "./template_processor"
+require "./function_processor"
 
 module Lapis
   class TemplateEngine
@@ -72,7 +79,7 @@ module Lapis
       layout_path = find_layout(layout_name)
       
       if layout_path
-        layout_content = File.read(layout_path)
+          layout_content = File.read(layout_path)
         
         # Check if this layout extends another layout
         if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
@@ -245,7 +252,7 @@ module Lapis
     end
 
     def render_layout(layout_path : String, content : Content) : String
-      layout_content = File.read(layout_path)
+          layout_content = File.read(layout_path)
       context = TemplateContext.new(@config, content)
       process_template(layout_content, context)
     end
@@ -258,88 +265,15 @@ module Lapis
       # Process partials first (Hugo-style)
       result = Partials.process_partials(template, context, @config.theme_dir)
 
-      # Process basic variables
-      result = result.gsub("{{ title }}", context.content.title)
-      result = result.gsub("{{ content }}", context.content.content)
-      result = result.gsub("{{ site.title }}", context.site_title)
-      result = result.gsub("{{ site.description }}", context.site_description)
-      result = result.gsub("{{ site.author }}", context.site_author)
-      result = result.gsub("{{ site.baseurl }}", context.site_baseurl)
-
-      # Page kind and section information
-      if context.content.is_a?(Content) && (content = context.content.as(Content))
-        result = result.gsub("{{ page.kind }}", content.kind.to_s)
-        result = result.gsub("{{ page.section }}", content.section)
-        result = result.gsub("{{ section }}", content.section)
-      end
+      # Use the new Hugo-compatible function processor
+      function_processor = FunctionProcessor.new(context)
+      result = function_processor.process(result)
 
       # Legacy CSS includes support (will be deprecated)
       result = result.gsub("{{ css_includes }}", context.css_includes)
 
-      # Auto CSS discovery (preferred method)
+      # Auto CSS discovery (preferred method) - ensure CSS is included
       result = result.gsub("{{ auto_css }}", Partials.generate_auto_css(context))
-
-      # Date formatting
-      if date = context.content.date
-        result = result.gsub("{{ date }}", date.to_s(Lapis::DATE_FORMAT_SHORT))
-        result = result.gsub("{{ date_formatted }}", date.to_s(Lapis::DATE_FORMAT_HUMAN))
-      else
-        result = result.gsub("{{ date }}", "")
-        result = result.gsub("{{ date_formatted }}", "")
-      end
-
-      # Tags and categories
-      if context.output_format && context.output_format.not_nil!.name == "json"
-        # For JSON format, output proper JSON arrays
-        tags_json = context.content.tags.map { |tag| %("#{tag}") }.join(", ")
-        result = result.gsub("{{ tags }}", "[#{tags_json}]")
-
-        categories_json = context.content.categories.map { |cat| %("#{cat}") }.join(", ")
-        result = result.gsub("{{ categories }}", "[#{categories_json}]")
-      else
-        # For HTML format, output HTML spans
-        tags_html = context.content.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
-        result = result.gsub("{{ tags }}", tags_html)
-
-        categories_html = context.content.categories.map { |cat| %(<span class="category">#{cat}</span>) }.join(" ")
-        result = result.gsub("{{ categories }}", categories_html)
-      end
-
-      # URL
-      result = result.gsub("{{ url }}", context.content.url)
-
-      # Description
-      result = result.gsub("{{ description }}", context.content.description || context.content.excerpt)
-
-      # Process conditional blocks
-      result = process_conditionals(result, context)
-
-      result
-    end
-
-    private def process_conditionals(template : String, context : TemplateContext) : String
-      result = template
-
-      # Process {{ if date }} blocks
-      if context.content.date
-        result = result.gsub(/\{\{\s*if\s+date\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) { $1 }
-      else
-        result = result.gsub(/\{\{\s*if\s+date\s*\}\}.*?\{\{\s*endif\s*\}\}/m, "")
-      end
-
-      # Process {{ if tags }} blocks
-      if !context.content.tags.empty?
-        result = result.gsub(/\{\{\s*if\s+tags\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) { $1 }
-      else
-        result = result.gsub(/\{\{\s*if\s+tags\s*\}\}.*?\{\{\s*endif\s*\}\}/m, "")
-      end
-
-      # Process {{ if description }} blocks
-      if context.content.description && !context.content.description.not_nil!.empty?
-        result = result.gsub(/\{\{\s*if\s+description\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) { $1 }
-      else
-        result = result.gsub(/\{\{\s*if\s+description\s*\}\}.*?\{\{\s*endif\s*\}\}/m, "")
-      end
 
       result
     end
@@ -476,8 +410,29 @@ module Lapis
     getter config : Config
     getter content : BaseContent
     getter output_format : OutputFormat?
+    getter page_ops : PageOperations?
+    getter nav_builder : NavigationBuilder
+    getter collections : ContentCollections
+    getter query : ContentQuery
+    getter cross_refs : CrossReferenceEngine
+
+    @site_content : Array(Content)
 
     def initialize(@config : Config, @content : BaseContent, @output_format : OutputFormat? = nil)
+      # Load all site content for advanced operations
+      @site_content = load_site_content
+
+      # Initialize v0.4.0 features
+      site_config = {} of String => YAML::Any # Empty config for now - could be loaded from config file
+      @nav_builder = NavigationBuilder.new(@site_content, site_config)
+      @collections = ContentCollections.new(@site_content, site_config)
+      @query = ContentQuery.new(@site_content, @collections)
+      @cross_refs = CrossReferenceEngine.new(@site_content)
+
+      # Initialize page operations if content is a Content object
+      if @content.is_a?(Content)
+        @page_ops = PageOperations.new(@content.as(Content), @site_content)
+      end
     end
 
     def site_title : String
@@ -512,6 +467,127 @@ module Lapis
 
     def description
       @content.description || @content.excerpt
+    end
+
+    # Page operations (Hugo-compatible methods)
+    def page
+      @page_ops
+    end
+
+    def summary
+      @page_ops.try(&.summary) || @content.excerpt
+    end
+
+    def reading_time
+      @page_ops.try(&.reading_time) || 1
+    end
+
+    def word_count
+      @page_ops.try(&.word_count) || 0
+    end
+
+    def tags
+      @page_ops.try(&.tags) || [] of String
+    end
+
+    def categories
+      @page_ops.try(&.categories) || [] of String
+    end
+
+    def related_content(limit : Int32 = 5)
+      @page_ops.try(&.related(limit)) || [] of Content
+    end
+
+    # Navigation methods
+    def breadcrumbs
+      if @content.is_a?(Content)
+        @nav_builder.breadcrumbs(@content.as(Content))
+      else
+        [] of BreadcrumbItem
+      end
+    end
+
+    def site_menu(name : String = "main")
+      @nav_builder.site_menu(name)
+    end
+
+    def section_nav
+      if @content.is_a?(Content)
+        @nav_builder.section_navigation(@content.as(Content))
+      else
+        SectionNavigation.new
+      end
+    end
+
+    # Content collections and queries
+    def posts
+      @query.posts
+    end
+
+    def pages
+      @query.pages
+    end
+
+    def recent_posts(count : Int32 = 5)
+      @query.recent(count)
+    end
+
+    def content_where(**filters)
+      @query.where(**filters)
+    end
+
+    def content_by_tag(tag : String)
+      @query.by_tag(tag)
+    end
+
+    def content_by_section(section : String)
+      @query.by_section(section)
+    end
+
+    # Cross-references
+    def backlinks
+      if @content.is_a?(Content)
+        @cross_refs.find_backlinks(@content.as(Content))
+      else
+        [] of Content
+      end
+    end
+
+    # Template helpers for common patterns
+    def tag_cloud
+      @collections.tag_cloud("posts")
+    end
+
+    def archive_by_year
+      posts.all.group_by { |post| post.date.try(&.year) || 0 }
+    end
+
+    def archive_by_month
+      posts.all.group_by { |post|
+        date = post.date
+        date ? "#{date.year}-#{date.month.to_s.rjust(2, '0')}" : "undated"
+      }
+    end
+
+    private def load_site_content : Array(Content)
+      content = [] of Content
+
+      # This is a simplified version - in a real implementation,
+      # this would use the generator's content loading logic
+      if Dir.exists?(@config.content_dir)
+        Dir.glob(File.join(@config.content_dir, "**", "*.md")).each do |file_path|
+          next if File.basename(file_path) == "index.md"
+          begin
+            page_content = Content.load(file_path, @config.content_dir)
+            page_content.process_content(@config)
+            content << page_content unless page_content.draft
+          rescue ex
+            # Skip files that can't be loaded
+          end
+        end
+      end
+
+      content.sort_by { |c| c.date || Time.unix(0) }.reverse
     end
   end
 
@@ -586,6 +662,17 @@ module Lapis
       else
         baseurl + path
       end
+    end
+
+    def self.read_template_file(file_path : String) : String
+      File.open(file_path, "r") do |file|
+        file.set_encoding("UTF-8")
+        file.gets_to_end
+      end
+    rescue ex : File::NotFoundError
+      raise "Template file not found: #{file_path}"
+    rescue ex : IO::Error
+      raise "Error reading template file #{file_path}: #{ex.message}"
     end
   end
 end

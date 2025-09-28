@@ -46,9 +46,16 @@ module Lapis
     end
 
     def self.load(file_path : String, content_dir : String = "content") : Content
-      content = File.read(file_path)
-      frontmatter, body = parse_frontmatter(content)
-      new(file_path, frontmatter, body, content_dir)
+      File.open(file_path, "r") do |file|
+        file.set_encoding("UTF-8")
+        content = file.gets_to_end
+        frontmatter, body = parse_frontmatter(content)
+        new(file_path, frontmatter, body, content_dir)
+      end
+    rescue ex : File::NotFoundError
+      raise "Content file not found: #{file_path}"
+    rescue ex : IO::Error
+      raise "Error reading content file #{file_path}: #{ex.message}"
     end
 
     def self.load_all(directory : String) : Array(Content)
@@ -64,7 +71,7 @@ module Lapis
         end
       end
 
-      content.sort_by(&.date).reverse
+      content.sort_by { |c| c.date || Time.unix(0) }.reverse
     end
 
     def self.create_new(type : String, title : String)
@@ -96,8 +103,23 @@ module Lapis
       content += "# #{title}\n\n"
       content += "Write your content here...\n"
 
-      File.write(path, content)
+      write_file_atomically(path, content)
       puts "Created #{path}"
+    end
+
+    private def self.write_file_atomically(path : String, content : String)
+      temp_path = "#{path}.tmp"
+      
+      File.open(temp_path, "w") do |file|
+        file.set_encoding("UTF-8")
+        file.print(content)
+        file.flush
+      end
+      
+      File.rename(temp_path, path)
+    rescue ex : IO::Error
+      File.delete(temp_path) if temp_path && File.exists?(temp_path)
+      raise "Error writing content file #{path}: #{ex.message}"
     end
 
     def is_post? : Bool

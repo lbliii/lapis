@@ -5,27 +5,27 @@ module Lapis
   class Server
     property config : Config
     property generator : Generator
+    property live_reload : LiveReload
     private property server : HTTP::Server?
     private property last_build_time : Time
 
     def initialize(@config : Config)
       @generator = Generator.new(@config)
       @last_build_time = Time.utc
+      @live_reload = LiveReload.new(@config, @generator)
     end
 
     def start
       build_initial_site
+      @live_reload.start
 
       server = HTTP::Server.new do |context|
         handle_request(context)
       end
 
-      spawn do
-        watch_for_changes
-      end
-
       address = server.bind_tcp(@config.host, @config.port)
       puts "Lapis development server running at http://#{address}"
+      puts "Live reload enabled with WebSocket support"
       puts "Press Ctrl+C to stop"
 
       server.listen
@@ -41,7 +41,12 @@ module Lapis
     private def handle_request(context : HTTP::Server::Context)
       path = context.request.path
 
-      # Handle live reload endpoint
+      # Handle WebSocket upgrade for live reload
+      if @live_reload.handle_websocket_upgrade(context)
+        return
+      end
+
+      # Legacy live reload endpoint (kept for backward compatibility)
       if path == "/__lapis_reload__"
         context.response.content_type = "text/plain"
         context.response.print "ok"
@@ -68,14 +73,26 @@ module Lapis
     private def serve_file(context : HTTP::Server::Context, file_path : String)
       context.response.content_type = mime_type(file_path)
 
-      content = File.read(file_path)
-
-      # Inject live reload script for HTML files
-      if file_path.ends_with?(".html")
-        content = inject_live_reload_script(content)
+      begin
+        File.open(file_path, "r") do |file|
+          file.set_encoding("UTF-8")
+          
+          # For HTML files, we need to inject live reload script
+          if file_path.ends_with?(".html")
+            content = file.gets_to_end
+            content = inject_live_reload_script(content)
+            context.response.print(content)
+          else
+            # For other files, stream directly for better memory efficiency
+            IO.copy(file, context.response)
+          end
+        end
+      rescue ex : File::NotFoundError
+        serve_404(context)
+      rescue ex : IO::Error
+        puts "Error serving file #{file_path}: #{ex.message}"
+        serve_404(context)
       end
-
-      context.response.print(content)
     end
 
     private def serve_404(context : HTTP::Server::Context)
@@ -117,26 +134,103 @@ module Lapis
       script = <<-JS
       <script>
         (function() {
-          let lastCheck = Date.now();
+          let socket = null;
+          let reconnectAttempts = 0;
+          const maxReconnectAttempts = 10;
+          const reconnectDelay = 1000;
 
-          function checkForChanges() {
-            fetch('/__lapis_reload__')
-              .then(response => {
-                if (response.ok) {
-                  const now = Date.now();
-                  if (now - lastCheck > 1000) {
-                    console.log('Reloading page due to changes...');
-                    window.location.reload();
-                  }
+          function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/__lapis_live_reload__`;
+            
+            try {
+              socket = new WebSocket(wsUrl);
+              
+              socket.onopen = function() {
+                console.log('Lapis live reload connected');
+                reconnectAttempts = 0;
+              };
+              
+              socket.onmessage = function(event) {
+                try {
+                  const data = JSON.parse(event.data);
+                  handleReloadMessage(data);
+                } catch (e) {
+                  console.error('Failed to parse reload message:', e);
                 }
-              })
-              .catch(() => {
-                // Server might be restarting, try again
-              });
+              };
+              
+              socket.onclose = function() {
+                console.log('Lapis live reload disconnected');
+                attemptReconnect();
+              };
+              
+              socket.onerror = function(error) {
+                console.log('Lapis live reload error:', error);
+              };
+            } catch (error) {
+              console.error('Failed to create WebSocket connection:', error);
+              attemptReconnect();
+            }
           }
 
-          setInterval(checkForChanges, 1000);
-          console.log('Lapis live reload enabled');
+          function attemptReconnect() {
+            if (reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++;
+              console.log(`Attempting to reconnect... (${reconnectAttempts}/${maxReconnectAttempts})`);
+              setTimeout(connect, reconnectDelay * reconnectAttempts);
+            } else {
+              console.log('Max reconnection attempts reached. Live reload disabled.');
+            }
+          }
+
+          function handleReloadMessage(data) {
+            console.log('Reload message received:', data);
+            
+            switch(data.type) {
+              case 'full_reload':
+                console.log('Reloading page due to changes...');
+                window.location.reload();
+                break;
+                
+              case 'css_reload':
+                console.log('Reloading CSS files...');
+                reloadCSS(data.files || []);
+                break;
+                
+              case 'js_reload':
+                console.log('Reloading JS files...');
+                reloadJS(data.files || []);
+                break;
+                
+              default:
+                console.log('Unknown reload type:', data.type);
+                window.location.reload();
+            }
+          }
+
+          function reloadCSS(files) {
+            // Reload CSS files by adding timestamp to href
+            const links = document.querySelectorAll('link[rel="stylesheet"]');
+            links.forEach(link => {
+              const href = link.getAttribute('href');
+              if (href && (files.length === 0 || files.some(file => href.includes(file)))) {
+                const url = new URL(href, window.location.href);
+                url.searchParams.set('_t', Date.now().toString());
+                link.setAttribute('href', url.toString());
+              }
+            });
+          }
+
+          function reloadJS(files) {
+            // For JS files, we'll do a full page reload for now
+            // In the future, we could implement module reloading
+            console.log('JS files changed, reloading page...');
+            window.location.reload();
+          }
+
+          // Start the connection
+          connect();
         })();
       </script>
       JS
@@ -148,77 +242,6 @@ module Lapis
       end
     end
 
-    private def watch_for_changes
-      content_files = [] of String
-      layout_files = [] of String
-      config_file = "config.yml"
-
-      loop do
-        begin
-          current_content_files = get_watched_files(@config.content_dir, "*.md")
-          current_layout_files = get_watched_files(@config.layouts_dir, "*")
-
-          files_changed = false
-
-          # Check content files
-          if current_content_files != content_files
-            puts "Content files changed, rebuilding..."
-            files_changed = true
-            content_files = current_content_files
-          end
-
-          # Check layout files
-          if current_layout_files != layout_files
-            puts "Layout files changed, rebuilding..."
-            files_changed = true
-            layout_files = current_layout_files
-          end
-
-          # Check config file
-          if File.exists?(config_file)
-            config_mtime = File.info(config_file).modification_time
-            if config_mtime > @last_build_time
-              puts "Config changed, rebuilding..."
-              files_changed = true
-              @config = Config.load
-              @generator = Generator.new(@config)
-            end
-          end
-
-          if files_changed
-            rebuild_site
-          end
-
-          sleep 1.second
-        rescue ex
-          puts "Error watching files: #{ex.message}"
-          sleep 5.seconds
-        end
-      end
-    end
-
-    private def get_watched_files(directory : String, pattern : String) : Array(String)
-      files = [] of String
-      return files unless Dir.exists?(directory)
-
-      Dir.glob(File.join(directory, "**", pattern)).each do |file_path|
-        if File.file?(file_path)
-          files << "#{file_path}:#{File.info(file_path).modification_time.to_unix}"
-        end
-      end
-
-      files.sort
-    end
-
-    private def rebuild_site
-      begin
-        @generator.build
-        @last_build_time = Time.utc
-        puts "Site rebuilt successfully"
-      rescue ex
-        puts "Error rebuilding site: #{ex.message}"
-      end
-    end
 
     private def not_found_page : String
       <<-HTML

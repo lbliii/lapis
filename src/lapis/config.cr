@@ -2,6 +2,21 @@ require "yaml"
 require "./output_formats"
 
 module Lapis
+  class LiveReloadConfig
+    include YAML::Serializable
+
+    property enabled : Bool = true
+    property websocket_path : String = "/__lapis_live_reload__"
+    property debounce_ms : Int32 = 100
+    property ignore_patterns : Array(String) = [".git", "node_modules", ".DS_Store", "*.tmp", "*.swp"]
+    property watch_content : Bool = true
+    property watch_layouts : Bool = true
+    property watch_static : Bool = true
+    property watch_config : Bool = true
+
+    def initialize
+    end
+  end
   class Config
     include YAML::Serializable
 
@@ -14,6 +29,10 @@ module Lapis
     property permalink : String = "/:year/:month/:day/:title/"
     property port : Int32 = 3000
     property host : String = "localhost"
+
+    # Live reload configuration
+    @[YAML::Field(key: "live_reload")]
+    property live_reload_config : LiveReloadConfig = LiveReloadConfig.new
 
     @[YAML::Field(key: "markdown")]
     property markdown_config : MarkdownConfig?
@@ -156,6 +175,16 @@ module Lapis
     property tables : Bool = true
 
     def initialize(@syntax_highlighting = true, @toc = true, @smart_quotes = true, @footnotes = true, @tables = true)
+    end
+    private def self.read_config_file(path : String) : String
+      File.open(path, "r") do |file|
+        file.set_encoding("UTF-8")
+        file.gets_to_end
+      end
+    rescue ex : File::NotFoundError
+      raise "Config file not found: #{path}"
+    rescue ex : IO::Error
+      raise "Error reading config file #{path}: #{ex.message}"
     end
   end
 end

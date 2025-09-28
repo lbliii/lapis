@@ -133,7 +133,15 @@ module Lapis
     end
 
     private def calculate_file_hash(file_path : String) : String
-      Digest::MD5.hexdigest(File.read(file_path))
+      digest = Digest::MD5.new
+      File.open(file_path, "r") do |file|
+        IO.copy(file, digest)
+      end
+      digest.hexdigest
+    rescue ex : File::NotFoundError
+      raise "Asset file not found: #{file_path}"
+    rescue ex : IO::Error
+      raise "Error reading asset file #{file_path}: #{ex.message}"
     end
   end
 

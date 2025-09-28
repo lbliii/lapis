@@ -79,6 +79,18 @@ module Lapis
         end
       end
 
+      # Load all _index.md section pages from the entire content directory tree
+      search_pattern = File.join(@config.content_dir, "**", "_index.md")
+      Dir.glob(search_pattern).each do |file_path|
+        begin
+          section_content = Content.load(file_path, @config.content_dir)
+          section_content.process_content(@config)
+          content << section_content unless section_content.draft
+        rescue ex
+          puts "Warning: Could not load section page #{file_path}: #{ex.message}"
+        end
+      end
+
       content.sort_by { |c| c.date || Time.unix(0) }.reverse
     end
 
@@ -103,7 +115,7 @@ module Lapis
 
           filename = format.filename
           output_path = File.join(output_dir, filename)
-          File.write(output_path, rendered_content)
+          write_file_atomically(output_path, rendered_content)
         end
 
         puts "  Generated: #{content.url} (#{format_outputs.keys.join(", ")})"
@@ -128,59 +140,22 @@ module Lapis
         index_content.content = Markd.to_html(processed_markdown, options)
 
         html = @template_engine.render(index_content)
-        File.write(File.join(@config.output_dir, "index.html"), html)
+        write_file_atomically(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: /"
       else
         # Generate default index page
         posts = all_content.select(&.is_post?).first(5)
         html = generate_default_index(posts)
-        File.write(File.join(@config.output_dir, "index.html"), html)
+        write_file_atomically(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: / (default)"
       end
     end
 
     private def generate_section_pages(all_content : Array(Content))
-      # Find and generate _index.md section pages
-      search_pattern = File.join(@config.content_dir, "**", "_index.md")
-      puts "  Generating section pages..."
-      Dir.glob(search_pattern).each do |index_path|
-        begin
-          section_content = Content.load(index_path, @config.content_dir)
-          section_content.process_content(@config)
-
-          # Generate all configured output formats for section pages
-          format_outputs = @template_engine.render_all_formats(section_content)
-
-          # Determine output directory based on section
-          rel_path = Path[index_path].relative_to(Path[@config.content_dir]).to_s
-          dir_parts = Path[rel_path].parts[0..-2] # Remove _index.md filename
-
-          if dir_parts.empty?
-            # Root _index.md becomes the home page
-            output_dir = @config.output_dir
-          else
-            # Section _index.md goes to /section/ directory
-            output_dir = File.join(@config.output_dir, dir_parts.join("/"))
-          end
-
-          Dir.mkdir_p(output_dir)
-
-          # Write each format to appropriate file
-          format_outputs.each do |format_name, rendered_content|
-            format = @config.output_formats.get_format(format_name)
-            next unless format
-
-            filename = format.filename
-            output_path = File.join(output_dir, filename)
-            File.write(output_path, rendered_content)
-          end
-
-          section_url = dir_parts.empty? ? "/" : "/#{dir_parts.join("/")}/"
-          puts "  Generated: #{section_url} (#{format_outputs.keys.join(", ")}) [section]"
-        rescue ex
-          puts "Warning: Could not generate section page #{index_path}: #{ex.message}"
-        end
-      end
+      # Section pages are now handled in the main content generation flow
+      # This method is kept for backwards compatibility but does minimal work
+      section_pages = all_content.select(&.kind.section?)
+      puts "  Section pages already generated in main flow: #{section_pages.size} pages"
     end
 
     private def generate_archive_pages(all_content : Array(Content))
@@ -223,7 +198,7 @@ module Lapis
         Dir.mkdir_p(tag_dir)
 
         tag_html = generate_tag_page(tag, tag_posts)
-        File.write(File.join(tag_dir, "index.html"), tag_html)
+        write_file_atomically(File.join(tag_dir, "index.html"), tag_html)
         puts "  Generated: /tags/#{tag}/"
       end
     end
@@ -485,24 +460,24 @@ module Lapis
 
       # Generate RSS feed
       rss_content = feed_generator.generate_rss(posts)
-      File.write(File.join(@config.output_dir, "feed.xml"), rss_content)
+      write_file_atomically(File.join(@config.output_dir, "feed.xml"), rss_content)
       puts "  Generated: /feed.xml"
 
       # Generate Atom feed
       atom_content = feed_generator.generate_atom(posts)
-      File.write(File.join(@config.output_dir, "feed.atom"), atom_content)
+      write_file_atomically(File.join(@config.output_dir, "feed.atom"), atom_content)
       puts "  Generated: /feed.atom"
 
       # Generate JSON Feed
       json_content = feed_generator.generate_json_feed(posts)
-      File.write(File.join(@config.output_dir, "feed.json"), json_content)
+      write_file_atomically(File.join(@config.output_dir, "feed.json"), json_content)
       puts "  Generated: /feed.json"
     end
 
     private def generate_sitemap(all_content : Array(Content))
       sitemap_generator = SitemapGenerator.new(@config)
       sitemap_content = sitemap_generator.generate(all_content)
-      File.write(File.join(@config.output_dir, "sitemap.xml"), sitemap_content)
+      write_file_atomically(File.join(@config.output_dir, "sitemap.xml"), sitemap_content)
       puts "  Generated: /sitemap.xml"
     end
 
@@ -548,6 +523,21 @@ module Lapis
         </div>
       </div>
       HTML
+    end
+
+    private def write_file_atomically(path : String, content : String)
+      temp_path = "#{path}.tmp"
+      
+      File.open(temp_path, "w") do |file|
+        file.set_encoding("UTF-8")
+        file.print(content)
+        file.flush
+      end
+      
+      File.rename(temp_path, path)
+    rescue ex : IO::Error
+      File.delete(temp_path) if temp_path && File.exists?(temp_path)
+      raise "Error writing file #{path}: #{ex.message}"
     end
   end
 end
