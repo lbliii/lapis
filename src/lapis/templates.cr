@@ -53,7 +53,7 @@ module Lapis
           rendered = render(content, nil, format)
           results[format.name] = rendered
         rescue ex
-          puts "Warning: Failed to render #{content.file_path} in #{format.name} format: #{ex.message}"
+          puts "Warning: Failed to render '#{content.file_path}' in #{format.name} format (#{format.extension}): #{ex.message}"
         end
       end
 
@@ -267,7 +267,7 @@ module Lapis
       result = result.gsub("{{ site.baseurl }}", context.site_baseurl)
 
       # Page kind and section information
-      if content = context.content.as?(Content)
+      if context.content.is_a?(Content) && (content = context.content.as(Content))
         result = result.gsub("{{ page.kind }}", content.kind.to_s)
         result = result.gsub("{{ page.section }}", content.section)
         result = result.gsub("{{ section }}", content.section)
@@ -289,11 +289,21 @@ module Lapis
       end
 
       # Tags and categories
-      tags_html = context.content.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
-      result = result.gsub("{{ tags }}", tags_html)
+      if context.output_format && context.output_format.not_nil!.name == "json"
+        # For JSON format, output proper JSON arrays
+        tags_json = context.content.tags.map { |tag| %("#{tag}") }.join(", ")
+        result = result.gsub("{{ tags }}", "[#{tags_json}]")
 
-      categories_html = context.content.categories.map { |cat| %(<span class="category">#{cat}</span>) }.join(" ")
-      result = result.gsub("{{ categories }}", categories_html)
+        categories_json = context.content.categories.map { |cat| %("#{cat}") }.join(", ")
+        result = result.gsub("{{ categories }}", "[#{categories_json}]")
+      else
+        # For HTML format, output HTML spans
+        tags_html = context.content.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
+        result = result.gsub("{{ tags }}", tags_html)
+
+        categories_html = context.content.categories.map { |cat| %(<span class="category">#{cat}</span>) }.join(" ")
+        result = result.gsub("{{ categories }}", categories_html)
+      end
 
       # URL
       result = result.gsub("{{ url }}", context.content.url)
