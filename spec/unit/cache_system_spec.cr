@@ -54,7 +54,7 @@ describe "Cache System" do
       File.exists?(timestamps_file).should be_true
 
       content = File.read(timestamps_file)
-      content.should eq("--- {}")
+      content.strip.should eq("--- {}")
 
       FileUtils.rm_rf(cache_dir)
     end
