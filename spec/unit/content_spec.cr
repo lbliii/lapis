@@ -51,18 +51,55 @@ describe Lapis::Content do
   end
 
   describe "#url" do
-    it "generates correct URL for posts", tags: [TestTags::FAST, TestTags::UNIT] do
-      frontmatter = TestDataFactory.create_content("Test Post", "2024-01-15")
+    it "generates correct URL for posts using Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      frontmatter = TestDataFactory.create_content("Test Post", "2024-01-15", ["test"], "post")
       content = Lapis::Content.new("content/posts/test.md", frontmatter, "content")
 
       content.url.should eq("/2024/01/15/test/")
     end
 
-    it "generates correct URL for pages", tags: [TestTags::FAST, TestTags::UNIT] do
-      frontmatter = TestDataFactory.create_content("About", "2024-01-15")
+    it "generates correct URL for pages using Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      frontmatter = TestDataFactory.create_content("About", "", ["test"], "page")
       content = Lapis::Content.new("content/about.md", frontmatter, "content")
 
       content.url.should eq("/about/")
+    end
+
+    it "handles index files correctly with Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      frontmatter = TestDataFactory.create_content("Index Page", "", ["test"], "page")
+      content = Lapis::Content.new("content/index.md", frontmatter, "content")
+
+      content.url.should eq("/")
+    end
+
+    it "handles nested paths correctly with Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      frontmatter = TestDataFactory.create_content("Nested Page", "", ["test"], "page")
+      content = Lapis::Content.new("content/docs/api/reference.md", frontmatter, "content")
+
+      content.url.should eq("/docs/api/reference/")
+    end
+  end
+
+  describe "#title" do
+    it "generates title from filename using Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      frontmatter = {} of String => YAML::Any # No title in frontmatter
+      content = Lapis::Content.new("content/my-awesome-post.md", frontmatter, "content")
+
+      content.title.should eq("My Awesome Post")
+    end
+
+    it "uses frontmatter title when available", tags: [TestTags::FAST, TestTags::UNIT] do
+      frontmatter = TestDataFactory.create_content("Custom Title")
+      content = Lapis::Content.new("content/some-file.md", frontmatter, "content")
+
+      content.title.should eq("Custom Title")
+    end
+
+    it "handles complex filenames with Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      frontmatter = {} of String => YAML::Any # No title in frontmatter
+      content = Lapis::Content.new("content/api-v2-reference-guide.md", frontmatter, "content")
+
+      content.title.should eq("Api V2 Reference Guide")
     end
   end
 

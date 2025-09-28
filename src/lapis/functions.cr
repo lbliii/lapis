@@ -3,6 +3,8 @@ require "time"
 require "string"
 require "array"
 require "hash"
+require "uri"
+require "html"
 
 module Lapis
   class Functions
@@ -328,7 +330,7 @@ module Lapis
       }
     end
 
-    # URL FUNCTIONS - Enhanced URL handling
+    # URL FUNCTIONS - Complete URI-based implementation
     private def self.register_url_functions
       FUNCTIONS["urlize"] = ->(args : Array(String)) : String {
         str = args[0] || ""
@@ -338,13 +340,21 @@ module Lapis
       FUNCTIONS["relative_url"] = ->(args : Array(String)) : String {
         url = args[0] || ""
         base = args[1]? || ""
-        url.starts_with?("http") ? url : "#{base.chomp("/")}/#{url.lstrip("/")}"
+        return url if url.starts_with?("http")
+
+        base_uri = URI.parse(base)
+        target_uri = URI.parse(url)
+        base_uri.relativize(target_uri).to_s
       }
 
       FUNCTIONS["absolute_url"] = ->(args : Array(String)) : String {
         url = args[0] || ""
         base = args[1]? || ""
-        url.starts_with?("http") ? url : "#{base.chomp("/")}/#{url.lstrip("/")}"
+        return url if url.starts_with?("http")
+
+        base_uri = URI.parse(base)
+        target_uri = URI.parse(url)
+        base_uri.resolve(target_uri).to_s
       }
 
       FUNCTIONS["url_encode"] = ->(args : Array(String)) : String {
@@ -355,6 +365,97 @@ module Lapis
       FUNCTIONS["url_decode"] = ->(args : Array(String)) : String {
         str = args[0] || ""
         URI.decode(str)
+      }
+
+      # NEW URI-BASED FUNCTIONS
+      FUNCTIONS["url_normalize"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        URI.parse(url).normalize.to_s
+      }
+
+      FUNCTIONS["url_scheme"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        URI.parse(url).scheme || ""
+      }
+
+      FUNCTIONS["url_host"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        URI.parse(url).host || ""
+      }
+
+      FUNCTIONS["url_port"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        port = URI.parse(url).port
+        port ? port.to_s : ""
+      }
+
+      FUNCTIONS["url_path"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        URI.parse(url).path || ""
+      }
+
+      FUNCTIONS["url_query"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        URI.parse(url).query || ""
+      }
+
+      FUNCTIONS["url_fragment"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        URI.parse(url).fragment || ""
+      }
+
+      FUNCTIONS["is_absolute_url"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        URI.parse(url).absolute?.to_s
+      }
+
+      FUNCTIONS["is_valid_url"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        begin
+          uri = URI.parse(url)
+          (!uri.opaque? && !uri.scheme.nil?).to_s
+        rescue
+          "false"
+        end
+      }
+
+      FUNCTIONS["url_join"] = ->(args : Array(String)) : String {
+        base = args[0]? || ""
+        path = args[1]? || ""
+        URI.parse(base).resolve(path).to_s
+      }
+
+      FUNCTIONS["url_components"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        uri = URI.parse(url)
+        {
+          scheme:   uri.scheme || "",
+          host:     uri.host || "",
+          port:     uri.port || "",
+          path:     uri.path || "",
+          query:    uri.query || "",
+          fragment: uri.fragment || "",
+          user:     uri.user || "",
+          password: uri.password ? "***" : "",
+        }.to_json
+      }
+
+      FUNCTIONS["query_params"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        uri = URI.parse(url)
+        uri.query_params.to_h.to_json
+      }
+
+      FUNCTIONS["update_query_param"] = ->(args : Array(String)) : String {
+        url = args[0] || ""
+        key = args[1]? || ""
+        value = args[2]? || ""
+
+        uri = URI.parse(url)
+        uri.update_query_params do |params|
+          params[key] = [value]
+        end
+        uri.to_s
       }
     end
 
@@ -553,14 +654,19 @@ module Lapis
         File.extname(file_path)
       }
 
+      FUNCTIONS["file_extname"] = ->(args : Array(String)) : String {
+        file_path = args[0]? || ""
+        Path[file_path].extension
+      }
+
       FUNCTIONS["file_basename"] = ->(args : Array(String)) : String {
         file_path = args[0]? || ""
-        File.basename(file_path)
+        Path[file_path].basename
       }
 
       FUNCTIONS["file_dirname"] = ->(args : Array(String)) : String {
         file_path = args[0]? || ""
-        File.dirname(file_path)
+        Path[file_path].parent.to_s
       }
     end
   end

@@ -76,6 +76,16 @@ module Lapis
     end
   end
 
+  # Path processing errors
+  class PathError < LapisError
+    def initialize(message : String, path : String? = nil, operation : String? = nil)
+      context = {} of String => String
+      context["path"] = path if path
+      context["operation"] = operation if operation
+      super(message, context)
+    end
+  end
+
   # Asset processing errors
   class AssetError < LapisError
     def initialize(message : String, asset_path : String? = nil, asset_type : String? = nil)

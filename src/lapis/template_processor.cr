@@ -1,4 +1,5 @@
 require "./content"
+require "html"
 
 module Lapis
   class TemplateProcessor
@@ -360,8 +361,8 @@ module Lapis
         # Remove HTML tags for plain text output
         value.to_s.gsub(/<[^>]*>/, "")
       when "escape", "escape_html"
-        # HTML escape
-        value.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;").gsub("'", "&#39;")
+        # HTML escape using Crystal's official HTML module
+        HTML.escape(value.to_s)
       when "truncate"
         # Default truncation at 50 characters
         text = value.to_s

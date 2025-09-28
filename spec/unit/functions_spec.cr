@@ -129,6 +129,49 @@ describe Lapis::Functions do
     end
   end
 
+  describe "file functions" do
+    before_each do
+      Lapis::Functions.setup
+    end
+
+    it "file_basename function works with Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      result = Lapis::Functions.call("file_basename", ["/path/to/file.txt"])
+      result.should eq("file.txt")
+
+      result = Lapis::Functions.call("file_basename", ["/path/to/nested/file.md"])
+      result.should eq("file.md")
+    end
+
+    it "file_dirname function works with Path", tags: [TestTags::FAST, TestTags::UNIT] do
+      result = Lapis::Functions.call("file_dirname", ["/path/to/file.txt"])
+      result.should eq("/path/to")
+
+      result = Lapis::Functions.call("file_dirname", ["/path/to/nested/file.md"])
+      result.should eq("/path/to/nested")
+    end
+
+    it "file_extname function works", tags: [TestTags::FAST, TestTags::UNIT] do
+      result = Lapis::Functions.call("file_extname", ["file.txt"])
+      result.should eq(".txt")
+
+      result = Lapis::Functions.call("file_extname", ["file.md"])
+      result.should eq(".md")
+    end
+
+    it "handles edge cases for file functions", tags: [TestTags::FAST, TestTags::UNIT] do
+      # Empty path
+      result = Lapis::Functions.call("file_basename", [""])
+      result.should eq("")
+
+      result = Lapis::Functions.call("file_dirname", [""])
+      result.should eq(".")
+
+      # Root path
+      result = Lapis::Functions.call("file_dirname", ["/"])
+      result.should eq("/")
+    end
+  end
+
   describe "logic functions" do
     before_each do
       Lapis::Functions.setup

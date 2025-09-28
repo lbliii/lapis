@@ -114,9 +114,9 @@ module Lapis
 
       # Load all content files from the entire content directory tree
       # Skip index.md (homepage) and _index.md (section pages - handled separately)
-      search_pattern = File.join(@config.content_dir, "**", "*.md")
+      search_pattern = Path[@config.content_dir].join("**", "*.md").to_s
       Dir.glob(search_pattern).each do |file_path|
-        filename = File.basename(file_path)
+        filename = Path[file_path].basename
         next if filename == "index.md" || filename == "_index.md"
 
         begin
@@ -129,7 +129,7 @@ module Lapis
       end
 
       # Load all _index.md section pages from the entire content directory tree
-      search_pattern = File.join(@config.content_dir, "**", "_index.md")
+      search_pattern = Path[@config.content_dir].join("**", "_index.md").to_s
       Dir.glob(search_pattern).each do |file_path|
         begin
           section_content = Content.load(file_path, @config.content_dir)
@@ -153,7 +153,7 @@ module Lapis
         output_dir = if url_path.empty?
                        @config.output_dir
                      else
-                       File.join(@config.output_dir, url_path.lstrip("/"))
+                       Path[@config.output_dir].join(url_path.lstrip("/")).to_s
                      end
         Dir.mkdir_p(output_dir)
 
@@ -163,7 +163,7 @@ module Lapis
           next unless format
 
           filename = format.filename
-          output_path = File.join(output_dir, filename)
+          output_path = Path[output_dir].join(filename).to_s
           write_file_atomically(output_path, rendered_content)
         end
 
@@ -172,7 +172,7 @@ module Lapis
     end
 
     private def generate_index_page(all_content : Array(Content))
-      index_path = File.join(@config.content_dir, "index.md")
+      index_path = Path[@config.content_dir].join("index.md").to_s
         .tap { |path| puts "DEBUG: Checking for index page" }
         .tap { |path| puts "DEBUG: Looking for index at: #{path}" }
 
@@ -192,14 +192,14 @@ module Lapis
         index_content.content = Markd.to_html(processed_markdown, options)
 
         html = @template_engine.render(index_content)
-        write_file_atomically(File.join(@config.output_dir, "index.html"), html)
+        write_file_atomically(Path[@config.output_dir].join("index.html").to_s, html)
         puts "  Generated: /"
       else
         # Generate default index page using theme
         puts "DEBUG: No index content found, generating themed index"
         posts = all_content.select(&.feedable?).first(5)
         html = generate_themed_index(posts)
-        write_file_atomically(File.join(@config.output_dir, "index.html"), html)
+        write_file_atomically(Path[@config.output_dir].join("index.html").to_s, html)
         puts "  Generated: / (default)"
       end
     end
@@ -247,11 +247,11 @@ module Lapis
       end
 
       tags.each do |tag, tag_posts|
-        tag_dir = File.join(@config.output_dir, "tags", tag.downcase.gsub(/[^a-z0-9]/, "-"))
+        tag_dir = Path[@config.output_dir].join("tags", tag.downcase.gsub(/[^a-z0-9]/, "-")).to_s
         Dir.mkdir_p(tag_dir)
 
         tag_html = generate_tag_page(tag, tag_posts)
-        write_file_atomically(File.join(tag_dir, "index.html"), tag_html)
+        write_file_atomically(Path[tag_dir].join("index.html").to_s, tag_html)
         puts "  Generated: /tags/#{tag}/"
       end
     end
@@ -259,12 +259,12 @@ module Lapis
     private def copy_static_files
       return unless Dir.exists?(@config.static_dir)
 
-      Dir.glob(File.join(@config.static_dir, "**", "*")).each do |source_path|
+      Dir.glob(Path[@config.static_dir].join("**", "*").to_s).each do |source_path|
         next unless File.file?(source_path)
 
         relative_path = source_path[@config.static_dir.size + 1..]
-        output_path = File.join(@config.output_dir, relative_path)
-        output_dir = File.dirname(output_path)
+        output_path = Path[@config.output_dir].join(relative_path).to_s
+        output_dir = Path[output_path].parent.to_s
 
         Dir.mkdir_p(output_dir)
         File.copy(source_path, output_path)
@@ -275,11 +275,11 @@ module Lapis
 
     private def generate_output_path(content : Content) : String
       if content.url == "/"
-        File.join(@config.output_dir, "index.html")
+        Path[@config.output_dir].join("index.html").to_s
       else
         # Remove leading and trailing slashes, add index.html
         clean_url = content.url.strip("/")
-        File.join(@config.output_dir, clean_url, "index.html")
+        Path[@config.output_dir].join(clean_url, "index.html").to_s
       end
     end
 
@@ -682,17 +682,17 @@ module Lapis
 
       # Generate RSS feed
       rss_content = feed_generator.generate_rss(posts)
-      write_file_atomically(File.join(@config.output_dir, "feed.xml"), rss_content)
+      write_file_atomically(Path[@config.output_dir].join("feed.xml").to_s, rss_content)
       puts "  Generated: /feed.xml"
 
       # Generate Atom feed
       atom_content = feed_generator.generate_atom(posts)
-      write_file_atomically(File.join(@config.output_dir, "feed.atom"), atom_content)
+      write_file_atomically(Path[@config.output_dir].join("feed.atom").to_s, atom_content)
       puts "  Generated: /feed.atom"
 
       # Generate JSON Feed
       json_content = feed_generator.generate_json_feed(posts)
-      write_file_atomically(File.join(@config.output_dir, "feed.json"), json_content)
+      write_file_atomically(Path[@config.output_dir].join("feed.json").to_s, json_content)
       puts "  Generated: /feed.json"
     end
 
@@ -755,7 +755,7 @@ module Lapis
 
       begin
         # Ensure directory exists
-        dir = File.dirname(path)
+        dir = Path[path].parent.to_s
         Dir.mkdir_p(dir) unless Dir.exists?(dir)
 
         File.open(temp_path, "w") do |file|
@@ -886,21 +886,21 @@ module Lapis
       asset_files = [] of String
 
       # CSS files
-      css_dir = File.join(@config.static_dir, "css")
+      css_dir = Path[@config.static_dir].join("css").to_s
       if Dir.exists?(css_dir)
-        asset_files.concat(Dir.glob(File.join(css_dir, "*.css")))
+        asset_files.concat(Dir.glob(Path[css_dir].join("*.css").to_s))
       end
 
       # JS files
-      js_dir = File.join(@config.static_dir, "js")
+      js_dir = Path[@config.static_dir].join("js").to_s
       if Dir.exists?(js_dir)
-        asset_files.concat(Dir.glob(File.join(js_dir, "*.js")))
+        asset_files.concat(Dir.glob(Path[js_dir].join("*.js").to_s))
       end
 
       # Image files
-      images_dir = File.join(@config.static_dir, "images")
+      images_dir = Path[@config.static_dir].join("images").to_s
       if Dir.exists?(images_dir)
-        asset_files.concat(Dir.glob(File.join(images_dir, "*.{jpg,jpeg,png,gif,svg,webp}")))
+        asset_files.concat(Dir.glob(Path[images_dir].join("*.{jpg,jpeg,png,gif,svg,webp}").to_s))
       end
 
       if asset_files.empty?

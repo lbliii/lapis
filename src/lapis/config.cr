@@ -1,4 +1,5 @@
 require "yaml"
+require "uri"
 require "./output_formats"
 require "./content_types"
 
@@ -296,6 +297,21 @@ module Lapis
 
       if @port == 0
         @port = 3000
+      end
+
+      # Validate URLs
+      validate_urls!
+    end
+
+    def validate_urls! : Nil
+      if !baseurl.empty?
+        begin
+          uri = URI.parse(baseurl)
+          raise "Invalid base URL: #{baseurl}" if uri.opaque?
+          raise "Base URL must have a scheme" if uri.scheme.nil?
+        rescue ex
+          raise "Configuration error: #{ex.message}"
+        end
       end
     end
   end

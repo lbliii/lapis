@@ -76,7 +76,7 @@ module Lapis
         if static_index && static_index + 1 < parts.size
           parts[static_index + 1..].join("/")
         else
-          File.basename(file_path)
+          Path[file_path].basename
         end
       else
         # For site assets, extract path after static/
@@ -87,7 +87,7 @@ module Lapis
         if static_index && static_index + 1 < parts.size
           parts[static_index + 1..].join("/")
         else
-          File.basename(file_path)
+          Path[file_path].basename
         end
       end
     end
@@ -101,7 +101,7 @@ module Lapis
     property asset_cache : Hash(String, String) = {} of String => String
 
     def initialize(@config : Config)
-      @cache_dir = File.join(@config.build_config.cache_dir, "assets")
+      @cache_dir = Path[@config.build_config.cache_dir].join("assets").to_s
       Dir.mkdir_p(@cache_dir)
       load_asset_cache
     end
@@ -154,10 +154,10 @@ module Lapis
       assets = [] of AssetInfo
 
       # Discover theme assets first (base layer)
-      theme_static_dir = File.join(@config.theme_dir, "static")
+      theme_static_dir = Path[@config.theme_dir].join("static").to_s
       if Dir.exists?(theme_static_dir)
         Logger.debug("Discovering theme assets", path: theme_static_dir)
-        Dir.glob(File.join(theme_static_dir, "**/*")).each do |file_path|
+        Dir.glob(Path[theme_static_dir].join("**/*").to_s).each do |file_path|
           next unless File.file?(file_path)
           assets << AssetInfo.new(file_path, true)
           Logger.debug("Found theme asset", path: file_path)
@@ -167,7 +167,7 @@ module Lapis
       # Discover site assets (override layer)
       if Dir.exists?(@config.static_dir)
         Logger.debug("Discovering site assets", path: @config.static_dir)
-        Dir.glob(File.join(@config.static_dir, "**/*")).each do |file_path|
+        Dir.glob(Path[@config.static_dir].join("**/*").to_s).each do |file_path|
           next unless File.file?(file_path)
           assets << AssetInfo.new(file_path, false)
           Logger.debug("Found site asset", path: file_path)
@@ -220,7 +220,7 @@ module Lapis
         output_path = generate_output_path(asset)
 
         # Create output directory
-        Dir.mkdir_p(File.dirname(output_path))
+        Dir.mkdir_p(Path[output_path].parent.to_s)
 
         # Process based on asset type
         case asset.type
@@ -259,7 +259,7 @@ module Lapis
 
     private def generate_output_path(asset : AssetInfo) : String
       # Simple output structure: assets/{relative_path}
-      File.join(@config.output_dir, "assets", asset.relative_path)
+      Path[@config.output_dir].join("assets", asset.relative_path).to_s
     end
 
     # Asset type processors
@@ -362,7 +362,7 @@ module Lapis
 
     # Cache management
     private def load_asset_cache
-      cache_file = File.join(@cache_dir, "asset_cache.json")
+      cache_file = Path[@cache_dir].join("asset_cache.json").to_s
       return unless File.exists?(cache_file)
 
       begin
@@ -375,7 +375,7 @@ module Lapis
     end
 
     private def save_asset_cache
-      cache_file = File.join(@cache_dir, "asset_cache.json")
+      cache_file = Path[@cache_dir].join("asset_cache.json").to_s
       begin
         # TODO: Implement proper JSON cache saving
         Logger.debug("Asset cache saved", file: cache_file)

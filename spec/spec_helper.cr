@@ -179,17 +179,12 @@ class TestDataFactory
     config
   end
 
-  def self.create_site_with_content(content_count : Int32 = 3) : Array(Lapis::Content)
-    content = [] of Lapis::Content
-
-    content_count.times do |i|
-      frontmatter = create_content("Post #{i + 1}")
-      body = "Content for post #{i + 1}"
-
-      content << Lapis::Content.new("content/posts/post-#{i + 1}.md", frontmatter, body)
-    end
-
-    content
+  def self.create_content_item(title : String = "Test Post",
+                               date : String = "2024-01-15",
+                               tags : Array(String) = ["test"],
+                               section : String = "posts") : Lapis::Content
+    frontmatter = create_content(title, date, tags)
+    Lapis::Content.new("content/#{section}/#{title.downcase.gsub(/\s+/, "-")}.md", frontmatter, "Content for #{title}")
   end
 end
 

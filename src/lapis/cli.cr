@@ -31,6 +31,8 @@ module Lapis
           new_content
         when "theme"
           theme_command
+        when "version", "--version", "-v"
+          show_version
         when "help", "--help", "-h"
           show_help
         else
@@ -671,8 +673,12 @@ module Lapis
       false
     end
 
+    private def show_version
+      puts DESCRIPTION
+    end
+
     private def show_help
-      puts "Lapis static site generator v#{VERSION}"
+      puts DESCRIPTION
       puts ""
       puts "Usage: lapis [command] [options]"
       puts ""
@@ -684,6 +690,7 @@ module Lapis
       puts "  status              Show running server status"
       puts "  new [type] <title>  Create new content (page or post)"
       puts "  theme <command>     Theme management commands"
+      puts "  version             Show version information"
       puts "  help                Show this help"
       puts ""
       puts "Examples:"

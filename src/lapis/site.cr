@@ -2,6 +2,7 @@ require "./content"
 require "./navigation"
 require "./collections"
 require "yaml"
+require "uri"
 
 module Lapis
   # Site object - global site context
@@ -11,6 +12,7 @@ module Lapis
     getter menus : Hash(String, Array(MenuItem))
     getter params : Hash(String, YAML::Any)
     getter data : Hash(String, YAML::Any)
+    @parsed_baseurl : URI? = nil
 
     def initialize(@config : Config, @pages : Array(Content) = [] of Content)
       @menus = {} of String => Array(MenuItem)
@@ -219,26 +221,50 @@ module Lapis
       generator_info["version"]
     end
 
-    # URLS AND PATHS
+    # URI COMPONENTS - Proper URI handling
+    private def parsed_baseurl : URI
+      @parsed_baseurl ||= begin
+        parsed = URI.parse(@config.baseurl)
+        raise "Invalid base URL: #{@config.baseurl}" if parsed.opaque?
+        parsed.normalize
+      end
+    end
 
     def base_url_scheme : String
-      uri = URI.parse(@config.baseurl)
-      uri.scheme || "https"
+      parsed_baseurl.scheme || "https"
     end
 
     def base_url_host : String
-      uri = URI.parse(@config.baseurl)
-      uri.host || "localhost"
+      parsed_baseurl.host || "localhost"
     end
 
     def base_url_port : Int32
-      uri = URI.parse(@config.baseurl)
-      uri.port || (base_url_scheme == "https" ? 443 : 80)
+      parsed_baseurl.port || (base_url_scheme == "https" ? 443 : 80)
     end
 
     def base_url_path : String
-      uri = URI.parse(@config.baseurl)
-      uri.path || "/"
+      parsed_baseurl.path || "/"
+    end
+
+    def base_url_normalized : String
+      parsed_baseurl.to_s
+    end
+
+    def resolve_url(path : String) : String
+      parsed_baseurl.resolve(path).to_s
+    end
+
+    def relativize_url(absolute_url : String) : String
+      parsed_baseurl.relativize(absolute_url).to_s
+    end
+
+    def validate_base_url : Bool
+      begin
+        uri = URI.parse(@config.baseurl)
+        !uri.opaque? && !uri.scheme.nil?
+      rescue
+        false
+      end
     end
 
     # SITE-WIDE OPERATIONS

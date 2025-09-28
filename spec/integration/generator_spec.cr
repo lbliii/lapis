@@ -7,6 +7,7 @@ describe "Generator Integration" do
 
       with_temp_directory do |temp_dir|
         config.output_dir = File.join(temp_dir, "output")
+        config.content_dir = File.join(temp_dir, "content")
 
         # Create test content
         content_dir = File.join(temp_dir, "content")
@@ -35,7 +36,8 @@ describe "Generator Integration" do
         generator.build
 
         # Verify output was created
-        File.exists?(File.join(config.output_dir, "test-post", "index.html")).should be_true
+        # With date-based URLs, the post should be at /2024/01/15/test-post/
+        File.exists?(File.join(config.output_dir, "2024", "01", "15", "test-post", "index.html")).should be_true
       end
     end
 

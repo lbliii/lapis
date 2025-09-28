@@ -85,6 +85,18 @@ module Lapis
       end
     end
 
+    # Path operation logging
+    def self.path_operation(operation : String, path : String, **context)
+      Log.debug { "Path #{operation}: #{path} #{format_context(context)}" }
+    rescue ex
+      Log.error { "Path #{operation} failed for #{path}: #{ex.message}" }
+      raise ex
+    end
+
+    def self.path_error(operation : String, path : String, error : String, **context)
+      Log.error { "Path #{operation} error for #{path}: #{error} #{format_context(context)}" }
+    end
+
     # File operation logging
     def self.file_operation(operation : String, file_path : String, **context)
       Log.debug { "File #{operation}: #{file_path}" }

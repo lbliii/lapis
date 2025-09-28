@@ -26,9 +26,14 @@ module Lapis
     end
 
     def current_items : Array(Content)
-      start_index = (@current_page - 1) * @per_page
-      end_index = start_index + @per_page - 1
-      @items[start_index..end_index]? || [] of Content
+      return [] of Content if @per_page <= 0 || @current_page <= 0
+
+      begin
+        @items.each_slice(@per_page).to_a[@current_page - 1]? || [] of Content
+      rescue ex
+        Logger.warn("Error in current_items", error: ex.message, per_page: @per_page, current_page: @current_page)
+        [] of Content
+      end
     end
 
     def has_previous? : Bool
@@ -93,7 +98,7 @@ module Lapis
       end
 
       # Add pages in window
-      (start_page..end_page).each do |page|
+      (start_page..end_page).each_with_index do |page, index|
         pages << PageInfo.new(page, page_url(page), page == @current_page)
       end
 
@@ -127,7 +132,7 @@ module Lapis
       end
 
       # Page numbers
-      page_range.each do |page|
+      page_range.each_with_index do |page, index|
         if page == @current_page
           nav_items << %(<span class="pagination-current">#{page}</span>)
         else
@@ -172,7 +177,8 @@ module Lapis
     def generate_paginated_archives(posts : Array(Content), per_page : Int32 = 10)
       total_pages = (posts.size.to_f / per_page).ceil.to_i
 
-      (1..total_pages).each do |page_num|
+      (1..total_pages).each_with_index do |page_num, index|
+        Logger.debug("Generating paginated archive page", page: page_num, total_pages: total_pages, index: index)
         paginator = Paginator.new(posts, per_page, page_num, "/posts")
         generate_archive_page(paginator, page_num)
       end
@@ -185,7 +191,8 @@ module Lapis
         tag_slug = tag.downcase.gsub(/[^a-z0-9]/, "-")
         total_pages = (tag_posts.size.to_f / per_page).ceil.to_i
 
-        (1..total_pages).each do |page_num|
+        (1..total_pages).each_with_index do |page_num, index|
+          Logger.debug("Generating tag paginated archive page", tag: tag, page: page_num, total_pages: total_pages, index: index)
           paginator = Paginator.new(tag_posts, per_page, page_num, "/tags/#{tag_slug}")
           generate_tag_archive_page(paginator, tag, tag_slug, page_num)
         end
@@ -237,7 +244,7 @@ module Lapis
       if Dir.exists?(@config.static_dir)
         css_dir = File.join(@config.static_dir, "css")
         if Dir.exists?(css_dir)
-          Dir.glob(File.join(css_dir, "*.css")).each do |css_file|
+          Dir.glob(File.join(css_dir, "*.css")).each_with_index do |css_file, index|
             relative_path = css_file[@config.static_dir.size + 1..]
             css_files << %(<link rel="stylesheet" href="/assets/#{relative_path}">)
           end

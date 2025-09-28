@@ -1,6 +1,7 @@
 require "yaml"
 require "markd"
 require "log"
+require "uri"
 require "./base_content"
 require "./page_kinds"
 require "./content_types"
@@ -32,7 +33,7 @@ module Lapis
     property content_type : ContentType
 
     def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String, content_dir : String = "content")
-      @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(File.basename(@file_path, ".md"))
+      @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(Path[@file_path].stem)
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
       @content_type = if type_from_frontmatter = @frontmatter["type"]?.try(&.as_s)
                         ContentType.parse(type_from_frontmatter)
@@ -85,7 +86,7 @@ module Lapis
       content = [] of Content
 
       if Dir.exists?(directory)
-        Dir.glob(File.join(directory, "**", "*.md")).each do |file_path|
+        Dir.glob(Path[directory].join("**", "*.md").to_s).each do |file_path|
           begin
             content << load(file_path, directory)
           rescue ex : ContentError
@@ -109,11 +110,11 @@ module Lapis
       case content_type
       when .article?
         dir = "content/posts"
-        path = File.join(dir, "#{filename}.md")
+        path = Path[dir].join("#{filename}.md").to_s
         layout = "post"
       else
         dir = "content"
-        path = File.join(dir, "#{filename}.md")
+        path = Path[dir].join("#{filename}.md").to_s
         layout = "page"
       end
 
@@ -311,29 +312,39 @@ module Lapis
         return @permalink.try { |p| p } || generate_url
       end
 
-      if date_based_url?
-        date = @date.try { |d| d } || Time.utc
-        year = date.year.to_s
-        month = date.month.to_s.rjust(2, '0')
-        day = date.day.to_s.rjust(2, '0')
-        slug = File.basename(@file_path, ".md")
-        "/#{year}/#{month}/#{day}/#{slug}/"
-      else
-        # For section pages (_index.md), use the section name instead of filename
-        if @kind.section? || @kind.list?
-          if @section.empty?
-            "/"
-          else
-            "/#{@section}/"
-          end
+      begin
+        if date_based_url?
+          date = @date.try { |d| d } || Time.utc
+          year = date.year.to_s
+          month = date.month.to_s.rjust(2, '0')
+          day = date.day.to_s.rjust(2, '0')
+          slug = Path[@file_path].stem
+          Path["/"].join(year, month, day, slug).to_s + "/"
         else
-          slug = File.basename(@file_path, ".md")
-          if slug == "index"
-            "/"
+          if @kind.section? || @kind.list?
+            @section.empty? ? "/" : URI.parse("/").resolve("#{@section}/").path
           else
-            "/#{slug}/"
+            slug = Path[@file_path].stem
+            if slug == "index"
+              "/"
+            else
+              # For nested paths, use the relative path from content directory
+              rel_path = Path[@file_path].relative_to(Path["content"]).to_s
+              path_parts = Path[rel_path].parts[0..-2] # All parts except filename
+              if path_parts.empty?
+                Path["/"].join(slug).to_s + "/"
+              else
+                Path["/"].join(path_parts + [slug]).to_s + "/"
+              end
+            end
           end
         end
+      rescue ex : Path::Error
+        Logger.path_error("url_generation", @file_path, ex.message || "Unknown error")
+        raise PathError.new("Error generating URL for #{@file_path}: #{ex.message}", @file_path, "url_generation")
+      rescue ex
+        Logger.path_error("url_generation", @file_path, ex.message || "Unknown error")
+        raise PathError.new("Unexpected error generating URL for #{@file_path}: #{ex.message}", @file_path, "url_generation")
       end
     end
 
@@ -343,7 +354,7 @@ module Lapis
     end
 
     def inspect(io : IO) : Nil
-      io << "Content(title: #{title}, file: #{File.basename(@file_path)}, kind: #{@kind}, section: #{@section}, date: #{@date.try(&.to_s("%Y-%m-%d")) || "nil"})"
+      io << "Content(title: #{title}, file: #{Path[@file_path].basename}, kind: #{@kind}, section: #{@section}, date: #{@date.try(&.to_s("%Y-%m-%d")) || "nil"})"
     end
   end
 end

@@ -56,24 +56,14 @@ module Lapis
       collection = get_collection(collection_name)
       return [] of Content unless collection
 
-      collection.content.first(count)
+      collection.first(count)
     end
 
     def group_by(collection_name : String, property : String) : Hash(String, Array(Content))
       collection = get_collection(collection_name)
       return {} of String => Array(Content) unless collection
 
-      grouped = {} of String => Array(Content)
-
-      collection.content.each do |content|
-        value = get_property_value(content, property)
-        key = value.to_s
-
-        grouped[key] ||= [] of Content
-        grouped[key] << content
-      end
-
-      grouped
+      collection.chunk { |content| get_property_value(content, property).to_s }.to_h
     end
 
     def tag_cloud(collection_name : String = "posts") : Hash(String, Int32)
@@ -82,7 +72,7 @@ module Lapis
 
       tag_counts = {} of String => Int32
 
-      collection.content.each do |content|
+      collection.each do |content|
         tags = extract_tags(content)
         tags.each do |tag|
           tag_counts[tag] = tag_counts.fetch(tag, 0) + 1
@@ -94,6 +84,46 @@ module Lapis
 
     def recent(collection_name : String, count : Int32 = 5) : Array(Content)
       sort_by(collection_name, "date", reverse: true).first(count)
+    end
+
+    def paginated(collection_name : String, page_size : Int32, page : Int32) : Array(Content)
+      collection = get_collection(collection_name)
+      return [] of Content unless collection
+
+      Logger.debug("Using Iterable pagination", collection: collection_name, page_size: page_size, page: page)
+      collection.paginated_content(page_size, page)
+    end
+
+    def grouped_by_date(collection_name : String) : Hash(String, Array(Content))
+      collection = get_collection(collection_name)
+      return {} of String => Array(Content) unless collection
+
+      Logger.debug("Using Iterable chunking for date grouping", collection: collection_name)
+      collection.group_by_date
+    end
+
+    def content_sliding_window(collection_name : String, window_size : Int32 = 3) : Array(Array(Content))
+      collection = get_collection(collection_name)
+      return [] of Array(Content) unless collection
+
+      Logger.debug("Using Iterable each_cons for sliding window", collection: collection_name, window_size: window_size)
+      collection.content_previews(window_size)
+    end
+
+    def section_groups(collection_name : String) : Array(Array(Content))
+      collection = get_collection(collection_name)
+      return [] of Array(Content) unless collection
+
+      Logger.debug("Using Iterable slice_when for section grouping", collection: collection_name)
+      collection.group_by_section_changes
+    end
+
+    def recent_with_positions(collection_name : String, count : Int32 = 5) : Array({Content, Int32})
+      collection = get_collection(collection_name)
+      return [] of {Content, Int32} unless collection
+
+      Logger.debug("Using Iterable each_with_index for recent items", collection: collection_name, count: count)
+      collection.recent_with_index(count)
     end
 
     private def initialize_default_collections
@@ -229,6 +259,7 @@ module Lapis
   end
 
   class Collection
+    include Iterable(Content)
     getter name : String
     getter content : Array(Content)
 
@@ -255,8 +286,60 @@ module Lapis
       @content[index]?
     end
 
-    def each(&block : Content ->)
-      @content.each(&block)
+    def each
+      @content.each
+    end
+
+    # Advanced iteration methods leveraging Iterable
+    def paginated_content(page_size : Int32, page : Int32) : Array(Content)
+      return [] of Content if page_size <= 0 || page <= 0
+      
+      begin
+        each_slice(page_size).to_a[page - 1]? || [] of Content
+      rescue ex
+        Logger.warn("Error in paginated_content", error: ex.message, page_size: page_size, page: page)
+        [] of Content
+      end
+    end
+
+    def group_by_date : Hash(String, Array(Content))
+      begin
+        chunk(&.date.to_s).to_h
+      rescue ex
+        Logger.warn("Error in group_by_date", error: ex.message)
+        {} of String => Array(Content)
+      end
+    end
+
+    def content_previews(window_size : Int32 = 3) : Array(Array(Content))
+      return [] of Array(Content) if window_size <= 0
+      
+      begin
+        each_cons(window_size).to_a
+      rescue ex
+        Logger.warn("Error in content_previews", error: ex.message, window_size: window_size)
+        [] of Array(Content)
+      end
+    end
+
+    def group_by_section_changes : Array(Array(Content))
+      begin
+        slice_when { |a, b| a.section != b.section }.to_a
+      rescue ex
+        Logger.warn("Error in group_by_section_changes", error: ex.message)
+        [] of Array(Content)
+      end
+    end
+
+    def recent_with_index(count : Int32 = 5) : Array({Content, Int32})
+      return [] of {Content, Int32} if count <= 0
+      
+      begin
+        each_with_index.first(count).to_a
+      rescue ex
+        Logger.warn("Error in recent_with_index", error: ex.message, count: count)
+        [] of {Content, Int32}
+      end
     end
   end
 end
