@@ -6,47 +6,41 @@ module Lapis
   class CuteLogBackend < Log::IOBackend
     @@suppress_theme_init = false
     @@theme_init_count = 0
-    @@log_level = Log::Severity::Info
-    
-    def self.set_log_level(level : Log::Severity)
-      @@log_level = level
+
+    def initialize
+      super(STDOUT)
     end
-    
+
     def write(entry : Log::Entry)
-      return unless should_log?(entry.severity)
-      
       time_str = entry.timestamp.to_s("%H:%M:%S")
       message = entry.message.to_s
-      
+
       # Special handling for certain messages
       if message.includes?("Theme manager initialized")
         return if @@suppress_theme_init
         @@theme_init_count += 1
         if @@theme_init_count > 5
           @@suppress_theme_init = true
-          puts "   📦 Theme manager ready (suppressing further messages)".colorize(:cyan)
+          puts "   📦 Theme manager ready (suppressing further messages)"
           return
         end
       end
-      
+
+      # Format with emojis
       case entry.severity
       when Log::Severity::Debug
-        puts "   #{time_str} 🔍 #{message}".colorize(:light_gray)
+        puts "   #{time_str} 🔍 #{message}"
       when Log::Severity::Info
-        puts "   #{time_str} ℹ️  #{message}".colorize(:cyan)
+        puts "   #{time_str} ℹ️  #{message}"
       when Log::Severity::Warn
-        puts "   #{time_str} ⚠️  #{message}".colorize(:yellow)
+        puts "   #{time_str} ⚠️  #{message}"
       when Log::Severity::Error
-        puts "   #{time_str} ❌ #{message}".colorize(:red)
+        puts "   #{time_str} ❌ #{message}"
       when Log::Severity::Fatal
-        puts "   #{time_str} 💥 #{message}".colorize(:red).bold
+        puts "   #{time_str} 💥 #{message}"
       else
         puts "   #{time_str} #{message}"
       end
-    end
-    
-    private def should_log?(severity : Log::Severity) : Bool
-      severity.value >= @@log_level.value
     end
   end
 
@@ -157,15 +151,49 @@ module Lapis
       raise ex
     end
 
-    # HTTP request logging
+    # HTTP request logging - cute version
     def self.http_request(method : String, path : String, status : Int32, duration : Time::Span? = nil, **context)
       duration_str = duration ? " in #{format_duration(duration)}" : ""
-      Log.info { "#{method} #{path} -> #{status}#{duration_str}" }
+      time_str = Time.utc.to_s("%H:%M:%S")
+
+      # Choose emoji based on status
+      emoji = case status
+              when 200..299 then "✅"
+              when 300..399 then "↗️ "
+              when 400..499 then "⚠️ "
+              when 500..599 then "💥"
+              else               "📡"
+              end
+
+      # Choose color based on status
+      color = case status
+              when 200..299 then :green
+              when 300..399 then :cyan
+              when 400..499 then :yellow
+              when 500..599 then :red
+              else               :white
+              end
+
+      puts "   #{time_str} #{emoji} #{method} #{path} -> #{status}#{duration_str}".colorize(color)
     end
 
-    # Build operation logging
+    # Build operation logging - cute version
     def self.build_operation(operation : String, **context)
-      Log.info { "Build: #{operation}" }
+      time_str = Time.utc.to_s("%H:%M:%S")
+
+      # Choose emoji based on operation
+      emoji = case operation.downcase
+              when .includes?("starting")   then "🚀"
+              when .includes?("completed")  then "✨"
+              when .includes?("loading")    then "📚"
+              when .includes?("generating") then "⚡"
+              when .includes?("processing") then "🔧"
+              when .includes?("assets")     then "🎨"
+              when .includes?("feeds")      then "📡"
+              else                               "🔨"
+              end
+
+      puts "   #{time_str} #{emoji} Build: #{operation}".colorize(:blue)
     end
 
     # WebSocket logging

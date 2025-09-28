@@ -57,11 +57,11 @@ module Lapis
 
         Logger.build_operation("Generating pages")
         all_content.tap do |content|
-          puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental}"
-          puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel}"
+          puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental?}"
+          puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel?}"
         end
 
-        if @config.build_config.incremental
+        if @config.build_config.incremental?
           puts "DEBUG: Using incremental build strategy"
           generate_content_pages_incremental_v2(all_content)
         else
@@ -84,7 +84,7 @@ module Lapis
         generate_feeds(all_content)
 
         # Save incremental build cache
-        @incremental_builder.save_cache if @config.build_config.incremental
+        @incremental_builder.save_cache if @config.build_config.incremental?
 
         # Emit after build event
         @plugin_manager.emit_event(PluginEvent::AfterBuild, self)
@@ -801,7 +801,7 @@ module Lapis
         unchanged: unchanged_content.size.to_s)
 
       # Process changed content
-      if @config.build_config.parallel && changed_content.size > 1
+      if @config.build_config.parallel? && changed_content.size > 1
         Logger.info("Processing changed content in parallel",
           count: changed_content.size.to_s,
           strategy: "parallel")

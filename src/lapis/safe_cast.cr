@@ -5,7 +5,7 @@ module Lapis
   # Safe type casting utilities to prevent TypeCastError exceptions
   module SafeCast
     # Safely cast an object to a specific type, returning nil if the cast fails
-    def self.cast_or_nil(object, target_type : T.class) : T? forall T
+    def self.cast_or_nil(object, target_type : T.class) forall T
       return nil if object.nil?
       object.is_a?(T) ? object.as(T) : nil
     end
@@ -18,7 +18,7 @@ module Lapis
 
     # Safely cast an object to a specific type, raising a Lapis TypeCastError if it fails
     def self.cast_or_raise(object, target_type : T.class, context : String = "") : T forall T
-      return raise Lapis::TypeCastError.new("Cannot cast nil to #{T.name}", "Nil", T.name, "nil") if object.nil?
+      raise ArgumentError.new("Cannot cast nil to #{T.name}") if object.nil?
       if object.is_a?(T)
         Logger.type_cast_success("cast_or_raise", object.class.name, T.name, context: context)
         object.as(T)
@@ -26,71 +26,172 @@ module Lapis
         Logger.type_cast_error("cast_or_raise", object.class.name, T.name, object.inspect, context: context)
         error_msg = "Failed to cast #{object.class.name} to #{T.name}"
         error_msg += " (#{context})" unless context.empty?
-        raise Lapis::TypeCastError.new(
-          error_msg,
-          source_type: object.class.name,
-          target_type: T.name,
-          value: object.inspect
-        )
+        raise ArgumentError.new(error_msg)
       end
     end
 
     # Safely cast JSON::Any to a specific type
-    def self.cast_json_any(object : JSON::Any, target_type : T.class) : T? forall T
-      case target_type
-      when String
-        object.as_s? as T?
-      when Int32
-        object.as_i? as T?
-      when Int64
-        object.as_i64? as T?
-      when Float32
-        object.as_f? as T?
-      when Float64
-        object.as_f64? as T?
-      when Bool
-        object.as_bool? as T?
-      when Array(String)
-        object.as_a? as T?
-      when Hash(String, JSON::Any)
-        object.as_h? as T?
+    def self.cast_json_any(object : JSON::Any, target_type : T.class) forall T
+      # Use specific JSON::Any methods for type casting
+      return nil if object.nil?
+      # Handle common types explicitly
+      if T == String
+        object.as_s?
+      elsif T == Int32
+        object.as_i?
+      elsif T == Int64
+        object.as_i64?
+      elsif T == Float32 || T == Float64
+        object.as_f?
+      elsif T == Bool
+        object.as_bool?
       else
-        # For custom types, try direct casting
-        begin
-          object.as(T)
-        rescue ::TypeCastError
-          nil
-        end
+        # For other types, return nil
+        nil
       end
     end
 
     # Safely cast YAML::Any to a specific type
-    def self.cast_yaml_any(object : YAML::Any, target_type : T.class) : T? forall T
-      case target_type
-      when String
-        object.as_s? as T?
-      when Int32
-        object.as_i? as T?
-      when Int64
-        object.as_i64? as T?
-      when Float32
-        object.as_f? as T?
-      when Float64
-        object.as_f64? as T?
-      when Bool
-        object.as_bool? as T?
-      when Array(String)
-        object.as_a? as T?
-      when Hash(String, YAML::Any)
-        object.as_h? as T?
+    def self.cast_yaml_any(object : YAML::Any, target_type : T.class) forall T
+      # Use specific YAML::Any methods for type casting
+      return nil if object.nil?
+      # Handle common types explicitly
+      if T == String
+        object.as_s?
+      elsif T == Int32
+        object.as_i?
+      elsif T == Int64
+        object.as_i64?
+      elsif T == Float32 || T == Float64
+        object.as_f?
+      elsif T == Bool
+        object.as_bool?
       else
-        # For custom types, try direct casting
-        begin
-          object.as(T)
-        rescue ::TypeCastError
-          nil
-        end
+        # For other types, return nil
+        nil
       end
+    end
+
+    # Safely cast a string to a symbol, returning nil if the conversion fails
+    def self.string_to_symbol(str : String) : Symbol?
+      return nil if str.empty?
+      str.to_sym
+    rescue
+      nil
+    end
+
+    # Safely cast a symbol to a string
+    def self.symbol_to_string(sym : Symbol) : String
+      sym.to_s
+    end
+
+    # Check if a string can be converted to a valid symbol using Char API
+    def self.valid_symbol?(str : String) : Bool
+      raise ArgumentError.new("String cannot be nil") if str.nil?
+      return false if str.empty?
+      # Use Char API for more efficient character-by-character validation
+      chars = str.chars
+      return false if chars.empty?
+      # First character must be letter or underscore
+      first_char = chars[0]
+      return false unless first_char.letter? || first_char == '_'
+      # Remaining characters must be letters, digits, or underscores
+      chars[1..].all? { |char| char.letter? || char.number? || char == '_' }
+    end
+
+    # Safely cast an object to a symbol, returning nil if the cast fails
+    def self.cast_to_symbol(object) : Symbol?
+      case object
+      when Symbol
+        object
+      when String
+        string_to_symbol(object)
+      else
+        nil
+      end
+    end
+
+    # Safely cast an object to a string, returning nil if the cast fails
+    def self.cast_to_string(object) : String?
+      case object
+      when String
+        object
+      when Symbol
+        symbol_to_string(object)
+      else
+        object.try(&.to_s)
+      end
+    end
+
+    # Character-level validation methods using Char API
+
+    # Check if a string contains only digits
+    def self.numeric_string?(str : String) : Bool
+      raise ArgumentError.new("String cannot be nil") if str.nil?
+      return false if str.empty?
+      str.chars.all?(&.number?)
+    end
+
+    # Check if a string contains only alphabetic characters
+    def self.alphabetic_string?(str : String) : Bool
+      raise ArgumentError.new("String cannot be nil") if str.nil?
+      return false if str.empty?
+      str.chars.all?(&.letter?)
+    end
+
+    # Check if a string contains only alphanumeric characters
+    def self.alphanumeric_string?(str : String) : Bool
+      raise ArgumentError.new("String cannot be nil") if str.nil?
+      return false if str.empty?
+      str.chars.all? { |char| char.letter? || char.number? }
+    end
+
+    # Check if a string is a valid identifier (letters, digits, underscores, starting with letter/underscore)
+    def self.valid_identifier?(str : String) : Bool
+      return false if str.empty?
+      chars = str.chars
+      first_char = chars[0]
+      return false unless first_char.letter? || first_char == '_'
+      chars[1..].all? { |char| char.letter? || char.number? || char == '_' }
+    end
+
+    # Check if a string contains only whitespace
+    def self.whitespace_string?(str : String) : Bool
+      return true if str.empty?
+      str.chars.all?(&.whitespace?)
+    end
+
+    # Extract digits from a string using Char API
+    def self.extract_digits(str : String) : String
+      str.chars.select(&.number?).join
+    end
+
+    # Extract letters from a string using Char API
+    def self.extract_letters(str : String) : String
+      str.chars.select(&.letter?).join
+    end
+
+    # Convert first character to uppercase using Char API
+    def self.capitalize_first(str : String) : String
+      return str if str.empty?
+      chars = str.chars
+      chars[0].upcase.to_s + chars[1..].join
+    end
+
+    # Check if string starts with uppercase letter using Char API
+    def self.starts_with_uppercase?(str : String) : Bool
+      return false if str.empty?
+      str.chars[0].uppercase?
+    end
+
+    # Count uppercase letters in string using Char API
+    def self.count_uppercase(str : String) : Int32
+      str.chars.count(&.uppercase?)
+    end
+
+    # Count lowercase letters in string using Char API
+    def self.count_lowercase(str : String) : Int32
+      str.chars.count(&.lowercase?)
     end
   end
 end

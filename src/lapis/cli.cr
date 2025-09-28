@@ -14,7 +14,12 @@ module Lapis
     end
 
     def run
-      command = @args[0]? || "help"
+      raise ArgumentError.new("No command specified") if @args.empty?
+      command = @args[0]?
+      raise ArgumentError.new("Command cannot be nil") unless command
+
+      # Set up cute logging early
+      Logger.setup
 
       begin
         case command
@@ -108,8 +113,8 @@ module Lapis
       Logger.info("Starting CLI build process")
       config = Config.load
       Logger.debug("Config loaded",
-        incremental: config.build_config.incremental,
-        parallel: config.build_config.parallel,
+        incremental: config.build_config.incremental?,
+        parallel: config.build_config.parallel?,
         cache_dir: config.build_config.cache_dir)
 
       generator = Generator.new(config)
@@ -522,6 +527,7 @@ module Lapis
 
     # Server management helper methods
     private def port_in_use?(port : Int32) : Bool
+      raise ArgumentError.new("Port must be between 1 and 65535") unless (1..65535).includes?(port)
       result = `lsof -ti:#{port} 2>/dev/null`.strip
       !result.empty?
     end
@@ -559,16 +565,25 @@ module Lapis
     end
 
     private def setup_signal_handlers(port : Int32)
-      Signal::INT.trap do
-        puts "\n🛑 Received interrupt signal, shutting down gracefully..."
-        cleanup_server_info(port)
-        exit(0)
-      end
+      # Skip signal handling in test mode
+      return if ENV["LAPIS_TEST_MODE"]? == "true"
 
-      Signal::TERM.trap do
-        puts "\n🛑 Received termination signal, shutting down gracefully..."
-        cleanup_server_info(port)
-        exit(0)
+      # Use Process.on_terminate for modern signal handling
+      Process.on_terminate do |reason|
+        case reason
+        when .interrupted?
+          puts "\n🛑 Received interrupt signal, shutting down gracefully..."
+          cleanup_server_info(port)
+          exit(0)
+        when .terminal_disconnected?
+          puts "\n🛑 Terminal disconnected, shutting down gracefully..."
+          cleanup_server_info(port)
+          exit(0)
+        when .session_ended?
+          puts "\n🛑 Session ended, shutting down gracefully..."
+          cleanup_server_info(port)
+          exit(0)
+        end
       end
     end
 

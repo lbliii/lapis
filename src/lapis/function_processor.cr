@@ -12,6 +12,29 @@ module Lapis
     getter site : Site
     getter page : Page?
 
+    # Pre-computed symbol tuples for performance optimization
+    private SITE_METHODS = {
+      :Title, :BaseURL, :Pages, :RegularPages, :Params, :Data, :Menus, :Author,
+      :Copyright, :Hugo, :title, :"base_url", :theme, :"theme_dir", :"layouts_dir",
+      :"static_dir", :"output_dir", :"content_dir", :debug, :"build_config",
+      :"live_reload_config", :"bundling_config",
+    }
+
+    private PAGE_METHODS = {
+      :Title, :Content, :Summary, :URL, :Permalink, :Date, :Tags, :Categories,
+      :WordCount, :ReadingTime, :Next, :Prev, :Parent, :Children, :Related,
+      :Section, :Kind, :Type, :Layout, :Params, :title, :content, :summary,
+      :url, :permalink, :date, :tags, :categories, :kind, :layout, :"file_path",
+    }
+
+    private CONTENT_METHODS            = {:Title, :URL, :Date, :Summary}
+    private TIME_METHODS               = {:Year, :Month, :Day, :Format}
+    private ARRAY_METHODS              = {:len, :first, :last}
+    private MENUITEM_METHODS           = {:name, :url, :weight, :external}
+    private BUILD_CONFIG_METHODS       = {:enabled, :incremental, :parallel, :"cache_dir", :"max_workers"}
+    private LIVE_RELOAD_CONFIG_METHODS = {:enabled, :"websocket_path", :"debounce_ms"}
+    private BUNDLING_CONFIG_METHODS    = {:enabled, :minify, :"source_maps", :autoprefix}
+
     def initialize(@context : TemplateContext)
       @site = Site.new(@context.config, @context.query.site_content)
 
@@ -21,6 +44,230 @@ module Lapis
 
       # Initialize global functions
       Functions.setup
+    end
+
+    # Optimized tuple-based method dispatch
+    private def dispatch_method_tuple(object, method_symbol : Symbol)
+      # Use tuple operations for efficient method dispatch
+      case {object.class, method_symbol}
+      when {Site.class, _}
+        dispatch_site_method(object, method_symbol) if SITE_METHODS.includes?(method_symbol)
+      when {Page.class, _}
+        dispatch_page_method(object, method_symbol) if PAGE_METHODS.includes?(method_symbol)
+      when {Content.class, _}
+        dispatch_content_method(object, method_symbol) if CONTENT_METHODS.includes?(method_symbol)
+      when {Time.class, _}
+        dispatch_time_method(object, method_symbol) if TIME_METHODS.includes?(method_symbol)
+      when {Array.class, _}
+        dispatch_array_method(object, method_symbol) if ARRAY_METHODS.includes?(method_symbol)
+      when {MenuItem.class, _}
+        dispatch_menuitem_method(object, method_symbol) if MENUITEM_METHODS.includes?(method_symbol)
+      when {BuildConfig.class, _}
+        dispatch_build_config_method(object, method_symbol) if BUILD_CONFIG_METHODS.includes?(method_symbol)
+      when {LiveReloadConfig.class, _}
+        dispatch_live_reload_config_method(object, method_symbol) if LIVE_RELOAD_CONFIG_METHODS.includes?(method_symbol)
+      when {BundlingConfig.class, _}
+        dispatch_bundling_config_method(object, method_symbol) if BUNDLING_CONFIG_METHODS.includes?(method_symbol)
+      else
+        nil
+      end
+    end
+
+    # Tuple-based method dispatchers using tuple iteration
+    private def dispatch_site_method(object, method_symbol : Symbol)
+      # Use tuple to_a for iteration and mapping
+      site_methods_tuple = SITE_METHODS.to_a
+      site_methods_tuple.each do |method|
+        return handle_site_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_page_method(object, method_symbol : Symbol) : String?
+      PAGE_METHODS.to_a.each do |method|
+        return handle_page_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_content_method(object, method_symbol : Symbol) : String?
+      CONTENT_METHODS.to_a.each do |method|
+        return handle_content_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_time_method(object, method_symbol : Symbol) : String?
+      TIME_METHODS.to_a.each do |method|
+        return handle_time_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_array_method(object, method_symbol : Symbol) : String?
+      ARRAY_METHODS.to_a.each do |method|
+        return handle_array_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_menuitem_method(object, method_symbol : Symbol) : String?
+      MENUITEM_METHODS.to_a.each do |method|
+        return handle_menuitem_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_build_config_method(object, method_symbol : Symbol)
+      BUILD_CONFIG_METHODS.to_a.each do |method|
+        return handle_build_config_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_live_reload_config_method(object, method_symbol : Symbol)
+      LIVE_RELOAD_CONFIG_METHODS.to_a.each do |method|
+        return handle_live_reload_config_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_bundling_config_method(object, method_symbol : Symbol)
+      BUNDLING_CONFIG_METHODS.to_a.each do |method|
+        return handle_bundling_config_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    # Handler methods using tuple operations for efficient processing
+    private def handle_site_method(object, method : Symbol)
+      case method
+      when :Title                then object.is_a?(Site) ? object.as(Site).title : nil
+      when :title                then object.is_a?(Site) ? object.as(Site).title : nil
+      when :BaseURL              then object.is_a?(Site) ? object.as(Site).base_url : nil
+      when :"base_url"           then object.is_a?(Site) ? object.as(Site).base_url : nil
+      when :Pages                then object.is_a?(Site) ? object.as(Site).all_pages.to_s : nil
+      when :RegularPages         then object.is_a?(Site) ? object.as(Site).regular_pages.to_s : nil
+      when :Params               then object.is_a?(Site) ? object.as(Site).params.to_s : nil
+      when :Data                 then object.is_a?(Site) ? object.as(Site).data.to_s : nil
+      when :Menus                then object.is_a?(Site) ? object.as(Site).menus.to_s : nil
+      when :Author               then object.is_a?(Site) ? object.as(Site).author : nil
+      when :Copyright            then object.is_a?(Site) ? object.as(Site).copyright : nil
+      when :Hugo                 then object.is_a?(Site) ? object.as(Site).generator_info : nil
+      when :theme                then object.is_a?(Site) ? object.as(Site).theme : nil
+      when :"theme_dir"          then object.is_a?(Site) ? object.as(Site).theme_dir : nil
+      when :"layouts_dir"        then object.is_a?(Site) ? object.as(Site).layouts_dir : nil
+      when :"static_dir"         then object.is_a?(Site) ? object.as(Site).static_dir : nil
+      when :"output_dir"         then object.is_a?(Site) ? object.as(Site).output_dir : nil
+      when :"content_dir"        then object.is_a?(Site) ? object.as(Site).content_dir : nil
+      when :debug                then object.is_a?(Site) ? object.as(Site).debug.to_s : nil
+      when :"build_config"       then object.is_a?(Site) ? object.as(Site).build_config : nil
+      when :"live_reload_config" then object.is_a?(Site) ? object.as(Site).live_reload_config : nil
+      when :"bundling_config"    then object.is_a?(Site) ? object.as(Site).bundling_config : nil
+      else                            nil
+      end
+    end
+
+    private def handle_page_method(object, method : Symbol) : String?
+      case method
+      when :Title, :title           then object.is_a?(Page) ? object.as(Page).title : nil
+      when :Content, :content       then object.is_a?(Page) ? object.as(Page).content_html : nil
+      when :Summary, :summary       then object.is_a?(Page) ? object.as(Page).summary : nil
+      when :URL, :url               then object.is_a?(Page) ? object.as(Page).url : nil
+      when :Permalink, :permalink   then object.is_a?(Page) ? object.as(Page).permalink : nil
+      when :Date, :date             then object.is_a?(Page) ? object.as(Page).date.to_s : nil
+      when :Tags, :tags             then object.is_a?(Page) ? object.as(Page).tags.to_s : nil
+      when :Categories, :categories then object.is_a?(Page) ? object.as(Page).categories.to_s : nil
+      when :WordCount               then object.is_a?(Page) ? object.as(Page).word_count.to_s : nil
+      when :ReadingTime             then object.is_a?(Page) ? object.as(Page).reading_time.to_s : nil
+      when :Next                    then object.is_a?(Page) ? object.as(Page).next.to_s : nil
+      when :Prev                    then object.is_a?(Page) ? object.as(Page).prev.to_s : nil
+      when :Parent                  then object.is_a?(Page) ? object.as(Page).parent.to_s : nil
+      when :Children                then object.is_a?(Page) ? object.as(Page).children.to_s : nil
+      when :Related                 then object.is_a?(Page) ? object.as(Page).related.to_s : nil
+      when :Section                 then object.is_a?(Page) ? object.as(Page).section.to_s : nil
+      when :Kind, :kind             then object.is_a?(Page) ? object.as(Page).kind.to_s : nil
+      when :Type                    then object.is_a?(Page) ? object.as(Page).type.to_s : nil
+      when :Layout, :layout         then object.is_a?(Page) ? object.as(Page).layout.to_s : nil
+      when :Params                  then object.is_a?(Page) ? object.as(Page).params.to_s : nil
+      when :"file_path"             then object.is_a?(Page) ? object.as(Page).file_path : nil
+      else                               nil
+      end
+    end
+
+    private def handle_content_method(object, method : Symbol) : String?
+      case method
+      when :Title then object.is_a?(Content) ? object.as(Content).title : nil
+      when :URL   then object.is_a?(Content) ? object.as(Content).url : nil
+      when :Date  then object.is_a?(Content) ? object.as(Content).date.to_s : nil
+      when :Summary
+        if object.is_a?(Content)
+          content = object.as(Content)
+          PageOperations.new(content, @site.pages).summary
+        else
+          nil
+        end
+      else nil
+      end
+    end
+
+    private def handle_time_method(object, method : Symbol) : String?
+      case method
+      when :Year   then object.is_a?(Time) ? object.as(Time).year.to_s : nil
+      when :Month  then object.is_a?(Time) ? object.as(Time).month.to_s : nil
+      when :Day    then object.is_a?(Time) ? object.as(Time).day.to_s : nil
+      when :Format then object.is_a?(Time) ? object.as(Time).to_s("%Y-%m-%d") : nil
+      else              nil
+      end
+    end
+
+    private def handle_array_method(object, method : Symbol) : String?
+      case method
+      when :len   then object.is_a?(Array) ? object.as(Array).size.to_s : nil
+      when :first then object.is_a?(Array) ? object.as(Array).first?.to_s : nil
+      when :last  then object.is_a?(Array) ? object.as(Array).last?.to_s : nil
+      else             nil
+      end
+    end
+
+    private def handle_menuitem_method(object, method : Symbol) : String?
+      case method
+      when :name     then object.is_a?(MenuItem) ? object.as(MenuItem).name : nil
+      when :url      then object.is_a?(MenuItem) ? object.as(MenuItem).url : nil
+      when :weight   then object.is_a?(MenuItem) ? object.as(MenuItem).weight.to_s : nil
+      when :external then object.is_a?(MenuItem) ? object.as(MenuItem).external.to_s : nil
+      else                nil
+      end
+    end
+
+    private def handle_build_config_method(object, method : Symbol)
+      case method
+      when :enabled       then object.is_a?(BuildConfig) ? object.as(BuildConfig).incremental? : nil
+      when :incremental   then object.is_a?(BuildConfig) ? object.as(BuildConfig).incremental? : nil
+      when :parallel      then object.is_a?(BuildConfig) ? object.as(BuildConfig).parallel? : nil
+      when :"cache_dir"   then object.is_a?(BuildConfig) ? object.as(BuildConfig).cache_dir : nil
+      when :"max_workers" then object.is_a?(BuildConfig) ? object.as(BuildConfig).max_workers : nil
+      else                     nil
+      end
+    end
+
+    private def handle_live_reload_config_method(object, method : Symbol)
+      case method
+      when :enabled          then object.is_a?(LiveReloadConfig) ? object.as(LiveReloadConfig).enabled : nil
+      when :"websocket_path" then object.is_a?(LiveReloadConfig) ? object.as(LiveReloadConfig).websocket_path : nil
+      when :"debounce_ms"    then object.is_a?(LiveReloadConfig) ? object.as(LiveReloadConfig).debounce_ms : nil
+      else                        nil
+      end
+    end
+
+    private def handle_bundling_config_method(object, method : Symbol)
+      case method
+      when :enabled       then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).enabled? : nil
+      when :minify        then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).minify? : nil
+      when :"source_maps" then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).source_maps? : nil
+      when :autoprefix    then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).autoprefix? : nil
+      else                     nil
+      end
     end
 
     def process(template : String) : String
@@ -366,107 +613,88 @@ module Lapis
     end
 
     private def call_method(object, method : String)
+      # Use optimized tuple-based method dispatch
+      # Convert string to symbol for dispatch
+      method_symbol = case method
+                      when "Title"              then :Title
+                      when "BaseURL"            then :BaseURL
+                      when "Pages"              then :Pages
+                      when "RegularPages"       then :RegularPages
+                      when "Params"             then :Params
+                      when "Data"               then :Data
+                      when "Menus"              then :Menus
+                      when "Author"             then :Author
+                      when "Copyright"          then :Copyright
+                      when "Hugo"               then :Hugo
+                      when "title"              then :title
+                      when "base_url"           then :"base_url"
+                      when "theme"              then :theme
+                      when "theme_dir"          then :"theme_dir"
+                      when "layouts_dir"        then :"layouts_dir"
+                      when "static_dir"         then :"static_dir"
+                      when "output_dir"         then :"output_dir"
+                      when "content_dir"        then :"content_dir"
+                      when "debug"              then :debug
+                      when "build_config"       then :"build_config"
+                      when "live_reload_config" then :"live_reload_config"
+                      when "bundling_config"    then :"bundling_config"
+                      when "enabled"            then :enabled
+                      when "incremental"        then :incremental
+                      when "parallel"           then :parallel
+                      when "cache_dir"          then :"cache_dir"
+                      when "max_workers"        then :"max_workers"
+                      when "websocket_path"     then :"websocket_path"
+                      when "debounce_ms"        then :"debounce_ms"
+                      when "minify"             then :minify
+                      when "source_maps"        then :"source_maps"
+                      when "autoprefix"         then :autoprefix
+                      when "Content"            then :Content
+                      when "Summary"            then :Summary
+                      when "URL"                then :URL
+                      when "Permalink"          then :Permalink
+                      when "Date"               then :Date
+                      when "Tags"               then :Tags
+                      when "Categories"         then :Categories
+                      when "WordCount"          then :WordCount
+                      when "ReadingTime"        then :ReadingTime
+                      when "Next"               then :Next
+                      when "Prev"               then :Prev
+                      when "Parent"             then :Parent
+                      when "Children"           then :Children
+                      when "Related"            then :Related
+                      when "Section"            then :Section
+                      when "Kind"               then :Kind
+                      when "Type"               then :Type
+                      when "Layout"             then :Layout
+                      when "content"            then :content
+                      when "summary"            then :summary
+                      when "url"                then :url
+                      when "permalink"          then :permalink
+                      when "date"               then :date
+                      when "tags"               then :tags
+                      when "categories"         then :categories
+                      when "kind"               then :kind
+                      when "layout"             then :layout
+                      when "file_path"          then :"file_path"
+                      when "Year"               then :Year
+                      when "Month"              then :Month
+                      when "Day"                then :Day
+                      when "Format"             then :Format
+                      when "len"                then :len
+                      when "first"              then :first
+                      when "last"               then :last
+                      when "name"               then :name
+                      when "weight"             then :weight
+                      when "external"           then :external
+                      else                           return nil
+                      end
+      dispatch_method_tuple(object, method_symbol)
+    end
+
+    # Legacy method dispatch (kept for reference)
+    private def call_method_legacy(object, method : String)
       # Temporarily disabled due to SafeCast dependency
       return nil
-      case {object, method}
-      # Site methods
-      when {Site, "Title"}              then object.is_a?(Site) ? object.title : nil
-      when {Site, "BaseURL"}            then object.is_a?(Site) ? object.base_url : nil
-      when {Site, "Pages"}              then object.is_a?(Site).try(&.all_pages)
-      when {Site, "RegularPages"}       then object.is_a?(Site).try(&.regular_pages)
-      when {Site, "Params"}             then object.is_a?(Site).try(&.params)
-      when {Site, "Data"}               then object.is_a?(Site).try(&.data)
-      when {Site, "Menus"}              then object.is_a?(Site).try(&.menus)
-      when {Site, "Author"}             then object.is_a?(Site).try(&.author)
-      when {Site, "Copyright"}          then object.is_a?(Site).try(&.copyright)
-      when {Site, "Hugo"}               then object.is_a?(Site).try(&.generator_info)
-      when {Site, "title"}              then object.is_a?(Site).try(&.title)
-      when {Site, "base_url"}           then object.is_a?(Site).try(&.base_url)
-      when {Site, "theme"}              then object.is_a?(Site).try(&.theme)
-      when {Site, "theme_dir"}          then object.is_a?(Site).try(&.theme_dir)
-      when {Site, "layouts_dir"}        then object.is_a?(Site).try(&.layouts_dir)
-      when {Site, "static_dir"}         then object.is_a?(Site).try(&.static_dir)
-      when {Site, "output_dir"}         then object.is_a?(Site).try(&.output_dir)
-      when {Site, "content_dir"}        then object.is_a?(Site).try(&.content_dir)
-      when {Site, "debug"}              then object.is_a?(Site).try(&.debug)
-      when {Site, "build_config"}       then object.is_a?(Site).try(&.build_config)
-      when {Site, "live_reload_config"} then object.is_a?(Site).try(&.live_reload_config)
-      when {Site, "bundling_config"}    then object.is_a?(Site).try(&.bundling_config)
-        # BuildConfig methods
-      when {BuildConfig, "enabled"}     then object.is_a?(BuildConfig).try(&.incremental)
-      when {BuildConfig, "incremental"} then object.is_a?(BuildConfig).try(&.incremental)
-      when {BuildConfig, "parallel"}    then object.is_a?(BuildConfig).try(&.parallel)
-      when {BuildConfig, "cache_dir"}   then object.is_a?(BuildConfig).try(&.cache_dir)
-      when {BuildConfig, "max_workers"} then object.is_a?(BuildConfig).try(&.max_workers)
-        # LiveReloadConfig methods
-      when {LiveReloadConfig, "enabled"}        then object.is_a?(LiveReloadConfig).try(&.enabled)
-      when {LiveReloadConfig, "websocket_path"} then object.is_a?(LiveReloadConfig).try(&.websocket_path)
-      when {LiveReloadConfig, "debounce_ms"}    then object.is_a?(LiveReloadConfig).try(&.debounce_ms)
-        # BundlingConfig methods
-      when {BundlingConfig, "enabled"}     then object.is_a?(BundlingConfig).try(&.enabled)
-      when {BundlingConfig, "minify"}      then object.is_a?(BundlingConfig).try(&.minify)
-      when {BundlingConfig, "source_maps"} then object.is_a?(BundlingConfig).try(&.source_maps)
-      when {BundlingConfig, "autoprefix"}  then object.is_a?(BundlingConfig).try(&.autoprefix)
-        # Page methods
-      when {Page, "Title"}       then object.is_a?(Page).try(&.title)
-      when {Page, "Content"}     then object.is_a?(Page).try(&.content_html)
-      when {Page, "Summary"}     then object.is_a?(Page).try(&.summary)
-      when {Page, "URL"}         then object.is_a?(Page).try(&.url)
-      when {Page, "Permalink"}   then object.is_a?(Page).try(&.permalink)
-      when {Page, "Date"}        then object.is_a?(Page).try(&.date)
-      when {Page, "Tags"}        then object.is_a?(Page).try(&.tags)
-      when {Page, "Categories"}  then object.is_a?(Page).try(&.categories)
-      when {Page, "WordCount"}   then object.is_a?(Page).try(&.word_count)
-      when {Page, "ReadingTime"} then object.is_a?(Page).try(&.reading_time)
-      when {Page, "Next"}        then object.is_a?(Page).try(&.next)
-      when {Page, "Prev"}        then object.is_a?(Page).try(&.prev)
-      when {Page, "Parent"}      then object.is_a?(Page).try(&.parent)
-      when {Page, "Children"}    then object.is_a?(Page).try(&.children)
-      when {Page, "Related"}     then object.is_a?(Page).try(&.related)
-      when {Page, "Section"}     then object.is_a?(Page).try(&.section)
-      when {Page, "Kind"}        then object.is_a?(Page).try(&.kind)
-      when {Page, "Type"}        then object.is_a?(Page).try(&.type)
-      when {Page, "Layout"}      then object.is_a?(Page).try(&.layout)
-      when {Page, "Params"}      then object.is_a?(Page).try(&.params)
-        # Page methods (lowercase)
-      when {Page, "title"}      then object.is_a?(Page).try(&.title)
-      when {Page, "content"}    then object.is_a?(Page).try(&.content_html)
-      when {Page, "summary"}    then object.is_a?(Page).try(&.summary)
-      when {Page, "url"}        then object.is_a?(Page).try(&.url)
-      when {Page, "permalink"}  then object.is_a?(Page).try(&.permalink)
-      when {Page, "date"}       then object.is_a?(Page).try(&.date)
-      when {Page, "tags"}       then object.is_a?(Page).try(&.tags)
-      when {Page, "categories"} then object.is_a?(Page).try(&.categories)
-      when {Page, "kind"}       then object.is_a?(Page).try(&.kind)
-      when {Page, "layout"}     then object.is_a?(Page).try(&.layout)
-      when {Page, "file_path"}  then object.is_a?(Page).try(&.file_path)
-        # Content methods (for arrays of Content)
-      when {Content, "Title"}   then object.is_a?(Content).try(&.title)
-      when {Content, "URL"}     then object.is_a?(Content).try(&.url)
-      when {Content, "Date"}    then object.is_a?(Content).try(&.date)
-      when {Content, "Summary"} then 
-        if content = object.is_a?(Content)
-          PageOperations.new(content, @site.pages).summary
-        else
-          nil
-        end
-        # Time methods
-      when {Time, "Year"}   then object.is_a?(Time).try(&.year)
-      when {Time, "Month"}  then object.is_a?(Time).try(&.month)
-      when {Time, "Day"}    then object.is_a?(Time).try(&.day)
-      when {Time, "Format"} then object.is_a?(Time).try(&.to_s("%Y-%m-%d"))
-        # Array methods
-      when {Array, "len"}   then object.is_a?(Array).try(&.size)
-      when {Array, "first"} then object.is_a?(Array).try(&.first?)
-      when {Array, "last"}  then object.is_a?(Array).try(&.last?)
-        # MenuItem methods
-      when {MenuItem, "name"}     then object.is_a?(MenuItem).try(&.name)
-      when {MenuItem, "url"}      then object.is_a?(MenuItem).try(&.url)
-      when {MenuItem, "weight"}   then object.is_a?(MenuItem).try(&.weight)
-      when {MenuItem, "external"} then object.is_a?(MenuItem).try(&.external)
-      else
-        nil
-      end
     end
 
     private def create_loop_context(item, index : Int32, range_expr : String) : Hash(String, String | Int32)

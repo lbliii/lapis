@@ -36,13 +36,13 @@ module Lapis
       puts "Watching directories:"
       config = @config.live_reload_config
 
-      if config.watch_content && Dir.exists?(@config.content_dir)
+      if config.watch_content? && Dir.exists?(@config.content_dir)
         puts "  - content: #{@config.content_dir}"
       end
-      if config.watch_layouts && Dir.exists?(@config.layouts_dir)
+      if config.watch_layouts? && Dir.exists?(@config.layouts_dir)
         puts "  - layouts: #{@config.layouts_dir}"
       end
-      if config.watch_static && Dir.exists?(@config.static_dir)
+      if config.watch_static? && Dir.exists?(@config.static_dir)
         puts "  - static: #{@config.static_dir}"
       end
 
@@ -64,23 +64,23 @@ module Lapis
       config = @config.live_reload_config
 
       # Scan all relevant files and record their modification times
-      scan_directory(@config.content_dir, "*.md") if config.watch_content
-      scan_directory(@config.layouts_dir, "*") if config.watch_layouts
-      scan_directory(@config.static_dir, "*") if config.watch_static
+      scan_directory(@config.content_dir, "*.md") if config.watch_content?
+      scan_directory(@config.layouts_dir, "*") if config.watch_layouts?
+      scan_directory(@config.static_dir, "*") if config.watch_static?
 
       # Scan theme directories
-      if config.watch_layouts
+      if config.watch_layouts?
         theme_layouts_dir = File.join(@config.theme_dir, "layouts")
         scan_directory(theme_layouts_dir, "*") if Dir.exists?(theme_layouts_dir)
       end
 
-      if config.watch_static
+      if config.watch_static?
         theme_static_dir = File.join(@config.theme_dir, "static")
         scan_directory(theme_static_dir, "*") if Dir.exists?(theme_static_dir)
       end
 
       # Watch config file
-      if config.watch_config
+      if config.watch_config?
         config_file = "config.yml"
         if File.exists?(config_file)
           @file_timestamps[config_file] = File.info(config_file).modification_time
@@ -103,26 +103,26 @@ module Lapis
       config = @config.live_reload_config
 
       # Check content files
-      if config.watch_content
+      if config.watch_content?
         changes_detected.concat(check_directory(@config.content_dir, "*.md"))
       end
 
       # Check layout files
-      if config.watch_layouts
+      if config.watch_layouts?
         changes_detected.concat(check_directory(@config.layouts_dir, "*"))
         theme_layouts_dir = File.join(@config.theme_dir, "layouts")
         changes_detected.concat(check_directory(theme_layouts_dir, "*")) if Dir.exists?(theme_layouts_dir)
       end
 
       # Check static files
-      if config.watch_static
+      if config.watch_static?
         changes_detected.concat(check_directory(@config.static_dir, "*"))
         theme_static_dir = File.join(@config.theme_dir, "static")
         changes_detected.concat(check_directory(theme_static_dir, "*")) if Dir.exists?(theme_static_dir)
       end
 
       # Check config file
-      if config.watch_config
+      if config.watch_config?
         config_file = "config.yml"
         if File.exists?(config_file)
           current_time = File.info(config_file).modification_time

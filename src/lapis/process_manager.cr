@@ -10,7 +10,27 @@ module Lapis
     property process_timeout : Time::Span = 30.seconds
     property max_concurrent_processes : Int32 = 4
 
-    def initialize(@process_timeout : Time::Span = 30.seconds, @max_concurrent_processes : Int32 = 4)
+    def initialize(@process_timeout : Time::Span = 30.seconds, @max_concurrent_processes : Int32 = 4, setup_termination : Bool = true)
+      setup_termination_handler if setup_termination
+    end
+
+    # Setup graceful termination handler using Process.on_terminate
+    private def setup_termination_handler
+      # Skip if in test mode or if handler is already set up
+      return if ENV["LAPIS_TEST_MODE"]? == "true"
+      Process.on_terminate do |reason|
+        case reason
+        when .interrupted?
+          Logger.info("Received interrupt signal, cleaning up processes...")
+          cleanup
+        when .terminal_disconnected?
+          Logger.info("Terminal disconnected, cleaning up processes...")
+          cleanup
+        when .session_ended?
+          Logger.info("Session ended, cleaning up processes...")
+          cleanup
+        end
+      end
     end
 
     # Execute a command and return the result
@@ -197,27 +217,90 @@ module Lapis
       Logger.info("Process cleanup completed")
     end
 
-    # Execute a shell command
+    # Execute a shell command using Process.run with shell parameter
     def shell_execute(command : String, timeout : Time::Span? = nil) : ProcessResult
       Logger.debug("Executing shell command", command: command)
 
-      execute("sh", ["-c", command], timeout: timeout)
+      begin
+        # Use Process.run with shell: true for simpler shell execution
+        output = IO::Memory.new
+        error = IO::Memory.new
+        status = Process.run(command, shell: true, output: output, error: error)
+
+        result = ProcessResult.new(
+          command: command,
+          args: [] of String,
+          status: status,
+          output: output.to_s,
+          error: error.to_s,
+          success: status.success?
+        )
+
+        Logger.info("Shell command executed",
+          command: command,
+          success: result.success.to_s,
+          exit_code: status.exit_code.to_s)
+
+        result
+      rescue ex
+        Logger.error("Unexpected shell command error", command: command, error: ex.message)
+        raise ProcessError.new("Unexpected error executing shell command '#{command}': #{ex.message}")
+      end
     end
 
-    # Check if a command exists
+    # Execute a shell command with proper argument quoting using Process.quote
+    def safe_shell_execute(command : String, args : Array(String) = [] of String) : ProcessResult
+      Logger.debug("Executing safe shell command", command: command, args: args.join(" "))
+
+      begin
+        # Use Process.quote to safely escape arguments
+        quoted_args = args.map { |arg| Process.quote(arg) }
+        full_command = "#{command} #{quoted_args.join(" ")}"
+        output = IO::Memory.new
+        error = IO::Memory.new
+        status = Process.run(full_command, shell: true, output: output, error: error)
+
+        result = ProcessResult.new(
+          command: command,
+          args: args,
+          status: status,
+          output: output.to_s,
+          error: error.to_s,
+          success: status.success?
+        )
+
+        Logger.info("Safe shell command executed",
+          command: command,
+          success: result.success.to_s,
+          exit_code: status.exit_code.to_s)
+
+        result
+      rescue ex
+        Logger.error("Unexpected safe shell command error", command: command, error: ex.message)
+        raise ProcessError.new("Unexpected error executing safe shell command '#{command}': #{ex.message}")
+      end
+    end
+
+    # Check if a command exists using Process.run
     def command_exists?(command : String) : Bool
-      result = execute("which", [command])
-      result.success
+      Process.run("which", [command], output: Process::Redirect::Close, error: Process::Redirect::Close).success?
     rescue
       false
     end
 
-    # Get command version
+    # Get command version using Process.run
     def get_command_version(command : String, version_flag : String = "--version") : String?
-      result = execute(command, [version_flag])
-      result.success ? result.output.strip : nil
-    rescue
-      nil
+      begin
+        Process.run(command, [version_flag], output: Process::Redirect::Pipe) do |process|
+          if process.wait.success?
+            process.output.try(&.gets_to_end).try(&.strip)
+          else
+            nil
+          end
+        end
+      rescue
+        nil
+      end
     end
   end
 
@@ -247,7 +330,7 @@ module Lapis
   @@process_manager : ProcessManager?
 
   def self.process_manager : ProcessManager
-    @@process_manager ||= ProcessManager.new
+    @@process_manager ||= ProcessManager.new(setup_termination: false)
   end
 
   def self.process_manager=(manager : ProcessManager)

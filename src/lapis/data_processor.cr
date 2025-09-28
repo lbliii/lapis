@@ -29,6 +29,7 @@ module Lapis
 
     # Type-safe JSON parsing method
     def self.parse_json_typed(json_string : String) : PostData
+      raise ArgumentError.new("JSON string cannot be empty") if json_string.strip.empty?
       Logger.debug("Parsing JSON with type safety", size: json_string.size.to_s)
 
       begin
@@ -49,6 +50,7 @@ module Lapis
 
     # JSON processing
     def self.parse_json(json_string : String) : JSON::Any
+      raise ArgumentError.new("JSON string cannot be empty") if json_string.strip.empty?
       Logger.debug("Parsing JSON", size: json_string.size.to_s)
 
       begin
@@ -69,6 +71,7 @@ module Lapis
 
     # YAML processing
     def self.parse_yaml(yaml_string : String) : YAML::Any
+      raise ArgumentError.new("YAML string cannot be empty") if yaml_string.strip.empty?
       Logger.debug("Parsing YAML", size: yaml_string.size.to_s)
 
       begin

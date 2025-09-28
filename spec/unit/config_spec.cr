@@ -100,13 +100,96 @@ describe Lapis::Config do
     it "supports incremental builds", tags: [TestTags::FAST, TestTags::UNIT] do
       config = Lapis::Config.new
       config.build_config.incremental = true
-      config.build_config.incremental.should be_true
+      config.build_config.incremental?.should be_true
     end
 
     it "supports parallel processing", tags: [TestTags::FAST, TestTags::UNIT] do
       config = Lapis::Config.new
       config.build_config.parallel = true
-      config.build_config.parallel.should be_true
+      config.build_config.parallel?.should be_true
+    end
+  end
+
+  describe "Flags functionality" do
+    it "supports WatchOptions flags", tags: [TestTags::FAST, TestTags::UNIT] do
+      config = Lapis::Config.new
+      live_reload = config.live_reload_config
+
+      # Test default values (legacy properties)
+      live_reload.watch_content?.should be_true
+      live_reload.watch_layouts?.should be_true
+      live_reload.watch_static?.should be_true
+      live_reload.watch_config?.should be_true
+
+      # Test setting individual flags
+      live_reload.watch_content = false
+      live_reload.watch_content?.should be_false
+      live_reload.watch_layouts?.should be_true
+
+      # Test flag combinations (using legacy properties)
+      live_reload.watch_content = true
+      live_reload.watch_layouts = false
+      live_reload.watch_static = true
+      live_reload.watch_config = false
+
+      live_reload.watch_content?.should be_true
+      live_reload.watch_layouts?.should be_false
+      live_reload.watch_static?.should be_true
+      live_reload.watch_config?.should be_false
+    end
+
+    it "supports BuildOptions flags", tags: [TestTags::FAST, TestTags::UNIT] do
+      config = Lapis::Config.new
+      build_config = config.build_config
+
+      # Test default values (legacy properties)
+      build_config.incremental?.should be_true
+      build_config.parallel?.should be_true
+      build_config.clean_build?.should be_false
+
+      # Test setting individual flags
+      build_config.incremental = false
+      build_config.incremental?.should be_false
+      build_config.parallel?.should be_true
+
+      # Test flag combinations (using legacy properties)
+      build_config.incremental = true
+      build_config.parallel = false
+      build_config.clean_build = true
+
+      build_config.incremental?.should be_true
+      build_config.parallel?.should be_false
+      build_config.clean_build?.should be_true
+    end
+
+    it "supports BundlingOptions flags", tags: [TestTags::FAST, TestTags::UNIT] do
+      config = Lapis::Config.new
+      bundling_config = config.bundling_config
+
+      # Test default values (legacy properties)
+      bundling_config.enabled?.should be_true
+      bundling_config.minify?.should be_true
+      bundling_config.source_maps?.should be_false
+      bundling_config.autoprefix?.should be_true
+      bundling_config.tree_shake?.should be_false
+
+      # Test setting individual flags
+      bundling_config.minify = false
+      bundling_config.minify?.should be_false
+      bundling_config.enabled?.should be_true
+
+      # Test flag combinations (using legacy properties)
+      bundling_config.enabled = true
+      bundling_config.minify = false
+      bundling_config.source_maps = true
+      bundling_config.autoprefix = false
+      bundling_config.tree_shake = true
+
+      bundling_config.enabled?.should be_true
+      bundling_config.minify?.should be_false
+      bundling_config.source_maps?.should be_true
+      bundling_config.autoprefix?.should be_false
+      bundling_config.tree_shake?.should be_true
     end
   end
 end

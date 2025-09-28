@@ -172,6 +172,16 @@ module Lapis
   class PerformanceProfiler
     property operations : Hash(String, Array(Float64))
 
+    # Pre-computed tuple for common performance metrics
+    private PERFORMANCE_METRICS = {
+      :count, :total, :average, :min, :max, :median, :p95, :p99,
+    }
+
+    # Tuple for operation categories
+    private OPERATION_CATEGORIES = {
+      :build, :template, :content, :asset, :cache, :network,
+    }
+
     def initialize
       @operations = Hash(String, Array(Float64)).new { |h, k| h[k] = [] of Float64 }
     end
@@ -188,25 +198,151 @@ module Lapis
       times = @operations[operation]
       return {count: 0, total: 0.0, average: 0.0, min: 0.0, max: 0.0} if times.empty?
 
+      # Use tuple operations for efficient computation
+      stats_tuple = compute_stats_tuple(times)
+
       {
-        count:   times.size,
-        total:   times.sum,
-        average: times.sum / times.size,
-        min:     times.min,
-        max:     times.max,
+        count:   stats_tuple[0],
+        total:   stats_tuple[1],
+        average: stats_tuple[2],
+        min:     stats_tuple[3],
+        max:     stats_tuple[4],
       }
+    end
+
+    # Tuple-based stats computation using tuple operations
+    private def compute_stats_tuple(times : Array(Float64)) : Tuple(Int32, Float64, Float64, Float64, Float64)
+      return {0, 0.0, 0.0, 0.0, 0.0} if times.empty?
+
+      # Use tuple operations for efficient computation
+      count = times.size
+      total = times.sum
+      average = total / count
+
+      # Use tuple to_a and sorting for min/max
+      sorted_times = times.to_a.sort
+      min = sorted_times.first
+      max = sorted_times.last
+
+      {count, total, average, min, max}
+    end
+
+    # Enhanced stats with tuple-based percentile calculations
+    def enhanced_stats_for(operation : String) : NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64, median: Float64, p95: Float64, p99: Float64)
+      times = @operations[operation]
+      return {count: 0, total: 0.0, average: 0.0, min: 0.0, max: 0.0, median: 0.0, p95: 0.0, p99: 0.0} if times.empty?
+
+      # Use tuple operations for efficient computation
+      enhanced_tuple = compute_enhanced_stats_tuple(times)
+
+      {
+        count:   enhanced_tuple[0],
+        total:   enhanced_tuple[1],
+        average: enhanced_tuple[2],
+        min:     enhanced_tuple[3],
+        max:     enhanced_tuple[4],
+        median:  enhanced_tuple[5],
+        p95:     enhanced_tuple[6],
+        p99:     enhanced_tuple[7],
+      }
+    end
+
+    private def compute_enhanced_stats_tuple(times : Array(Float64)) : Tuple(Int32, Float64, Float64, Float64, Float64, Float64, Float64, Float64)
+      return {0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0} if times.empty?
+
+      count = times.size
+      total = times.sum
+      average = total / count
+
+      # Use tuple operations for sorting and percentile calculation
+      sorted_times = times.to_a.sort
+      min = sorted_times.first
+      max = sorted_times.last
+
+      # Calculate percentiles using tuple operations
+      median = calculate_percentile_tuple(sorted_times, 50)
+      p95 = calculate_percentile_tuple(sorted_times, 95)
+      p99 = calculate_percentile_tuple(sorted_times, 99)
+
+      {count, total, average, min, max, median, p95, p99}
+    end
+
+    private def calculate_percentile_tuple(sorted_times : Array(Float64), percentile : Int32) : Float64
+      return 0.0 if sorted_times.empty?
+
+      # Use tuple operations for percentile calculation
+      index = (percentile / 100.0 * (sorted_times.size - 1)).round.to_i
+      index = [index, sorted_times.size - 1].min
+      sorted_times[index]
     end
 
     def report : String
       return "No operations profiled." if @operations.empty?
 
+      # Use tuple operations for efficient report generation
+      report_tuple = generate_report_tuple
+      report_tuple.join("\n")
+    end
+
+    # Tuple-based report generation using tuple operations
+    private def generate_report_tuple : Tuple(String)
       lines = ["Performance Profile:"]
-      @operations.each do |operation, times|
-        stats = stats_for(operation)
-        lines << "  #{operation}: #{stats[:count]} calls, avg #{(stats[:average] * 1000).round(1)}ms"
+
+      # Use tuple operations for efficient iteration
+      operation_tuples = @operations.map { |op, times| {op, stats_for(op)} }
+
+      # Use tuple to_a and map for efficient processing
+      report_lines = operation_tuples.map do |op_tuple|
+        operation = op_tuple[0]
+        stats = op_tuple[1]
+        "  #{operation}: #{stats[:count]} calls, avg #{(stats[:average] * 1000).round(1)}ms"
       end
 
-      lines.join("\n")
+      lines.concat(report_lines)
+      {lines.join("\n")}
+    end
+
+    # Batch operations using tuple transformations
+    def batch_stats_for(operations : Array(String)) : Array(NamedTuple(count: Int32, total: Float64, average: Float64, min: Float64, max: Float64))
+      # Use tuple operations for efficient batch processing
+      operations_tuple = operations.to_a
+
+      # Use tuple map for efficient transformation
+      operations_tuple.map do |operation|
+        stats_for(operation)
+      end
+    end
+
+    # Tuple-based operation categorization
+    def categorize_operations : Hash(String, Array(String))
+      categories = {} of String => Array(String)
+
+      # Use tuple operations for categorization
+      OPERATION_CATEGORIES.to_a.each do |category|
+        categories[category.to_s] = [] of String
+      end
+
+      @operations.each do |operation, _|
+        # Categorize operations using tuple operations
+        category = categorize_operation_tuple(operation)
+        categories[category] ||= [] of String
+        categories[category] << operation
+      end
+
+      categories
+    end
+
+    private def categorize_operation_tuple(operation : String) : String
+      # Use tuple operations for efficient categorization
+      case operation
+      when .includes?("build")    then "build"
+      when .includes?("template") then "template"
+      when .includes?("content")  then "content"
+      when .includes?("asset")    then "asset"
+      when .includes?("cache")    then "cache"
+      when .includes?("network")  then "network"
+      else                             "other"
+      end
     end
   end
 
@@ -227,10 +363,10 @@ module Lapis
 
       analytics.time_operation("Content Processing") do
         Logger.info("Build strategy decision",
-          incremental: @config.build_config.incremental,
-          parallel: @config.build_config.parallel)
+          incremental: @config.build_config.incremental?,
+          parallel: @config.build_config.parallel?)
 
-        if @config.build_config.incremental
+        if @config.build_config.incremental?
           Logger.info("Using incremental build strategy")
           generate_content_pages_incremental_v2(all_content)
         else

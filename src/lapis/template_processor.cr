@@ -8,6 +8,13 @@ module Lapis
   class TemplateProcessor
     getter context : TemplateContext
 
+    # Pre-computed method tuples for efficient template processing
+    private SECTION_NAV_METHODS = {:"has_prev?", :"has_next?", :prev, :next}
+    private BREADCRUMB_METHODS  = {:title, :url, :active}
+    private MENU_ITEM_METHODS   = {:name, :url, :external}
+    private CONTENT_METHODS     = {:title, :url, :"date_formatted", :tags, :summary, :"reading_time"}
+    private ARRAY_METHODS       = {"first", "last", "size", "empty?"}
+
     def initialize(@context : TemplateContext)
     end
 
@@ -143,64 +150,168 @@ module Lapis
         result = get_base_value(parts[0])
 
         parts[1..].each do |method|
-          case {result, method}
-          when {SectionNavigation, "has_prev?"}
-            result = result.as(SectionNavigation).has_prev?
-          when {SectionNavigation, "has_next?"}
-            result = result.as(SectionNavigation).has_next?
-          when {SectionNavigation, "prev"}
-            result = result.as(SectionNavigation).prev
-          when {SectionNavigation, "next"}
-            result = result.as(SectionNavigation).next
-          when {BreadcrumbItem, "title"}
-            result = result.as(BreadcrumbItem).title
-          when {BreadcrumbItem, "url"}
-            result = result.as(BreadcrumbItem).url
-          when {BreadcrumbItem, "active"}
-            result = result.as(BreadcrumbItem).active
-          when {MenuItem, "name"}
-            result = result.as(MenuItem).name
-          when {MenuItem, "url"}
-            result = result.as(MenuItem).url
-          when {MenuItem, "external"}
-            result = result.as(MenuItem).external
-          when {Content, "title"}
-            result = result.as(Content).title
-          when {Content, "url"}
-            result = result.as(Content).url
-          when {Content, "date_formatted"}
-            date = result.as(Content).date
-            result = date ? date.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
-          when {Content, "tags"}
-            result = result.as(Content).tags
-          when {Content, "summary"}
-            # Create PageOperations if needed
-            page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
-            result = page_ops.summary
-          when {Content, "reading_time"}
-            page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
-            result = page_ops.reading_time
-          when {Array, "first"}
-            if method.includes?("(")
-              # Handle first(n) calls
-              if match = method.match(/first\((\d+)\)/)
-                n = match[1].to_i
-                result = result.as(Array).first(n)
-              end
-            else
-              result = result.as(Array).first?
-            end
-          when {Array, "size"}
-            result = result.as(Array).size
-          else
-            # Generic method handling - return empty for unknown methods
-            result = ""
-          end
+          result = dispatch_template_method_tuple(result, method)
         end
+      end
+    end
 
-        result
+    # Optimized tuple-based method dispatch for template processing
+    private def dispatch_template_method_tuple(result, method : String)
+      # Use tuple operations for efficient method dispatch
+      case {result.class, method}
+      when {SectionNavigation.class, "has_prev?"}
+        dispatch_section_nav_method(result, :"has_prev?") if SECTION_NAV_METHODS.includes?(:"has_prev?")
+      when {SectionNavigation.class, "has_next?"}
+        dispatch_section_nav_method(result, :"has_next?") if SECTION_NAV_METHODS.includes?(:"has_next?")
+      when {SectionNavigation.class, "prev"}
+        dispatch_section_nav_method(result, :prev) if SECTION_NAV_METHODS.includes?(:prev)
+      when {SectionNavigation.class, "next"}
+        dispatch_section_nav_method(result, :next) if SECTION_NAV_METHODS.includes?(:next)
+      when {BreadcrumbItem.class, "title"}
+        dispatch_breadcrumb_method(result, :title) if BREADCRUMB_METHODS.includes?(:title)
+      when {BreadcrumbItem.class, "url"}
+        dispatch_breadcrumb_method(result, :url) if BREADCRUMB_METHODS.includes?(:url)
+      when {BreadcrumbItem.class, "active"}
+        dispatch_breadcrumb_method(result, :active) if BREADCRUMB_METHODS.includes?(:active)
+      when {MenuItem.class, "name"}
+        dispatch_menu_item_method(result, :name) if MENU_ITEM_METHODS.includes?(:name)
+      when {MenuItem.class, "url"}
+        dispatch_menu_item_method(result, :url) if MENU_ITEM_METHODS.includes?(:url)
+      when {MenuItem.class, "external"}
+        dispatch_menu_item_method(result, :external) if MENU_ITEM_METHODS.includes?(:external)
+      when {Content.class, "title"}
+        dispatch_content_template_method(result, :title) if CONTENT_METHODS.includes?(:title)
+      when {Content.class, "url"}
+        dispatch_content_template_method(result, :url) if CONTENT_METHODS.includes?(:url)
+      when {Content.class, "date_formatted"}
+        dispatch_content_template_method(result, :"date_formatted") if CONTENT_METHODS.includes?(:"date_formatted")
+      when {Content.class, "tags"}
+        dispatch_content_template_method(result, :tags) if CONTENT_METHODS.includes?(:tags)
+      when {Content.class, "summary"}
+        dispatch_content_template_method(result, :summary) if CONTENT_METHODS.includes?(:summary)
+      when {Content.class, "reading_time"}
+        dispatch_content_template_method(result, :"reading_time") if CONTENT_METHODS.includes?(:"reading_time")
+      when {Array.class, _}
+        dispatch_array_template_method(result, method) if ARRAY_METHODS.includes?(method)
       else
-        get_base_value(expression)
+        result
+      end || result
+    end
+
+    # Tuple-based method dispatchers using tuple iteration
+    private def dispatch_section_nav_method(result, method_symbol : Symbol)
+      SECTION_NAV_METHODS.to_a.each do |method|
+        return handle_section_nav_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_breadcrumb_method(result, method_symbol : Symbol)
+      BREADCRUMB_METHODS.to_a.each do |method|
+        return handle_breadcrumb_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_menu_item_method(result, method_symbol : Symbol)
+      MENU_ITEM_METHODS.to_a.each do |method|
+        return handle_menu_item_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_content_template_method(result, method_symbol : Symbol)
+      CONTENT_METHODS.to_a.each do |method|
+        return handle_content_template_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_array_template_method(result, method : String)
+      ARRAY_METHODS.each do |m|
+        return handle_array_template_method(result, m) if m == method
+      end
+      nil
+    end
+
+    # Handler methods using tuple operations
+    private def handle_section_nav_method(result, method : Symbol)
+      case method
+      when :"has_prev?" then result.as(SectionNavigation).has_prev?
+      when :"has_next?" then result.as(SectionNavigation).has_next?
+      when :prev        then result.as(SectionNavigation).prev
+      when :next        then result.as(SectionNavigation).next
+      else                   nil
+      end
+    end
+
+    private def handle_breadcrumb_method(result, method : Symbol)
+      case method
+      when :title  then result.as(BreadcrumbItem).title
+      when :url    then result.as(BreadcrumbItem).url
+      when :active then result.as(BreadcrumbItem).active
+      else              nil
+      end
+    end
+
+    private def handle_menu_item_method(result, method : Symbol)
+      case method
+      when :name     then result.as(MenuItem).name
+      when :url      then result.as(MenuItem).url
+      when :external then result.as(MenuItem).external
+      else                nil
+      end
+    end
+
+    private def handle_content_template_method(result, method : Symbol)
+      case method
+      when :title then result.as(Content).title
+      when :url   then result.as(Content).url
+      when :"date_formatted"
+        date = result.as(Content).date
+        date ? date.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
+      when :tags then result.as(Content).tags
+      when :summary
+        page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
+        page_ops.summary
+      when :"reading_time"
+        page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
+        page_ops.reading_time
+      else nil
+      end
+    end
+
+    private def handle_array_template_method(result, method : String)
+      case method
+      when "first"
+        if method.includes?("(")
+          # Handle first(n) calls
+          if match = method.match(/first\((\d+)\)/)
+            n = match[1].to_i
+            result.as(Array).first(n)
+          else
+            result.as(Array).first?
+          end
+        else
+          result.as(Array).first?
+        end
+      when "last"
+        if method.includes?("(")
+          if match = method.match(/last\((\d+)\)/)
+            n = match[1].to_i
+            result.as(Array).last(n)
+          else
+            result.as(Array).last?
+          end
+        else
+          result.as(Array).last?
+        end
+      when "size"
+        result.as(Array).size
+      when "empty?"
+        result.as(Array).empty?
+      else
+        result
       end
     end
 

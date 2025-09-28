@@ -1,5 +1,6 @@
 require "fiber"
 require "channel"
+require "wait_group"
 require "log"
 require "./logger"
 require "./exceptions"
@@ -29,19 +30,13 @@ module Lapis
     end
   end
 
-  # Parallel processor using Crystal's Fiber system
+  # Parallel processor using Crystal's WaitGroup for synchronization
   class ParallelProcessor
     property config : BuildConfig
-    property workers : Array(Fiber)
-    property work_channel : Channel(Task)
-    property result_channel : Channel(Result)
-    property running : Bool = false
+    property results : Array(Result) = [] of Result
+    property results_mutex : Mutex = Mutex.new
 
     def initialize(@config : BuildConfig)
-      # Use bounded channels to prevent memory issues
-      @work_channel = Channel(Task).new(@config.max_workers * 2)
-      @result_channel = Channel(Result).new(@config.max_workers * 2)
-      @workers = [] of Fiber
     end
 
     def process_parallel(tasks : Array(Task), processor : Proc(Task, Result), timeout : Time::Span? = nil) : Array(Result)
@@ -53,42 +48,58 @@ module Lapis
         timeout: timeout ? "#{timeout.total_seconds}s" : "none")
 
       start_time = Time.monotonic
-      results = [] of Result
+      @results.clear
 
-      # Create worker fibers
-      Logger.debug("Spawning workers")
-      spawn_workers(processor)
+      # Use WaitGroup to coordinate task execution
+      WaitGroup.wait do |wg|
+        tasks.each do |task|
+          wg.spawn do
+            start_time = Time.monotonic
+            Logger.debug("Processing task", task_id: task.id, file: task.file_path)
 
-      # Send tasks to workers
-      Logger.debug("Sending tasks to workers")
-      tasks.each do |task|
-        begin
-          @work_channel.send(task)
-        rescue Channel::ClosedError
-          Logger.error("Work channel closed unexpectedly", task_id: task.id)
-          break
+            begin
+              result = processor.call(task)
+              duration = Time.monotonic - start_time
+
+              if result.success
+                Logger.debug("Task completed successfully",
+                  task_id: result.task_id,
+                  duration_ms: duration.total_milliseconds.to_i.to_s)
+              else
+                Logger.error("Task failed",
+                  task_id: result.task_id,
+                  error: result.error,
+                  duration_ms: duration.total_milliseconds.to_i.to_s)
+              end
+
+              # Thread-safe result collection
+              @results_mutex.synchronize do
+                @results << result
+              end
+            rescue ex
+              duration = Time.monotonic - start_time
+              Logger.error("Task failed with exception",
+                task_id: task.id,
+                error: ex.message,
+                duration_ms: duration.total_milliseconds.to_i.to_s)
+
+              error_result = Result.new(task.id, false, nil, ex.message, duration)
+              @results_mutex.synchronize do
+                @results << error_result
+              end
+            end
+          end
         end
       end
-
-      # Collect results with optional timeout
-      Logger.debug("Collecting results")
-      if timeout
-        results = collect_results_with_timeout(tasks.size, timeout)
-      else
-        results = collect_results(tasks.size)
-      end
-
-      Logger.debug("Stopping workers")
-      stop_workers
 
       total_duration = Time.monotonic - start_time
       Logger.info("Parallel processing completed",
         tasks: tasks.size.to_s,
-        successful: results.count(&.success).to_s,
-        failed: results.count { |r| !r.success }.to_s,
+        successful: @results.count(&.success).to_s,
+        failed: @results.count { |r| !r.success }.to_s,
         total_duration: "#{total_duration.total_milliseconds}ms")
 
-      results
+      @results.dup
     end
 
     def process_content_parallel(content_files : Array(String), processor : Proc(String, String)) : Array(Result)
@@ -143,122 +154,6 @@ module Lapis
       end
 
       process_parallel(tasks, asset_processor)
-    end
-
-    private def spawn_workers(processor : Proc(Task, Result))
-      worker_count = @config.max_workers
-
-      worker_count.times do |i|
-        worker = spawn do
-          Logger.debug("Worker #{i} started")
-
-          loop do
-            begin
-              task = @work_channel.receive
-              break if task.id == "STOP"
-
-              begin
-                result = processor.call(task)
-                @result_channel.send(result)
-              rescue ex
-                error_result = Result.new(task.id, false, nil, ex.message)
-                @result_channel.send(error_result)
-              end
-            rescue Channel::ClosedError
-              Logger.debug("Worker #{i} received channel closed signal")
-              break
-            end
-          end
-
-          Logger.debug("Worker #{i} stopped")
-        end
-
-        @workers << worker
-      end
-
-      @running = true
-      Logger.debug("Spawned #{worker_count} workers")
-    end
-
-    private def stop_workers
-      return unless @running
-
-      Logger.debug("Sending stop signals to workers")
-      # Send stop signals to all workers
-      @config.max_workers.times do
-        stop_task = Task.new("STOP", "", :stop)
-        @work_channel.send(stop_task)
-      end
-
-      Logger.debug("Waiting for workers to finish")
-      # Wait for workers to finish - fibers automatically finish when their block ends
-      @workers.clear
-      @running = false
-
-      Logger.debug("All workers stopped")
-    end
-
-    private def collect_results(expected_count : Int32) : Array(Result)
-      results = [] of Result
-      expected_count.times do
-        begin
-          result = @result_channel.receive
-          results << result
-
-          if result.success
-            Logger.debug("Task completed",
-              task_id: result.task_id,
-              duration: "#{result.duration.total_milliseconds}ms")
-          else
-            Logger.error("Task failed",
-              task_id: result.task_id,
-              error: result.error)
-          end
-        rescue Channel::ClosedError
-          Logger.error("Result channel closed unexpectedly")
-          break
-        end
-      end
-      results
-    end
-
-    private def collect_results_with_timeout(expected_count : Int32, timeout : Time::Span) : Array(Result)
-      results = [] of Result
-      start_time = Time.monotonic
-
-      expected_count.times do
-        remaining_time = timeout - (Time.monotonic - start_time)
-        break if remaining_time <= Time::Span.new(seconds: 0)
-
-        begin
-          result = select
-          when r = @result_channel.receive
-            r
-          when timeout(remaining_time)
-            Logger.warn("Parallel processing timeout",
-              expected: expected_count.to_s,
-              received: results.size.to_s,
-              timeout: timeout.total_seconds.to_s)
-            break
-          end
-
-          results << result
-
-          if result.success
-            Logger.debug("Task completed",
-              task_id: result.task_id,
-              duration: "#{result.duration.total_milliseconds}ms")
-          else
-            Logger.error("Task failed",
-              task_id: result.task_id,
-              error: result.error)
-          end
-        rescue Channel::ClosedError
-          Logger.error("Result channel closed unexpectedly")
-          break
-        end
-      end
-      results
     end
   end
 end

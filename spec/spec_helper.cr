@@ -41,6 +41,14 @@ Spec.before_suite do
   # Set up test environment
   ENV["LAPIS_LOG_LEVEL"] = "error" # Reduce log noise during tests
   ENV["LAPIS_TEST_MODE"] = "true"
+
+  # Clear any Process.on_terminate handlers that might interfere with tests
+  Process.restore_interrupts!
+end
+
+Spec.before_each do
+  # Ensure Process.on_terminate is cleared before each test
+  Process.restore_interrupts!
 end
 
 Spec.after_suite do
