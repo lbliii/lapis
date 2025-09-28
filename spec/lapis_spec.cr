@@ -3,7 +3,7 @@ require "./spec_helper"
 # Main test suite - runs all tests
 # Individual test files are organized in subdirectories:
 # - spec/unit/ - Unit tests for individual classes
-# - spec/integration/ - Integration tests for component interactions  
+# - spec/integration/ - Integration tests for component interactions
 # - spec/functional/ - End-to-end workflow tests
 # - spec/performance/ - Performance and benchmark tests
 
@@ -27,18 +27,18 @@ describe Lapis::Config do
     config.validate
     config.output_dir.should eq("public")
   end
-  
+
   it "supports debug mode", tags: [TestTags::FAST, TestTags::UNIT] do
     config = Lapis::Config.new
     config.debug = true
     config.debug.should be_true
   end
-  
+
   it "supports logging configuration", tags: [TestTags::FAST, TestTags::UNIT] do
     config = Lapis::Config.new
     config.log_file = "test.log"
     config.log_level = "debug"
-    
+
     config.log_file.should eq("test.log")
     config.log_level.should eq("debug")
   end

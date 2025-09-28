@@ -32,7 +32,7 @@ module Lapis
       (end_time - @start_time).total_seconds
     end
 
-    def time_operation(name : String, &block)
+    def time_operation(name : String, &)
       start = Time.utc
       result = yield
       duration = (Time.utc - start).total_seconds
@@ -150,7 +150,7 @@ module Lapis
 
       # File size insights
       total_size = @file_sizes.values.sum
-      if total_size > 100 * 1024 * 1024  # 100MB
+      if total_size > 100 * 1024 * 1024 # 100MB
         insights << "💾 Large output size (#{format_file_size(total_size)}). Consider asset compression."
       end
 
@@ -174,7 +174,7 @@ module Lapis
       @operations = Hash(String, Array(Float64)).new { |h, k| h[k] = [] of Float64 }
     end
 
-    def profile(operation : String, &block)
+    def profile(operation : String, &)
       start_time = Time.utc
       result = yield
       duration = (Time.utc - start_time).total_seconds
@@ -187,11 +187,11 @@ module Lapis
       return {count: 0, total: 0.0, average: 0.0, min: 0.0, max: 0.0} if times.empty?
 
       {
-        count: times.size,
-        total: times.sum,
+        count:   times.size,
+        total:   times.sum,
         average: times.sum / times.size,
-        min: times.min,
-        max: times.max
+        min:     times.min,
+        max:     times.max,
       }
     end
 
@@ -224,10 +224,10 @@ module Lapis
       end
 
       analytics.time_operation("Content Processing") do
-        Logger.info("Build strategy decision", 
+        Logger.info("Build strategy decision",
           incremental: @config.build_config.incremental,
           parallel: @config.build_config.parallel)
-        
+
         if @config.build_config.incremental
           Logger.info("Using incremental build strategy")
           generate_content_pages_incremental_v2(all_content)

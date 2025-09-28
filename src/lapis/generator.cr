@@ -197,7 +197,7 @@ module Lapis
         puts "  Generated: /"
       else
         # Generate default index page
-        posts = all_content.select(&.is_post_layout?).first(5)
+        posts = all_content.select(&.feedable?).first(5)
         html = generate_default_index(posts)
         write_file_atomically(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: / (default)"
@@ -212,7 +212,7 @@ module Lapis
     end
 
     private def generate_archive_pages(all_content : Array(Content))
-      posts = all_content.select(&.is_post_layout?)
+      posts = all_content.select(&.feedable?)
 
       # Generate paginated posts archive
       if posts.size > 0
@@ -506,7 +506,7 @@ module Lapis
     end
 
     private def generate_feeds(all_content : Array(Content))
-      posts = all_content.select(&.is_post_layout?)
+      posts = all_content.select(&.feedable?)
       return if posts.empty?
 
       feed_generator = FeedGenerator.new(@config)
@@ -545,7 +545,7 @@ module Lapis
     end
 
     private def generate_recent_posts_html(all_content : Array(Content), count : Int32) : String
-      recent_posts = all_content.select(&.is_post_layout?).first(count)
+      recent_posts = all_content.select(&.feedable?).first(count)
 
       if recent_posts.empty?
         return %(<div class="recent-posts-empty">No posts available yet.</div>)

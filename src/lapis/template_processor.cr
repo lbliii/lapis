@@ -86,7 +86,7 @@ module Lapis
 
         # Skip if this looks like a control structure (already processed)
         next match if expression.starts_with?("if ") || expression.starts_with?("for ") ||
-                     expression == "endif" || expression == "endfor" || expression == "else"
+                      expression == "endif" || expression == "endfor" || expression == "else"
 
         # Handle filters like {{ variable | filter }}
         if expression.includes?(" | ")
@@ -113,21 +113,21 @@ module Lapis
         value = evaluate_expression(condition)
         case value
         when Bool then value.as(Bool)
-        when Nil then false
-        else !value.to_s.empty?
+        when Nil  then false
+        else           !value.to_s.empty?
         end
       else
         # Handle simple variable existence
         value = evaluate_expression(condition)
         case value
-        when Bool then value.as(Bool)
-        when Nil then false
-        when Array then !value.as(Array).empty?
-        when String then !value.as(String).empty?
-        when Array(MenuItem) then !value.as(Array(MenuItem)).empty?
+        when Bool                  then value.as(Bool)
+        when Nil                   then false
+        when Array                 then !value.as(Array).empty?
+        when String                then !value.as(String).empty?
+        when Array(MenuItem)       then !value.as(Array(MenuItem)).empty?
         when Array(BreadcrumbItem) then !value.as(Array(BreadcrumbItem)).empty?
-        when Array(Content) then !value.as(Array(Content)).empty?
-        else true
+        when Array(Content)        then !value.as(Array(Content)).empty?
+        else                            true
         end
       end
     end
@@ -202,32 +202,32 @@ module Lapis
 
     private def get_base_value(name : String)
       case name
-      when "title" then @context.title
-      when "content" then @context.content.content
+      when "title"       then @context.title
+      when "content"     then @context.content.content
       when "description" then @context.description
-      when "date" then @context.content.date
+      when "date"        then @context.content.date
       when "date_formatted"
         date = @context.content.date
         date ? date.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
-      when "tags" then @context.tags
-      when "categories" then @context.categories
-      when "reading_time" then @context.reading_time
-      when "word_count" then @context.word_count
-      when "summary" then @context.summary
-      when "breadcrumbs" then @context.breadcrumbs
-      when "site_menu" then @context.site_menu
-      when "site_menu()" then @context.site_menu
-      when "section_nav" then @context.section_nav
-      when "related_content" then @context.related_content
-      when "backlinks" then @context.backlinks
-      when "tag_cloud" then @context.tag_cloud
-      when "archive_by_year" then @context.archive_by_year
+      when "tags"             then @context.tags
+      when "categories"       then @context.categories
+      when "reading_time"     then @context.reading_time
+      when "word_count"       then @context.word_count
+      when "summary"          then @context.summary
+      when "breadcrumbs"      then @context.breadcrumbs
+      when "site_menu"        then @context.site_menu
+      when "site_menu()"      then @context.site_menu
+      when "section_nav"      then @context.section_nav
+      when "related_content"  then @context.related_content
+      when "backlinks"        then @context.backlinks
+      when "tag_cloud"        then @context.tag_cloud
+      when "archive_by_year"  then @context.archive_by_year
       when "archive_by_month" then @context.archive_by_month
-      when "recent_posts" then @context.recent_posts
-      when "posts" then @context.posts
-      when "pages" then @context.pages
-      when "page" then @context.page
-      when "site" then @context.site
+      when "recent_posts"     then @context.recent_posts
+      when "posts"            then @context.posts
+      when "pages"            then @context.pages
+      when "page"             then @context.page
+      when "site"             then @context.site
       else
         # Try to call methods with parentheses
         if name.includes?("(")
@@ -320,9 +320,9 @@ module Lapis
 
     private def format_value(value) : String
       case value
-      when String then value
+      when String       then value
       when Int32, Int64 then value.to_s
-      when Bool then value.to_s
+      when Bool         then value.to_s
       when Array(BreadcrumbItem)
         # Don't process arrays of complex types
         ""
@@ -338,7 +338,7 @@ module Lapis
         # For complex objects like tag clouds
         value.to_s
       when Nil then ""
-      else value.to_s
+      else          value.to_s
       end
     end
 
@@ -369,40 +369,40 @@ module Lapis
       when "first"
         case value
         when Array then value.as(Array).first?
-        else value
+        else            value
         end
       when "last"
         case value
         when Array then value.as(Array).last?
-        else value
+        else            value
         end
       when "size", "length"
         case value
-        when Array then value.as(Array).size
+        when Array  then value.as(Array).size
         when String then value.as(String).size
-        else 0
+        else             0
         end
       when "join"
         case value
         when Array then value.as(Array).join(", ")
-        else value.to_s
+        else            value.to_s
         end
       when "reverse"
         case value
-        when Array then value.as(Array).reverse
+        when Array  then value.as(Array).reverse
         when String then value.as(String).reverse
-        else value
+        else             value
         end
       when "sort"
         case value
         when Array(String) then value.as(Array(String)).sort
-        when Array(Int32) then value.as(Array(Int32)).sort
-        else value
+        when Array(Int32)  then value.as(Array(Int32)).sort
+        else                    value
         end
       when "uniq", "unique"
         case value
         when Array then value.as(Array).uniq
-        else value
+        else            value
         end
       else
         # Handle filters with arguments like truncate(100) or min(5)
@@ -425,7 +425,7 @@ module Lapis
         when "truncate"
           if arg.is_a?(Int32)
             text = value.to_s
-            text.size > arg ? "#{text[0..arg-3]}..." : text
+            text.size > arg ? "#{text[0..arg - 3]}..." : text
           else
             value
           end
@@ -446,7 +446,7 @@ module Lapis
             case value
             when Int32 then [value.as(Int32), arg].min
             when Array then value.as(Array).first(arg)
-            else value
+            else            value
             end
           else
             value
@@ -455,7 +455,7 @@ module Lapis
           if arg.is_a?(Int32)
             case value
             when Int32 then [value.as(Int32), arg].max
-            else value
+            else            value
             end
           else
             value

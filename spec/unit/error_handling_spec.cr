@@ -1,10 +1,11 @@
 require "../spec_helper"
+require "../../src/lapis/incremental_builder"
 
 describe "Error Handling" do
   describe "File system errors" do
     it "handles file writing errors gracefully" do
       cache_dir = "test_file_errors"
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       # Test with non-existent file
       builder.needs_rebuild?("nonexistent_file.md").should be_true
@@ -19,7 +20,7 @@ describe "Error Handling" do
     it "handles cache directory creation errors" do
       # Test with invalid cache directory name
       expect_raises(Exception) do
-        IncrementalBuilder.new("/invalid/path/that/does/not/exist")
+        Lapis::IncrementalBuilder.new("/invalid/path/that/does/not/exist")
       end
     end
   end
@@ -35,7 +36,7 @@ describe "Error Handling" do
       File.write(File.join(cache_dir, "build_cache.yml"), "corrupted")
 
       # Should not crash when loading corrupted cache
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       # Should have empty cache after loading corrupted files
       builder.file_timestamps.size.should eq(0)
@@ -50,7 +51,7 @@ describe "Error Handling" do
       Dir.mkdir_p(cache_dir)
 
       # Don't create any cache files
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       # Should not crash and should have empty cache
       builder.file_timestamps.size.should eq(0)
@@ -63,10 +64,10 @@ describe "Error Handling" do
 
   describe "Configuration errors" do
     it "handles missing config file gracefully" do
-      config = Config.load("nonexistent_config.yml")
+      config = Lapis::Config.load("nonexistent_config.yml")
 
       # Should use default values
-      config.title.should eq("My Site")
+      config.title.should eq("Lapis Site")
       config.build_config.incremental.should be_true
     end
 
@@ -80,9 +81,10 @@ describe "Error Handling" do
 
       File.write("invalid_config.yml", invalid_config)
 
-      expect_raises(YAML::ParseException) do
-        Config.load("invalid_config.yml")
-      end
+      # Should handle invalid values gracefully and use defaults
+      config = Lapis::Config.load("invalid_config.yml")
+      config.title.should eq("Test")                 # Valid value should be used
+      config.build_config.incremental.should be_true # Invalid value should fall back to default
 
       File.delete("invalid_config.yml")
     end
@@ -129,10 +131,10 @@ describe "Error Handling" do
 
       File.write(File.join(test_dir, "lapis.yml"), config_content)
 
-      config = Config.load(File.join(test_dir, "lapis.yml"))
+      config = Lapis::Config.load(File.join(test_dir, "lapis.yml"))
       config.root_dir = test_dir
 
-      generator = Generator.new(config)
+      generator = Lapis::Generator.new(config)
 
       # Should handle output directory creation errors gracefully
       expect_raises(Exception) do

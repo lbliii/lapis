@@ -203,7 +203,7 @@ module Lapis
 
       page_title = page_num == 1 ? "All Posts" : "All Posts - Page #{page_num}"
       pagination_html = paginator.generate_pagination_html
-      
+
       # Use the new template system
       template_engine = TemplateEngine.new(@config)
       html = template_engine.render_archive_page(page_title, paginator.current_items, pagination_html, "archive")
@@ -222,7 +222,7 @@ module Lapis
 
       page_title = page_num == 1 ? "Posts tagged \"#{tag}\"" : "Posts tagged \"#{tag}\" - Page #{page_num}"
       pagination_html = paginator.generate_pagination_html
-      
+
       # Use the new template system
       template_engine = TemplateEngine.new(@config)
       html = template_engine.render_archive_page(page_title, paginator.current_items, pagination_html, "archive")
@@ -232,7 +232,7 @@ module Lapis
 
     private def generate_css_links : String
       css_files = [] of String
-      
+
       # Check for CSS files in static directory
       if Dir.exists?(@config.static_dir)
         css_dir = File.join(@config.static_dir, "css")
@@ -243,12 +243,12 @@ module Lapis
           end
         end
       end
-      
+
       # Fallback to common CSS files if none found
       if css_files.empty?
         css_files << %(<link rel="stylesheet" href="/assets/css/style.css">)
       end
-      
+
       css_files.join("\n        ")
     end
   end

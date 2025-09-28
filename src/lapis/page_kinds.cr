@@ -91,7 +91,7 @@ module Lapis
     end
 
     # Determines if a path represents a content section directory
-    def self.is_section_dir?(dir_path : String, content_dir : String) : Bool
+    def self.section_dir?(dir_path : String, content_dir : String) : Bool
       return false unless Dir.exists?(dir_path)
 
       # Check if directory contains markdown files or an _index.md

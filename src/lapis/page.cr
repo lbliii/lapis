@@ -208,11 +208,11 @@ module Lapis
       section == section_name || section.starts_with?("#{section_name}/")
     end
 
-    def is_ancestor(other : Content) : Bool
+    def ancestor?(other : Content) : Bool
       other.section.starts_with?(section + "/")
     end
 
-    def is_descendant(other : Content) : Bool
+    def descendant?(other : Content) : Bool
       section.starts_with?(other.section + "/")
     end
 
@@ -222,15 +222,15 @@ module Lapis
       @content.kind.to_s.downcase
     end
 
-    def is_home? : Bool
+    def home? : Bool
       @content.kind.home?
     end
 
-    def is_page? : Bool
+    def page? : Bool
       @content.kind.single?
     end
 
-    def is_section? : Bool
+    def section? : Bool
       @content.kind.section?
     end
 
@@ -246,11 +246,11 @@ module Lapis
 
     def file : Hash(String, String)
       {
-        "path" => @content.file_path,
-        "dir" => File.dirname(@content.file_path),
-        "filename" => File.basename(@content.file_path),
+        "path"      => @content.file_path,
+        "dir"       => File.dirname(@content.file_path),
+        "filename"  => File.basename(@content.file_path),
         "extension" => File.extname(@content.file_path),
-        "base_name" => File.basename(@content.file_path, File.extname(@content.file_path))
+        "base_name" => File.basename(@content.file_path, File.extname(@content.file_path)),
       }
     end
 
@@ -266,9 +266,9 @@ module Lapis
 
     def language : Hash(String, String)
       {
-        "lang" => lang,
+        "lang"          => lang,
         "language_name" => @content.frontmatter["languageName"]?.try(&.as_s) || "English",
-        "weight" => @content.frontmatter["languageWeight"]?.try(&.as_s) || "1"
+        "weight"        => @content.frontmatter["languageWeight"]?.try(&.as_s) || "1",
       }
     end
 
@@ -276,11 +276,11 @@ module Lapis
 
     def markup : String
       case File.extname(@content.file_path).downcase
-      when ".md", ".markdown" then "markdown"
-      when ".html", ".htm" then "html"
-      when ".org" then "org"
+      when ".md", ".markdown"   then "markdown"
+      when ".html", ".htm"      then "html"
+      when ".org"               then "org"
       when ".asciidoc", ".adoc" then "asciidoc"
-      else "markdown"
+      else                           "markdown"
       end
     end
 
@@ -333,9 +333,9 @@ module Lapis
 
     def get_term(taxonomy : String) : Array(String)
       case taxonomy
-      when "tags" then tags
+      when "tags"       then tags
       when "categories" then categories
-      else [] of String
+      else                   [] of String
       end
     end
 

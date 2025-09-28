@@ -4,7 +4,6 @@ module Lapis
   # Partials system for reusable template components
   # Usage: {{ partial "head" . }} or {{ partial "header" . }}
   module Partials
-
     # Process partial function calls in templates
     def self.process_partials(template : String, context : TemplateContext, theme_dir : String) : String
       result = template

@@ -21,7 +21,7 @@ module Lapis
     def start
       Logger.setup(@config)
       Logger.build_operation("Starting development server")
-      
+
       build_initial_site
       @live_reload.start
 
@@ -104,10 +104,10 @@ module Lapis
 
       begin
         Logger.file_operation("serving", file_path)
-        
+
         File.open(file_path, "r") do |file|
           file.set_encoding("UTF-8")
-          
+
           # For HTML files, we need to inject live reload script
           if file_path.ends_with?(".html")
             content = file.gets_to_end
@@ -180,15 +180,15 @@ module Lapis
           function connect() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/__lapis_live_reload__`;
-            
+
             try {
               socket = new WebSocket(wsUrl);
-              
+
               socket.onopen = function() {
                 console.log('Lapis live reload connected');
                 reconnectAttempts = 0;
               };
-              
+
               socket.onmessage = function(event) {
                 try {
                   const data = JSON.parse(event.data);
@@ -197,12 +197,12 @@ module Lapis
                   console.error('Failed to parse reload message:', e);
                 }
               };
-              
+
               socket.onclose = function() {
                 console.log('Lapis live reload disconnected');
                 attemptReconnect();
               };
-              
+
               socket.onerror = function(error) {
                 console.log('Lapis live reload error:', error);
               };
@@ -224,23 +224,23 @@ module Lapis
 
           function handleReloadMessage(data) {
             console.log('Reload message received:', data);
-            
+
             switch(data.type) {
               case 'full_reload':
                 console.log('Reloading page due to changes...');
                 window.location.reload();
                 break;
-                
+
               case 'css_reload':
                 console.log('Reloading CSS files...');
                 reloadCSS(data.files || []);
                 break;
-                
+
               case 'js_reload':
                 console.log('Reloading JS files...');
                 reloadJS(data.files || []);
                 break;
-                
+
               default:
                 console.log('Unknown reload type:', data.type);
                 window.location.reload();
@@ -279,7 +279,6 @@ module Lapis
         html + script
       end
     end
-
 
     private def not_found_page : String
       <<-HTML

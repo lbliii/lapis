@@ -129,7 +129,7 @@ module Lapis
     end
 
     # Get benchmark results
-    def get_results : Hash(String, Benchmark::BM::Tms)
+    def results : Hash(String, Benchmark::BM::Tms)
       @results
     end
 

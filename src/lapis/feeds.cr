@@ -6,7 +6,7 @@ module Lapis
     end
 
     def generate_rss(posts : Array(Content), limit : Int32 = 20) : String
-      recent_posts = posts.select(&.is_post_layout?).first(limit)
+      recent_posts = posts.select(&.feedable?).first(limit)
 
       <<-XML
       <?xml version="1.0" encoding="UTF-8"?>
@@ -26,7 +26,7 @@ module Lapis
     end
 
     def generate_atom(posts : Array(Content), limit : Int32 = 20) : String
-      recent_posts = posts.select(&.is_post_layout?).first(limit)
+      recent_posts = posts.select(&.feedable?).first(limit)
       updated = recent_posts.first?.try(&.date) || Time.utc
 
       <<-XML
@@ -45,7 +45,7 @@ module Lapis
     end
 
     def generate_json_feed(posts : Array(Content), limit : Int32 = 20) : String
-      recent_posts = posts.select(&.is_post_layout?).first(limit)
+      recent_posts = posts.select(&.feedable?).first(limit)
 
       # Use JSON::Builder for structured JSON generation
       JSON.build do |json|
@@ -136,10 +136,10 @@ module Lapis
 
     private def escape_xml(text : String) : String
       text.gsub("&", "&amp;")
-          .gsub("<", "&lt;")
-          .gsub(">", "&gt;")
-          .gsub("\"", "&quot;")
-          .gsub("'", "&#39;")
+        .gsub("<", "&lt;")
+        .gsub(">", "&gt;")
+        .gsub("\"", "&quot;")
+        .gsub("'", "&#39;")
     end
   end
 
@@ -174,8 +174,8 @@ module Lapis
     private def generate_content_entries(content : Array(Content)) : String
       content.map do |item|
         last_mod = item.date ? item.date.not_nil!.to_s(Lapis::DATE_FORMAT_SHORT) : Time.utc.to_s(Lapis::DATE_FORMAT_SHORT)
-        priority = item.is_post_layout? ? "0.8" : "0.9"
-        changefreq = item.is_post_layout? ? "monthly" : "yearly"
+        priority = item.feedable? ? "0.8" : "0.9"
+        changefreq = item.feedable? ? "monthly" : "yearly"
 
         <<-XML
         <url>
@@ -192,7 +192,7 @@ module Lapis
       entries = [] of String
 
       # Posts archive
-      if content.any?(&.is_post_layout?)
+      if content.any?(&.feedable?)
         entries << <<-XML
         <url>
           <loc>#{@config.baseurl}/posts/</loc>

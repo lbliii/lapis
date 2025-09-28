@@ -46,8 +46,8 @@ module Lapis
         )
       end
 
-      # Add current page (unless it's home or a section index)
-      unless current_content.kind.home? || current_content.kind.section?
+      # Add current page (if it's not home or a section index)
+      if !current_content.kind.home? && !current_content.kind.section?
         breadcrumbs << BreadcrumbItem.new(
           title: current_content.title,
           url: current_content.url,
@@ -74,7 +74,7 @@ module Lapis
 
       case menu_config
       when Array
-        menu_config.map { |item| build_menu_item(item) }.compact
+        menu_config.compact_map { |item| build_menu_item(item) }
       else
         [] of MenuItem
       end
@@ -97,7 +97,7 @@ module Lapis
 
     private def find_section_content(section_path : String) : Content?
       section_index_path = File.join(section_path, "_index")
-      @site_content.find { |c| c.url.starts_with?("/#{section_index_path}") }
+      @site_content.find(&.url.starts_with?("/#{section_index_path}"))
     end
 
     private def humanize_path(path : String) : String

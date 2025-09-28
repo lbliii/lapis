@@ -28,10 +28,12 @@ module Lapis
     property url : String
     property kind : PageKind
     property section : String
+    property content_type : String
 
     def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String, content_dir : String = "content")
       @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(File.basename(@file_path, ".md"))
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
+      @content_type = @frontmatter["type"]?.try(&.as_s) || infer_content_type
       @date = parse_date(@frontmatter["date"]?)
       @tags = parse_array(@frontmatter["tags"]?)
       @categories = parse_array(@frontmatter["categories"]?)
@@ -147,9 +149,40 @@ module Lapis
       true # All content is now treated as pages
     end
 
-    # Check if this content should be treated as a "post" (for feeds, archives, etc.)
+    # Check if this content should be included in feeds and archives
+    def feedable? : Bool
+      ["article", "post"].includes?(@content_type) && !@draft
+    end
+
+    # Check if this content should use date-based URLs
+    def date_based_url? : Bool
+      ["article", "post"].includes?(@content_type) && @date != nil
+    end
+
+    # Legacy methods for backward compatibility - will be removed
+    def post? : Bool
+      ["article", "post"].includes?(@content_type)
+    end
+
     def post_layout? : Bool
-      @layout == "post"
+      post?
+    end
+
+    private def infer_content_type : String
+      # Infer content type based on file path and layout
+      if @layout == "post" || @layout == "article"
+        "article"
+      elsif @file_path.includes?("/posts/") || @file_path.includes?("/articles/")
+        "article"
+      elsif @file_path.includes?("/pages/")
+        "page"
+      elsif @file_path.includes?("/glossary/")
+        "glossary"
+      elsif @file_path.includes?("/docs/")
+        "documentation"
+      else
+        "page"
+      end
     end
 
     # Page kind helpers
@@ -272,7 +305,7 @@ module Lapis
         return @permalink.not_nil!
       end
 
-      if is_post_layout? && @date
+      if date_based_url?
         date = @date.not_nil!
         year = date.year.to_s
         month = date.month.to_s.rjust(2, '0')

@@ -4,7 +4,7 @@ module Lapis
   # Represents a media type for output formats
   struct MediaType
     include YAML::Serializable
-    
+
     property name : String
     property type : String
     property subtype : String
@@ -65,7 +65,7 @@ module Lapis
           subtype: "atom+xml",
           suffixes: ["xml"],
           delimiter: ""
-        )
+        ),
       }
     end
   end
@@ -73,7 +73,7 @@ module Lapis
   # Defines how content is output in different formats
   struct OutputFormat
     include YAML::Serializable
-    
+
     property name : String
     property media_type : MediaType
     property base_name : String
@@ -143,7 +143,7 @@ module Lapis
           extension: "xml",
           is_plain_text: true,
           weight: 50
-        )
+        ),
       }
     end
   end
@@ -151,7 +151,7 @@ module Lapis
   # Manages output format configuration and resolution
   class OutputFormatManager
     include YAML::Serializable
-    
+
     property formats : Hash(String, OutputFormat)
     property outputs_by_kind : Hash(PageKind, Array(String))
 
@@ -198,12 +198,12 @@ module Lapis
 
     private def default_outputs_by_kind : Hash(PageKind, Array(String))
       {
-        PageKind::Home => ["html", "rss"],
-        PageKind::Single => ["html", "json"],
-        PageKind::List => ["html", "rss"],
-        PageKind::Section => ["html", "rss"],
+        PageKind::Home     => ["html", "rss"],
+        PageKind::Single   => ["html", "json"],
+        PageKind::List     => ["html", "rss"],
+        PageKind::Section  => ["html", "rss"],
         PageKind::Taxonomy => ["html"],
-        PageKind::Term => ["html", "rss"]
+        PageKind::Term     => ["html", "rss"],
       }
     end
 

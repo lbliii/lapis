@@ -4,7 +4,7 @@ describe "Cache System" do
   describe "Cache file creation" do
     it "creates cache files with proper YAML structure" do
       cache_dir = "test_cache_system"
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       # Add some test data
       test_file = "test.md"
@@ -44,7 +44,7 @@ describe "Cache System" do
 
     it "handles empty cache gracefully" do
       cache_dir = "test_empty_cache"
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       # Save empty cache
       builder.save_cache
@@ -61,7 +61,7 @@ describe "Cache System" do
 
     it "can clear and recreate cache" do
       cache_dir = "test_cache_clear"
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       # Add data
       test_file = "test.md"
@@ -94,7 +94,7 @@ describe "Cache System" do
 
       Dir.exists?(cache_dir).should be_false
 
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       Dir.exists?(cache_dir).should be_true
 
@@ -103,7 +103,7 @@ describe "Cache System" do
 
     it "handles cache directory permissions correctly" do
       cache_dir = "test_permissions"
-      builder = IncrementalBuilder.new(cache_dir)
+      builder = Lapis::IncrementalBuilder.new(cache_dir)
 
       # Should be able to write files
       test_file = "test.md"
@@ -112,7 +112,7 @@ describe "Cache System" do
       builder.save_cache
 
       # Should be able to read files back
-      new_builder = IncrementalBuilder.new(cache_dir)
+      new_builder = Lapis::IncrementalBuilder.new(cache_dir)
       new_builder.file_timestamps[test_file]?.should_not be_nil
 
       File.delete(test_file)

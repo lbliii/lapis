@@ -1,7 +1,6 @@
 module Lapis
   # Theme helper methods for CSS and asset management
   module ThemeHelpers
-
     # Build CSS includes with proper cascade priority:
     # 1. Theme base CSS (themes/default/static/css/style.css)
     # 2. Site custom CSS (static/css/custom.css)
@@ -56,7 +55,7 @@ module Lapis
     def list_available_css : Hash(String, Array(String))
       {
         "theme" => list_theme_css,
-        "site" => list_site_css
+        "site"  => list_site_css,
       }
     end
 

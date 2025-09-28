@@ -139,7 +139,7 @@ module Lapis
         url = match[2]
 
         next if url.starts_with?("http") # Skip external links
-        next if url.starts_with?("#")   # Skip anchor links
+        next if url.starts_with?("#")    # Skip anchor links
 
         # Clean up relative URLs
         clean_url = url.starts_with?("/") ? url : "/#{url}"
@@ -160,7 +160,7 @@ module Lapis
         link_text = match[2]
 
         next if url.starts_with?("http") # Skip external links
-        next if url.starts_with?("#")   # Skip anchor links
+        next if url.starts_with?("#")    # Skip anchor links
 
         clean_url = url.starts_with?("/") ? url : "/#{url}"
 

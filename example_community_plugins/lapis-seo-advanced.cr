@@ -309,8 +309,8 @@ module LapisSEOAdvanced
     property openai_api_key : String? = nil
     property google_search_console_key : String? = nil
     property bing_webmaster_key : String? = nil
-    property auto_submit_sitemap : Bool = false
-    property enable_ai_analysis : Bool = false
+    property auto_submit_sitemap? : Bool = false
+    property enable_ai_analysis? : Bool = false
     property audit_thresholds : Hash(String, Int32) = {
       "max_loading_time"   => 3000,
       "min_content_length" => 300,

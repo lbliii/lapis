@@ -43,3 +43,7 @@ Layout/TrailingBlankLines:
 
 Lint/Formatting:
   Enabled: true
+
+# Temporarily disable boolean property naming rule due to Crystal version compatibility
+Naming/QueryBoolMethods:
+  Enabled: false

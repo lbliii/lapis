@@ -211,7 +211,7 @@ module Lapis
 
         # Skip control structures
         next match if expression.starts_with?("if ") || expression.starts_with?("range ") ||
-                     expression == "endif" || expression == "end" || expression == "else"
+                      expression == "endif" || expression == "end" || expression == "else"
 
         # Skip function calls (already processed)
         next match if expression.includes?("(") && expression.includes?(")")
@@ -281,7 +281,7 @@ module Lapis
             # Convert YAML hash to array of key-value pairs
             pairs = [] of String
             value.each do |key, val|
-              pairs << "#{key}: #{val.to_s}"
+              pairs << "#{key}: #{val}"
             end
             args << pairs.join(",")
           else
@@ -298,22 +298,22 @@ module Lapis
       if condition.includes?("(")
         value = evaluate_expression(condition)
         case value
-        when Bool then value.as(Bool)
-        when Nil then false
-        when Array then !value.as(Array).empty?
+        when Bool   then value.as(Bool)
+        when Nil    then false
+        when Array  then !value.as(Array).empty?
         when String then !value.as(String).empty?
-        when Int32 then value.as(Int32) != 0
-        else true
+        when Int32  then value.as(Int32) != 0
+        else             true
         end
       else
         # Simple variable check
         value = evaluate_expression(condition)
         case value
-        when Bool then value.as(Bool)
-        when Nil then false
-        when Array then !value.as(Array).empty?
+        when Bool   then value.as(Bool)
+        when Nil    then false
+        when Array  then !value.as(Array).empty?
         when String then !value.as(String).empty?
-        else true
+        else             true
         end
       end
     end
@@ -339,25 +339,20 @@ module Lapis
       # Global objects
       when "site" then @site
       when "page" then @page
-      when "now" then Time.utc
-
-      # Site shortcuts
-      when "title" then @site.title
+      when "now"  then Time.utc
+        # Site shortcuts
+      when "title"   then @site.title
       when "baseURL" then @site.base_url
-
-      # Page shortcuts
-      when "content" then @page.try(&.content_html) || ""
-      when "summary" then @page.try(&.summary) || ""
-      when "url" then @page.try(&.url) || ""
+        # Page shortcuts
+      when "content"   then @page.try(&.content_html) || ""
+      when "summary"   then @page.try(&.summary) || ""
+      when "url"       then @page.try(&.url) || ""
       when "permalink" then @page.try(&.permalink) || ""
-
-      # Context data
+        # Context data
       when "params" then @page.try(&.params) || {} of String => YAML::Any
-      when "data" then @site.data
-
-      # Navigation data
+      when "data"   then @site.data
+        # Navigation data
       when "site_menu" then @context.site_menu("main")
-
       else
         # Try as function call without parentheses
         if Functions.has_function?(name)
@@ -371,62 +366,56 @@ module Lapis
     private def call_method(object, method : String)
       case {object, method}
       # Site methods
-      when {Site, "Title"} then object.as(Site).title
-      when {Site, "BaseURL"} then object.as(Site).base_url
-      when {Site, "Pages"} then object.as(Site).all_pages
+      when {Site, "Title"}        then object.as(Site).title
+      when {Site, "BaseURL"}      then object.as(Site).base_url
+      when {Site, "Pages"}        then object.as(Site).all_pages
       when {Site, "RegularPages"} then object.as(Site).regular_pages
-      when {Site, "Params"} then object.as(Site).params
-      when {Site, "Data"} then object.as(Site).data
-      when {Site, "Menus"} then object.as(Site).menus
-      when {Site, "Author"} then object.as(Site).author
-      when {Site, "Copyright"} then object.as(Site).copyright
-      when {Site, "Hugo"} then object.as(Site).generator_info
-
-      # Page methods
-      when {Page, "Title"} then object.as(Page).title
-      when {Page, "Content"} then object.as(Page).content_html
-      when {Page, "Summary"} then object.as(Page).summary
-      when {Page, "URL"} then object.as(Page).url
-      when {Page, "Permalink"} then object.as(Page).permalink
-      when {Page, "Date"} then object.as(Page).date
-      when {Page, "Tags"} then object.as(Page).tags
-      when {Page, "Categories"} then object.as(Page).categories
-      when {Page, "WordCount"} then object.as(Page).word_count
+      when {Site, "Params"}       then object.as(Site).params
+      when {Site, "Data"}         then object.as(Site).data
+      when {Site, "Menus"}        then object.as(Site).menus
+      when {Site, "Author"}       then object.as(Site).author
+      when {Site, "Copyright"}    then object.as(Site).copyright
+      when {Site, "Hugo"}         then object.as(Site).generator_info
+        # Page methods
+      when {Page, "Title"}       then object.as(Page).title
+      when {Page, "Content"}     then object.as(Page).content_html
+      when {Page, "Summary"}     then object.as(Page).summary
+      when {Page, "URL"}         then object.as(Page).url
+      when {Page, "Permalink"}   then object.as(Page).permalink
+      when {Page, "Date"}        then object.as(Page).date
+      when {Page, "Tags"}        then object.as(Page).tags
+      when {Page, "Categories"}  then object.as(Page).categories
+      when {Page, "WordCount"}   then object.as(Page).word_count
       when {Page, "ReadingTime"} then object.as(Page).reading_time
-      when {Page, "Next"} then object.as(Page).next
-      when {Page, "Prev"} then object.as(Page).prev
-      when {Page, "Parent"} then object.as(Page).parent
-      when {Page, "Children"} then object.as(Page).children
-      when {Page, "Related"} then object.as(Page).related
-      when {Page, "Section"} then object.as(Page).section
-      when {Page, "Kind"} then object.as(Page).kind
-      when {Page, "Type"} then object.as(Page).type
-      when {Page, "Layout"} then object.as(Page).layout
-      when {Page, "Params"} then object.as(Page).params
-
-      # Content methods (for arrays of Content)
-      when {Content, "Title"} then object.as(Content).title
-      when {Content, "URL"} then object.as(Content).url
-      when {Content, "Date"} then object.as(Content).date
+      when {Page, "Next"}        then object.as(Page).next
+      when {Page, "Prev"}        then object.as(Page).prev
+      when {Page, "Parent"}      then object.as(Page).parent
+      when {Page, "Children"}    then object.as(Page).children
+      when {Page, "Related"}     then object.as(Page).related
+      when {Page, "Section"}     then object.as(Page).section
+      when {Page, "Kind"}        then object.as(Page).kind
+      when {Page, "Type"}        then object.as(Page).type
+      when {Page, "Layout"}      then object.as(Page).layout
+      when {Page, "Params"}      then object.as(Page).params
+        # Content methods (for arrays of Content)
+      when {Content, "Title"}   then object.as(Content).title
+      when {Content, "URL"}     then object.as(Content).url
+      when {Content, "Date"}    then object.as(Content).date
       when {Content, "Summary"} then PageOperations.new(object.as(Content), @site.pages).summary
-
-      # Time methods
-      when {Time, "Year"} then object.as(Time).year
-      when {Time, "Month"} then object.as(Time).month
-      when {Time, "Day"} then object.as(Time).day
+        # Time methods
+      when {Time, "Year"}   then object.as(Time).year
+      when {Time, "Month"}  then object.as(Time).month
+      when {Time, "Day"}    then object.as(Time).day
       when {Time, "Format"} then object.as(Time).to_s("%Y-%m-%d")
-
-      # Array methods
-      when {Array, "len"} then object.as(Array).size
+        # Array methods
+      when {Array, "len"}   then object.as(Array).size
       when {Array, "first"} then object.as(Array).first?
-      when {Array, "last"} then object.as(Array).last?
-
-      # MenuItem methods
-      when {MenuItem, "name"} then object.as(MenuItem).name
-      when {MenuItem, "url"} then object.as(MenuItem).url
-      when {MenuItem, "weight"} then object.as(MenuItem).weight
+      when {Array, "last"}  then object.as(Array).last?
+        # MenuItem methods
+      when {MenuItem, "name"}     then object.as(MenuItem).name
+      when {MenuItem, "url"}      then object.as(MenuItem).url
+      when {MenuItem, "weight"}   then object.as(MenuItem).weight
       when {MenuItem, "external"} then object.as(MenuItem).external
-
       else
         nil
       end
@@ -483,14 +472,14 @@ module Lapis
 
     private def format_value(value) : String
       case value
-      when String then value
-      when Int32, Int64 then value.to_s
-      when Bool then value.to_s
-      when Time then value.to_s("%Y-%m-%d")
+      when String        then value
+      when Int32, Int64  then value.to_s
+      when Bool          then value.to_s
+      when Time          then value.to_s("%Y-%m-%d")
       when Array(String) then value.join(", ")
-      when Array then value.size.to_s # For other arrays, show count
-      when Nil then ""
-      else value.to_s
+      when Array         then value.size.to_s # For other arrays, show count
+      when Nil           then ""
+      else                    value.to_s
       end
     end
 
@@ -554,7 +543,7 @@ module Lapis
         # Convert YAML hash to string representation
         pairs = [] of String
         value.each do |key, val|
-          pairs << "#{key}: #{val.to_s}"
+          pairs << "#{key}: #{val}"
         end
         pairs.join("; ")
       else

@@ -67,7 +67,7 @@ module Lapis
 
       # Look for section's _index.md
       section_index_path = File.join(@content.section, "_index")
-      @site_content.find { |c| c.url.starts_with?(section_index_path) }
+      @site_content.find(&.url.starts_with?(section_index_path))
     end
 
     def ancestors : Array(Content)
@@ -78,7 +78,7 @@ module Lapis
         ancestor_path = path_parts[0..index].join("/")
         ancestor_index_path = File.join(ancestor_path, "_index")
 
-        if ancestor = @site_content.find { |c| c.url.starts_with?(ancestor_index_path) }
+        if ancestor = @site_content.find(&.url.starts_with?(ancestor_index_path))
           ancestors << ancestor
         end
       end
@@ -92,8 +92,8 @@ module Lapis
       section_path = @content.section.empty? ? "" : "#{@content.section}/"
       @site_content.select do |c|
         c.section.starts_with?(section_path) &&
-        c.section != @content.section &&
-        c.section.count("/") == @content.section.count("/") + 1
+          c.section != @content.section &&
+          c.section.count("/") == @content.section.count("/") + 1
       end
     end
 

@@ -366,7 +366,7 @@ module Lapis
   class SEOConfig
     include YAML::Serializable
 
-    property enabled : Bool = true
+    property enabled? : Bool = true
     property site_name : String = "My Site"
     property site_url : String = "https://example.com"
     property author_name : String = "Site Author"
@@ -375,14 +375,14 @@ module Lapis
     property twitter_site : String = ""
     property twitter_creator : String = ""
     property facebook_app_id : String = ""
-    property generate_sitemap : Bool = true
-    property generate_robots_txt : Bool = true
-    property generate_social_cards : Bool = false
-    property generate_report : Bool = false
+    property generate_sitemap? : Bool = true
+    property generate_robots_txt? : Bool = true
+    property generate_social_cards? : Bool = false
+    property generate_report? : Bool = false
     property sitemap_changefreq : String = "weekly"
     property sitemap_priority : Float64 = 0.8
-    property auto_meta_tags : Bool = true
-    property structured_data : Bool = true
+    property auto_meta_tags? : Bool = true
+    property structured_data? : Bool = true
 
     def initialize
     end
