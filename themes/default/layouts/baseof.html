@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {{ block "head" }}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} - {{ site.title }}</title>
+  <meta name="description" content="{{ description }}">
+  {{ endblock }}
+  
+  {{ block "css" }}
+  <link rel="stylesheet" href="/assets/css/blog.css">
+  {{ endblock }}
+</head>
+<body>
+  {{ block "header" }}
+  <header class="site-header">
+    <nav class="site-nav">
+      <a href="/" class="site-title">{{ site.title }}</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/posts/">Posts</a>
+        <a href="/about/">About</a>
+      </div>
+    </nav>
+  </header>
+  {{ endblock }}
+
+  {{ block "main" }}
+  <main class="main-content">
+    {{ content }}
+  </main>
+  {{ endblock }}
+
+  {{ block "footer" }}
+  <footer class="site-footer">
+    <p>&copy; {{ site.title }} - Built with <a href="https://github.com/lapis-lang/lapis">Lapis</a></p>
+  </footer>
+  {{ endblock }}
+</body>
+</html>

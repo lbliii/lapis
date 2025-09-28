@@ -147,44 +147,12 @@ module Lapis
 
       Dir.mkdir_p(output_dir)
 
-      posts_html = paginator.current_items.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
-        tags_html = post.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
-
-        <<-HTML
-        <article class="post-item">
-          <h3><a href="#{post.url}">#{post.title}</a></h3>
-          <div class="meta">#{date_str} #{tags_html}</div>
-          <p>#{post.excerpt}</p>
-          <a href="#{post.url}" class="read-more">Read more →</a>
-        </article>
-        HTML
-      end.join("\n")
-
       page_title = page_num == 1 ? "All Posts" : "All Posts - Page #{page_num}"
-
-      html = <<-HTML
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>#{page_title} - #{@config.title}</title>
-        #{generate_css_links}
-      </head>
-      <body>
-        <header>
-          <h1>#{page_title}</h1>
-          <p><a href="/">← Back to home</a></p>
-        </header>
-
-        <main>
-          #{posts_html}
-          #{paginator.generate_pagination_html}
-        </main>
-      </body>
-      </html>
-      HTML
+      pagination_html = paginator.generate_pagination_html
+      
+      # Use the new template system
+      template_engine = TemplateEngine.new(@config)
+      html = template_engine.render_archive_page(page_title, paginator.current_items, pagination_html, "archive")
 
       File.write(File.join(output_dir, "index.html"), html)
     end
@@ -198,43 +166,12 @@ module Lapis
 
       Dir.mkdir_p(output_dir)
 
-      posts_html = paginator.current_items.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
-
-        <<-HTML
-        <article class="post-item">
-          <h3><a href="#{post.url}">#{post.title}</a></h3>
-          <div class="meta">#{date_str}</div>
-          <p>#{post.excerpt}</p>
-          <a href="#{post.url}" class="read-more">Read more →</a>
-        </article>
-        HTML
-      end.join("\n")
-
       page_title = page_num == 1 ? "Posts tagged \"#{tag}\"" : "Posts tagged \"#{tag}\" - Page #{page_num}"
-
-      html = <<-HTML
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>#{page_title} - #{@config.title}</title>
-        #{generate_css_links}
-      </head>
-      <body>
-        <header>
-          <h1>#{page_title}</h1>
-          <p><a href="/posts/">← All posts</a> | <a href="/">Home</a></p>
-        </header>
-
-        <main>
-          #{posts_html}
-          #{paginator.generate_pagination_html}
-        </main>
-      </body>
-      </html>
-      HTML
+      pagination_html = paginator.generate_pagination_html
+      
+      # Use the new template system
+      template_engine = TemplateEngine.new(@config)
+      html = template_engine.render_archive_page(page_title, paginator.current_items, pagination_html, "archive")
 
       File.write(File.join(output_dir, "index.html"), html)
     end

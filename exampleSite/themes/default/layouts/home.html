@@ -1,0 +1,16 @@
+{{ extends "baseof" }}
+
+{{ block "main" }}
+<main class="main-content">
+  <div class="home-content">
+    <header class="home-header">
+      <h1>{{ title }}</h1>
+      <p class="home-description">{{ description }}</p>
+    </header>
+
+    <div class="home-body">
+      {{ content }}
+    </div>
+  </div>
+</main>
+{{ endblock }}

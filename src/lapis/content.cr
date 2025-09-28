@@ -1,8 +1,9 @@
 require "yaml"
 require "markd"
+require "./base_content"
 
 module Lapis
-  class Content
+  class Content < BaseContent
     property title : String
     property layout : String
     property date : Time?
