@@ -87,7 +87,7 @@ module Lapis
 
     private def generate_rss_items(posts : Array(Content)) : String
       posts.map do |post|
-        pub_date = post.date ? post.date.not_nil!.to_rfc2822 : Time.utc.to_rfc2822
+        pub_date = post.date.try(&.to_rfc2822) || Time.utc.to_rfc2822
 
         <<-XML
         <item>
@@ -96,7 +96,7 @@ module Lapis
           <link>#{@config.baseurl}#{post.url}</link>
           <guid isPermaLink="true">#{@config.baseurl}#{post.url}</guid>
           <pubDate>#{pub_date}</pubDate>
-          #{post.author ? "<author>#{escape_xml(post.author.not_nil!)}</author>" : ""}
+          #{post.author.try { |a| "<author>#{escape_xml(a)}</author>" } || ""}
           #{generate_rss_categories(post.tags + post.categories)}
         </item>
         XML
@@ -105,7 +105,7 @@ module Lapis
 
     private def generate_atom_entries(posts : Array(Content)) : String
       posts.map do |post|
-        updated = post.date ? post.date.not_nil!.to_rfc3339 : Time.utc.to_rfc3339
+        updated = post.date.try(&.to_rfc3339) || Time.utc.to_rfc3339
 
         <<-XML
         <entry>
@@ -115,7 +115,7 @@ module Lapis
           <id>#{@config.baseurl}#{post.url}</id>
           <content type="html">#{escape_xml(post.content)}</content>
           <summary>#{escape_xml(post.excerpt)}</summary>
-          #{post.author ? "<author><name>#{escape_xml(post.author.not_nil!)}</name></author>" : ""}
+          #{post.author.try { |a| "<author><name>#{escape_xml(a)}</name></author>" } || ""}
           #{generate_atom_categories(post.tags + post.categories)}
         </entry>
         XML
@@ -173,7 +173,7 @@ module Lapis
 
     private def generate_content_entries(content : Array(Content)) : String
       content.map do |item|
-        last_mod = item.date ? item.date.not_nil!.to_s(Lapis::DATE_FORMAT_SHORT) : Time.utc.to_s(Lapis::DATE_FORMAT_SHORT)
+        last_mod = item.date.try(&.to_s(Lapis::DATE_FORMAT_SHORT)) || Time.utc.to_s(Lapis::DATE_FORMAT_SHORT)
         priority = item.feedable? ? "0.8" : "0.9"
         changefreq = item.feedable? ? "monthly" : "yearly"
 

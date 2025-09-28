@@ -1,20 +1,67 @@
 require "log"
+require "colorize"
+require "./pretty_print_utils"
 
 module Lapis
-  # Structured logging system for Lapis
+  # Custom cute log backend
+  class CuteLogBackend < Log::IOBackend
+    @@suppress_theme_init = false
+    @@theme_init_count = 0
+
+    def initialize
+      super(STDOUT)
+    end
+
+    def write(entry : Log::Entry)
+      time_str = entry.timestamp.to_s("%H:%M:%S")
+      message = entry.message.to_s
+
+      # Special handling for certain messages
+      if message.includes?("Theme manager initialized")
+        return if @@suppress_theme_init
+        @@theme_init_count += 1
+        if @@theme_init_count > 5
+          @@suppress_theme_init = true
+          puts "   📦 Theme manager ready (suppressing further messages)"
+          return
+        end
+      end
+
+      # Format with emojis
+      case entry.severity
+      when Log::Severity::Debug
+        puts "   #{time_str} 🔍 #{message}"
+      when Log::Severity::Info
+        puts "   #{time_str} ℹ️  #{message}"
+      when Log::Severity::Warn
+        puts "   #{time_str} ⚠️  #{message}"
+      when Log::Severity::Error
+        puts "   #{time_str} ❌ #{message}"
+      when Log::Severity::Fatal
+        puts "   #{time_str} 💥 #{message}"
+      else
+        puts "   #{time_str} #{message}"
+      end
+    end
+  end
+
+  # Cute and clean logging system for Lapis
   class Logger
     @@initialized = false
+    @@log_level = Log::Severity::Info
+    @@suppress_theme_init = false
+    @@theme_init_count = 0
 
     # Initialize the logging system
     def self.setup(config : Config? = nil)
       return if @@initialized
 
       # Determine log level
-      log_level =
+      @@log_level =
         if config && config.debug
           Log::Severity::Debug
-        elsif ENV["LAPIS_LOG_LEVEL"]?
-          case ENV["LAPIS_LOG_LEVEL"].downcase
+        elsif ENV.has_key?("LAPIS_LOG_LEVEL")
+          case ENV.fetch("LAPIS_LOG_LEVEL").downcase
           when "debug" then Log::Severity::Debug
           when "info"  then Log::Severity::Info
           when "warn"  then Log::Severity::Warn
@@ -25,14 +72,134 @@ module Lapis
           Log::Severity::Info
         end
 
-      # Simple console logging setup
+      # Custom cute console logging setup
       Log.setup do |c|
-        c.bind "*", log_level, Log::IOBackend.new(STDOUT)
+        c.bind "*", @@log_level, CuteLogBackend.new
       end
 
       @@initialized = true
-      Log.info { "Lapis logging system initialized" }
+      puts "🐰 Lapis logging system initialized".colorize(:green)
     end
+
+    def self.info(message : String, **context)
+      Log.info { format_message(message, context) }
+    end
+
+    def self.debug(message : String, **context)
+      Log.debug { format_message(message, context) }
+    end
+
+    def self.warn(message : String, **context)
+      Log.warn { format_message(message, context) }
+    end
+
+    def self.error(message : String, **context)
+      Log.error { format_message(message, context) }
+    end
+
+    def self.debug_object(message : String, obj, **context)
+      Log.debug { "#{message} [#{obj.inspect}] #{format_context(context)}" }
+    end
+
+    def self.info_object(message : String, obj, **context)
+      Log.info { "#{message} [#{obj.inspect}] #{format_context(context)}" }
+    end
+
+    def self.warn_object(message : String, obj, **context)
+      Log.warn { "#{message} [#{obj.inspect}] #{format_context(context)}" }
+    end
+
+    # Pretty print objects with structured formatting
+    def self.debug_pretty(message : String, obj, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      # Use PrettyPrint for structured output
+      io = IO::Memory.new
+      PrettyPrintUtils.format(obj, io, 80, 4) # 4-space indent for nested content
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" } # Additional indent for pretty printed content
+      end
+    end
+
+    def self.info_pretty(message : String, obj, **context)
+      if context.empty?
+        Log.info { "#{message}:" }
+      else
+        Log.info { "#{message} #{format_context(context)}:" }
+      end
+
+      # Use PrettyPrint for structured output
+      io = IO::Memory.new
+      PrettyPrintUtils.format(obj, io, 80, 4)
+      io.to_s.each_line do |line|
+        Log.info { "    #{line}" }
+      end
+    end
+
+    # Pretty print configuration objects
+    def self.debug_config(message : String, config : Config, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_config(config, io, 80)
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" }
+      end
+    end
+
+    # Pretty print content objects
+    def self.debug_content(message : String, content : Content, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_content(content, io, 80)
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" }
+      end
+    end
+
+    # Pretty print error context
+    def self.error_context(message : String, context : Hash, **additional_context)
+      Log.error { "#{message}:" }
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_error_context(context, io, 80)
+      io.to_s.each_line do |line|
+        Log.error { "    #{line}" }
+      end
+
+      unless additional_context.empty?
+        Log.error { "Additional context: #{format_context(additional_context)}" }
+      end
+    end
+
+    # Pretty print data structures
+    def self.debug_data(message : String, data : JSON::Any | YAML::Any, **context)
+      if context.empty?
+        Log.debug { "#{message}:" }
+      else
+        Log.debug { "#{message} #{format_context(context)}:" }
+      end
+
+      io = IO::Memory.new
+      PrettyPrintUtils.format_data_structure(data, io, 80)
+      io.to_s.each_line do |line|
+        Log.debug { "    #{line}" }
+      end
+    end
+
     def self.fatal(message : String, **context)
       Log.fatal { format_message(message, context) }
     end
@@ -56,6 +223,18 @@ module Lapis
       end
     end
 
+    # Path operation logging
+    def self.path_operation(operation : String, path : String, **context)
+      Log.debug { "Path #{operation}: #{path} #{format_context(context)}" }
+    rescue ex
+      Log.error { "Path #{operation} failed for #{path}: #{ex.message}" }
+      raise ex
+    end
+
+    def self.path_error(operation : String, path : String, error : String, **context)
+      Log.error { "Path #{operation} error for #{path}: #{error} #{format_context(context)}" }
+    end
+
     # File operation logging
     def self.file_operation(operation : String, file_path : String, **context)
       Log.debug { "File #{operation}: #{file_path}" }
@@ -64,20 +243,68 @@ module Lapis
       raise ex
     end
 
-    # HTTP request logging
+    # HTTP request logging - cute version
     def self.http_request(method : String, path : String, status : Int32, duration : Time::Span? = nil, **context)
       duration_str = duration ? " in #{format_duration(duration)}" : ""
-      Log.info { "#{method} #{path} -> #{status}#{duration_str}" }
+      time_str = Time.utc.to_s("%H:%M:%S")
+
+      # Choose emoji based on status
+      emoji = case status
+              when 200..299 then "✅"
+              when 300..399 then "↗️ "
+              when 400..499 then "⚠️ "
+              when 500..599 then "💥"
+              else               "📡"
+              end
+
+      # Choose color based on status
+      color = case status
+              when 200..299 then :green
+              when 300..399 then :cyan
+              when 400..499 then :yellow
+              when 500..599 then :red
+              else               :white
+              end
+
+      puts "   #{time_str} #{emoji} #{method} #{path} -> #{status}#{duration_str}".colorize(color)
     end
 
-    # Build operation logging
+    # Build operation logging - cute version
     def self.build_operation(operation : String, **context)
-      Log.info { "Build: #{operation}" }
+      time_str = Time.utc.to_s("%H:%M:%S")
+
+      # Choose emoji based on operation
+      emoji = case operation.downcase
+              when .includes?("starting")   then "🚀"
+              when .includes?("completed")  then "✨"
+              when .includes?("loading")    then "📚"
+              when .includes?("generating") then "⚡"
+              when .includes?("processing") then "🔧"
+              when .includes?("assets")     then "🎨"
+              when .includes?("feeds")      then "📡"
+              else                               "🔨"
+              end
+
+      puts "   #{time_str} #{emoji} Build: #{operation}".colorize(:blue)
     end
 
     # WebSocket logging
     def self.websocket_event(event : String, **context)
       Log.debug { "WebSocket: #{event}" }
+    end
+
+    # Type casting error logging
+    def self.type_cast_error(operation : String, source_type : String, target_type : String, value : String? = nil, **context)
+      value_str = value ? " value=#{value}" : ""
+      Log.error { "TypeCastError in #{operation}: #{source_type} -> #{target_type}#{value_str} #{format_context(context)}" }
+    end
+
+    def self.type_cast_warning(operation : String, source_type : String, target_type : String, fallback : String, **context)
+      Log.warn { "TypeCastWarning in #{operation}: #{source_type} -> #{target_type}, using fallback: #{fallback} #{format_context(context)}" }
+    end
+
+    def self.type_cast_success(operation : String, source_type : String, target_type : String, **context)
+      Log.debug { "TypeCastSuccess in #{operation}: #{source_type} -> #{target_type} #{format_context(context)}" }
     end
 
     # Format message with context
@@ -87,6 +314,16 @@ module Lapis
       else
         context_str = context.map { |k, v| "#{k}=#{v}" }.join(" ")
         "#{message} [#{context_str}]"
+      end
+    end
+
+    # Format context for object logging
+    private def self.format_context(context : NamedTuple) : String
+      if context.empty?
+        ""
+      else
+        context_str = context.map { |k, v| "#{k}=#{v}" }.join(" ")
+        "[#{context_str}]"
       end
     end
 

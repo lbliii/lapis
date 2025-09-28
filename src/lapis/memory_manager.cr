@@ -41,7 +41,7 @@ module Lapis
       update_stats
       return false unless @stats
 
-      current_memory = @stats.not_nil!.heap_size
+      current_memory = @stats.try(&.heap_size) || 0
       pressure = current_memory > @memory_threshold
 
       if pressure
@@ -64,7 +64,7 @@ module Lapis
       update_stats
       return {} of String => String unless @stats
 
-      stats = @stats.not_nil!
+      stats = @stats.try { |s| s } || GC.stats
       heap_size = stats.heap_size.to_i64
       free_bytes = stats.free_bytes.to_i64
       {

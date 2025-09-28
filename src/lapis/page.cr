@@ -75,7 +75,7 @@ module Lapis
     end
 
     def build_draft : Bool
-      ENV["LAPIS_BUILD_DRAFTS"]? == "true"
+      ENV.fetch("LAPIS_BUILD_DRAFTS", "false") == "true"
     end
 
     def future : Bool
@@ -365,9 +365,8 @@ module Lapis
       result
     end
 
-    def resources : Array(String)
-      # Page resources (images, files, etc.) - simplified for now
-      [] of String
+    def inspect(io : IO) : Nil
+      io << "Page(title: #{title}, url: #{url}, kind: #{kind}, date: #{date.try(&.to_s("%Y-%m-%d")) || "nil"})"
     end
 
     def bundle_type : String

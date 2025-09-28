@@ -3,7 +3,7 @@ require "log"
 require "./config"
 require "./content"
 require "./templates"
-require "./assets"
+require "./unified_asset_processor"
 require "./feeds"
 require "./pagination"
 require "./logger"
@@ -11,7 +11,6 @@ require "./exceptions"
 require "./incremental_builder"
 require "./parallel_processor"
 require "./plugin_system"
-require "./asset_pipeline"
 require "./memory_manager"
 require "./performance_benchmark"
 
@@ -21,24 +20,22 @@ module Lapis
 
     property config : Config
     property template_engine : TemplateEngine
-    property asset_processor : AssetProcessor
-    property asset_pipeline : AssetPipeline
+    property asset_processor : UnifiedAssetProcessor
     property incremental_builder : IncrementalBuilder
     property parallel_processor : ParallelProcessor
     property plugin_manager : PluginManager
 
     def initialize(@config : Config)
       @template_engine = TemplateEngine.new(@config)
-      @asset_processor = AssetProcessor.new(@config)
-      @asset_pipeline = AssetPipeline.new(@config)
+      @asset_processor = UnifiedAssetProcessor.new(@config)
       @incremental_builder = IncrementalBuilder.new(@config.build_config.cache_dir)
       @parallel_processor = ParallelProcessor.new(@config.build_config)
       @plugin_manager = PluginManager.new(@config)
     end
 
     def build
-      puts "DEBUG: Starting build method"
       Logger.build_operation("Starting site build")
+        .tap { puts "DEBUG: Starting build method" }
 
       # Emit before build event
       @plugin_manager.emit_event(PluginEvent::BeforeBuild, self)
@@ -53,14 +50,18 @@ module Lapis
 
         Logger.build_operation("Loading content")
         all_content = load_all_content
+          .tap { |content| Logger.debug("Content loaded", count: content.size) }
 
         # Emit after content load event
         @plugin_manager.emit_event(PluginEvent::AfterContentLoad, self, content: all_content)
 
         Logger.build_operation("Generating pages")
-        puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental}"
-        puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel}"
-        if @config.build_config.incremental
+        all_content.tap do |content|
+          puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental?}"
+          puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel?}"
+        end
+
+        if @config.build_config.incremental?
           puts "DEBUG: Using incremental build strategy"
           generate_content_pages_incremental_v2(all_content)
         else
@@ -69,16 +70,10 @@ module Lapis
         end
 
         Logger.build_operation("Processing assets with optimization")
-        if @config.build_config.parallel
-          # Use advanced asset pipeline
-          @asset_pipeline.process_all_assets
-        else
-          # Use legacy asset processor
-          @asset_processor.process_all_assets
-        end
+        @asset_processor.process_all_assets
 
         Logger.build_operation("Generating index and archive pages")
-        puts "DEBUG: About to call generate_index_page"
+        all_content.tap { puts "DEBUG: About to call generate_index_page" }
         generate_index_page(all_content)
         Logger.debug("About to generate section pages")
         generate_section_pages(all_content)
@@ -89,7 +84,7 @@ module Lapis
         generate_feeds(all_content)
 
         # Save incremental build cache
-        @incremental_builder.save_cache if @config.build_config.incremental
+        @incremental_builder.save_cache if @config.build_config.incremental?
 
         # Emit after build event
         @plugin_manager.emit_event(PluginEvent::AfterBuild, self)
@@ -119,9 +114,9 @@ module Lapis
 
       # Load all content files from the entire content directory tree
       # Skip index.md (homepage) and _index.md (section pages - handled separately)
-      search_pattern = File.join(@config.content_dir, "**", "*.md")
+      search_pattern = Path[@config.content_dir].join("**", "*.md").to_s
       Dir.glob(search_pattern).each do |file_path|
-        filename = File.basename(file_path)
+        filename = Path[file_path].basename
         next if filename == "index.md" || filename == "_index.md"
 
         begin
@@ -134,7 +129,7 @@ module Lapis
       end
 
       # Load all _index.md section pages from the entire content directory tree
-      search_pattern = File.join(@config.content_dir, "**", "_index.md")
+      search_pattern = Path[@config.content_dir].join("**", "_index.md").to_s
       Dir.glob(search_pattern).each do |file_path|
         begin
           section_content = Content.load(file_path, @config.content_dir)
@@ -158,7 +153,7 @@ module Lapis
         output_dir = if url_path.empty?
                        @config.output_dir
                      else
-                       File.join(@config.output_dir, url_path.lstrip("/"))
+                       Path[@config.output_dir].join(url_path.lstrip("/")).to_s
                      end
         Dir.mkdir_p(output_dir)
 
@@ -168,7 +163,7 @@ module Lapis
           next unless format
 
           filename = format.filename
-          output_path = File.join(output_dir, filename)
+          output_path = Path[output_dir].join(filename).to_s
           write_file_atomically(output_path, rendered_content)
         end
 
@@ -177,9 +172,9 @@ module Lapis
     end
 
     private def generate_index_page(all_content : Array(Content))
-      puts "DEBUG: Checking for index page"
-      index_path = File.join(@config.content_dir, "index.md")
-      puts "DEBUG: Looking for index at: #{index_path}"
+      index_path = Path[@config.content_dir].join("index.md").to_s
+        .tap { |path| puts "DEBUG: Checking for index page" }
+        .tap { |path| puts "DEBUG: Looking for index at: #{path}" }
 
       if File.exists?(index_path)
         puts "DEBUG: Index file exists, processing it"
@@ -197,14 +192,14 @@ module Lapis
         index_content.content = Markd.to_html(processed_markdown, options)
 
         html = @template_engine.render(index_content)
-        write_file_atomically(File.join(@config.output_dir, "index.html"), html)
+        write_file_atomically(Path[@config.output_dir].join("index.html").to_s, html)
         puts "  Generated: /"
       else
         # Generate default index page using theme
         puts "DEBUG: No index content found, generating themed index"
         posts = all_content.select(&.feedable?).first(5)
         html = generate_themed_index(posts)
-        write_file_atomically(File.join(@config.output_dir, "index.html"), html)
+        write_file_atomically(Path[@config.output_dir].join("index.html").to_s, html)
         puts "  Generated: / (default)"
       end
     end
@@ -252,11 +247,11 @@ module Lapis
       end
 
       tags.each do |tag, tag_posts|
-        tag_dir = File.join(@config.output_dir, "tags", tag.downcase.gsub(/[^a-z0-9]/, "-"))
+        tag_dir = Path[@config.output_dir].join("tags", tag.downcase.gsub(/[^a-z0-9]/, "-")).to_s
         Dir.mkdir_p(tag_dir)
 
         tag_html = generate_tag_page(tag, tag_posts)
-        write_file_atomically(File.join(tag_dir, "index.html"), tag_html)
+        write_file_atomically(Path[tag_dir].join("index.html").to_s, tag_html)
         puts "  Generated: /tags/#{tag}/"
       end
     end
@@ -264,12 +259,12 @@ module Lapis
     private def copy_static_files
       return unless Dir.exists?(@config.static_dir)
 
-      Dir.glob(File.join(@config.static_dir, "**", "*")).each do |source_path|
+      Dir.glob(Path[@config.static_dir].join("**", "*").to_s).each do |source_path|
         next unless File.file?(source_path)
 
         relative_path = source_path[@config.static_dir.size + 1..]
-        output_path = File.join(@config.output_dir, relative_path)
-        output_dir = File.dirname(output_path)
+        output_path = Path[@config.output_dir].join(relative_path).to_s
+        output_dir = Path[output_path].parent.to_s
 
         Dir.mkdir_p(output_dir)
         File.copy(source_path, output_path)
@@ -280,17 +275,18 @@ module Lapis
 
     private def generate_output_path(content : Content) : String
       if content.url == "/"
-        File.join(@config.output_dir, "index.html")
+        Path[@config.output_dir].join("index.html").to_s
       else
         # Remove leading and trailing slashes, add index.html
         clean_url = content.url.strip("/")
-        File.join(@config.output_dir, clean_url, "index.html")
+        Path[@config.output_dir].join(clean_url, "index.html").to_s
       end
     end
 
     private def generate_themed_index(recent_posts : Array(Content)) : String
-      puts "DEBUG: Using themed index generation"
       Logger.debug("Using themed index generation")
+        .tap { puts "DEBUG: Using themed index generation" }
+
       # Create a temporary content object for the home page
       frontmatter = {
         "title"  => YAML::Any.new(@config.title),
@@ -317,7 +313,7 @@ module Lapis
       end
 
       posts_html = recent_posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         <<-HTML
         <article class="post-summary">
           <h2><a href="#{post.url}">#{post.title}</a></h2>
@@ -333,7 +329,7 @@ module Lapis
 
     private def generate_default_index(recent_posts : Array(Content)) : String
       posts_html = recent_posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         <<-HTML
         <article class="post-summary">
           <h2><a href="#{post.url}">#{post.title}</a></h2>
@@ -570,7 +566,7 @@ module Lapis
 
     private def generate_posts_archive(posts : Array(Content)) : String
       posts_html = posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         tags_html = post.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
 
         <<-HTML
@@ -645,7 +641,7 @@ module Lapis
 
     private def generate_tag_page(tag : String, posts : Array(Content)) : String
       posts_html = posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
 
         <<-HTML
         <article class="post-item">
@@ -686,17 +682,17 @@ module Lapis
 
       # Generate RSS feed
       rss_content = feed_generator.generate_rss(posts)
-      write_file_atomically(File.join(@config.output_dir, "feed.xml"), rss_content)
+      write_file_atomically(Path[@config.output_dir].join("feed.xml").to_s, rss_content)
       puts "  Generated: /feed.xml"
 
       # Generate Atom feed
       atom_content = feed_generator.generate_atom(posts)
-      write_file_atomically(File.join(@config.output_dir, "feed.atom"), atom_content)
+      write_file_atomically(Path[@config.output_dir].join("feed.atom").to_s, atom_content)
       puts "  Generated: /feed.atom"
 
       # Generate JSON Feed
       json_content = feed_generator.generate_json_feed(posts)
-      write_file_atomically(File.join(@config.output_dir, "feed.json"), json_content)
+      write_file_atomically(Path[@config.output_dir].join("feed.json").to_s, json_content)
       puts "  Generated: /feed.json"
     end
 
@@ -725,7 +721,7 @@ module Lapis
       end
 
       posts_html = recent_posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s("%B %d, %Y") : ""
+        date_str = post.date.try(&.to_s("%B %d, %Y")) || ""
         tags_html = post.tags.first(3).map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
 
         <<-HTML
@@ -759,7 +755,7 @@ module Lapis
 
       begin
         # Ensure directory exists
-        dir = File.dirname(path)
+        dir = Path[path].parent.to_s
         Dir.mkdir_p(dir) unless Dir.exists?(dir)
 
         File.open(temp_path, "w") do |file|
@@ -805,7 +801,7 @@ module Lapis
         unchanged: unchanged_content.size.to_s)
 
       # Process changed content
-      if @config.build_config.parallel && changed_content.size > 1
+      if @config.build_config.parallel? && changed_content.size > 1
         Logger.info("Processing changed content in parallel",
           count: changed_content.size.to_s,
           strategy: "parallel")
@@ -890,21 +886,21 @@ module Lapis
       asset_files = [] of String
 
       # CSS files
-      css_dir = File.join(@config.static_dir, "css")
+      css_dir = Path[@config.static_dir].join("css").to_s
       if Dir.exists?(css_dir)
-        asset_files.concat(Dir.glob(File.join(css_dir, "*.css")))
+        asset_files.concat(Dir.glob(Path[css_dir].join("*.css").to_s))
       end
 
       # JS files
-      js_dir = File.join(@config.static_dir, "js")
+      js_dir = Path[@config.static_dir].join("js").to_s
       if Dir.exists?(js_dir)
-        asset_files.concat(Dir.glob(File.join(js_dir, "*.js")))
+        asset_files.concat(Dir.glob(Path[js_dir].join("*.js").to_s))
       end
 
       # Image files
-      images_dir = File.join(@config.static_dir, "images")
+      images_dir = Path[@config.static_dir].join("images").to_s
       if Dir.exists?(images_dir)
-        asset_files.concat(Dir.glob(File.join(images_dir, "*.{jpg,jpeg,png,gif,svg,webp}")))
+        asset_files.concat(Dir.glob(Path[images_dir].join("*.{jpg,jpeg,png,gif,svg,webp}").to_s))
       end
 
       if asset_files.empty?

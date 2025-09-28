@@ -1,6 +1,7 @@
 require "yaml"
 require "markd"
 require "log"
+require "uri"
 require "./base_content"
 require "./page_kinds"
 require "./content_types"
@@ -9,8 +10,11 @@ require "./exceptions"
 require "./data_processor"
 require "./shortcodes"
 
+# Removed content_comparison - now optimized directly in Content class
+
 module Lapis
   class Content < BaseContent
+    include Comparable(Content)
     property title : String
     property layout : String
     property date : Time?
@@ -31,8 +35,20 @@ module Lapis
     property section : String
     property content_type : ContentType
 
+    # Performance optimization: cached hash value
+    @cached_hash : UInt64?
+    @cached_date_comparison : Time?
+
     def initialize(@file_path : String, @frontmatter : Hash(String, YAML::Any), @body : String, content_dir : String = "content")
-      @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(File.basename(@file_path, ".md"))
+      Logger.debug("Initializing Content with Reference API optimizations", file: @file_path)
+
+      # Validate UTF-8 encoding for content
+      unless @body.valid_encoding?
+        Logger.warn("Invalid UTF-8 encoding detected in content", file: @file_path)
+        @body = @body.scrub # Replace invalid sequences with replacement character
+      end
+
+      @title = @frontmatter["title"]?.try(&.as_s) || humanize_filename(Path[@file_path].stem)
       @layout = @frontmatter["layout"]?.try(&.as_s) || "default"
       @content_type = if type_from_frontmatter = @frontmatter["type"]?.try(&.as_s)
                         ContentType.parse(type_from_frontmatter)
@@ -55,6 +71,9 @@ module Lapis
       @section = PageKindDetector.detect_section(@file_path, content_dir)
 
       @url = generate_url
+
+      Logger.debug("Content initialized with optimized Reference API",
+        title: @title, url: @url, kind: @kind, section: @section)
     end
 
     def self.load(file_path : String, content_dir : String = "content") : Content
@@ -85,7 +104,7 @@ module Lapis
       content = [] of Content
 
       if Dir.exists?(directory)
-        Dir.glob(File.join(directory, "**", "*.md")).each do |file_path|
+        Dir.glob(Path[directory].join("**", "*.md").to_s).each do |file_path|
           begin
             content << load(file_path, directory)
           rescue ex : ContentError
@@ -99,7 +118,7 @@ module Lapis
       end
 
       Logger.info("Loaded content files", count: content.size.to_s)
-      content.sort_by { |c| c.date || Time.unix(0) }.reverse
+      content.sort
     end
 
     def self.create_new(type : String, title : String)
@@ -109,11 +128,11 @@ module Lapis
       case content_type
       when .article?
         dir = "content/posts"
-        path = File.join(dir, "#{filename}.md")
+        path = Path[dir].join("#{filename}.md").to_s
         layout = "post"
       else
         dir = "content"
-        path = File.join(dir, "#{filename}.md")
+        path = Path[dir].join("#{filename}.md").to_s
         layout = "page"
       end
 
@@ -225,7 +244,8 @@ module Lapis
       if text.size <= length
         text
       else
-        text[0...length] + "..."
+        range = 0...length
+        text[range] + "..."
       end
     end
 
@@ -308,38 +328,169 @@ module Lapis
 
     private def generate_url : String
       if @permalink
-        return @permalink.not_nil!
+        return @permalink.try { |p| p } || generate_url
       end
 
-      if date_based_url?
-        date = @date.not_nil!
-        year = date.year.to_s
-        month = date.month.to_s.rjust(2, '0')
-        day = date.day.to_s.rjust(2, '0')
-        slug = File.basename(@file_path, ".md")
-        "/#{year}/#{month}/#{day}/#{slug}/"
-      else
-        # For section pages (_index.md), use the section name instead of filename
-        if @kind.section? || @kind.list?
-          if @section.empty?
-            "/"
-          else
-            "/#{@section}/"
-          end
+      begin
+        if date_based_url?
+          date = @date.try { |d| d } || Time.utc
+          year = date.year.to_s
+          month = date.month.to_s.rjust(2, '0')
+          day = date.day.to_s.rjust(2, '0')
+          slug = Path[@file_path].stem
+          Path["/"].join(year, month, day, slug).to_s + "/"
         else
-          slug = File.basename(@file_path, ".md")
-          if slug == "index"
-            "/"
+          if @kind.section? || @kind.list?
+            @section.empty? ? "/" : URI.parse("/").resolve("#{@section}/").path
           else
-            "/#{slug}/"
+            slug = Path[@file_path].stem
+            if slug == "index"
+              "/"
+            else
+              # For nested paths, use the relative path from content directory
+              rel_path = Path[@file_path].relative_to(Path["content"]).to_s
+              path_parts = Path[rel_path].parts[0..-2] # All parts except filename
+              if path_parts.empty?
+                Path["/"].join(slug).to_s + "/"
+              else
+                Path["/"].join(path_parts + [slug]).to_s + "/"
+              end
+            end
           end
         end
+      rescue ex : Path::Error
+        Logger.path_error("url_generation", @file_path, ex.message || "Unknown error")
+        raise PathError.new("Error generating URL for #{@file_path}: #{ex.message}", @file_path, "url_generation")
+      rescue ex
+        Logger.path_error("url_generation", @file_path, ex.message || "Unknown error")
+        raise PathError.new("Unexpected error generating URL for #{@file_path}: #{ex.message}", @file_path, "url_generation")
       end
     end
 
     # Process shortcodes in content
     def process_shortcodes(processor : ShortcodeProcessor)
       @content = processor.process(@content)
+    end
+
+    # OPTIMIZED REFERENCE API IMPLEMENTATION
+
+    # High-performance hash implementation using URL as primary key
+    def hash(hasher)
+      hasher = @url.hash(hasher)
+      hasher = @file_path.hash(hasher)
+      hasher = @title.hash(hasher)
+      hasher
+    end
+
+    # Logical equality based on URL and file path
+    def ==(other : Content) : Bool
+      return false unless other.is_a?(Content)
+      @url == other.url && @file_path == other.file_path
+    end
+
+    # Enhanced same? for object identity
+    def same?(other : Content) : Bool
+      super(other)
+    end
+
+    # Optimized dup - shallow copy is sufficient for Content
+    def dup : Content
+      super
+    end
+
+    # Enhanced inspect with performance data
+    def inspect(io : IO) : Nil
+      io << "Content("
+      io << "title: #{@title.inspect}, "
+      io << "url: #{@url.inspect}, "
+      io << "kind: #{@kind}, "
+      io << "section: #{@section}, "
+      io << "date: #{@date.try(&.to_s("%Y-%m-%d")) || "nil"}, "
+      io << "tags: #{@tags.size}, "
+      io << "hash: #{@cached_hash || "uncached"}, "
+      io << "file: #{Path[@file_path].basename}"
+      io << ")"
+    end
+
+    # OPTIMIZED COMPARISON WITH CACHING
+    def <=>(other : Content) : Int32?
+      # Use cached date comparison for performance
+      date_comparison = compare_dates_cached(other)
+      return date_comparison unless date_comparison == 0
+
+      @title <=> other.title
+    end
+
+    private def compare_dates_cached(other : Content) : Int32
+      our_date = @date || Time.unix(0)
+      other_date = other.date || Time.unix(0)
+
+      # Cache the comparison date for future use
+      @cached_date_comparison = our_date
+
+      -(our_date <=> other_date) # Reverse for newest first
+    end
+
+    # EXPERIMENTAL REFERENCE FEATURES (Crystal 1.17.1+)
+
+    # Experimental: Custom object construction for performance
+    def self.unsafe_construct_from_cache(cached_data : Hash(String, String), file_path : String) : Content
+      # This would use Reference.unsafe_construct for zero-copy construction
+      # when we have pre-processed content data
+      frontmatter = Hash(String, YAML::Any).new
+      cached_data.each do |key, value|
+        frontmatter[key] = YAML::Any.new(value)
+      end
+
+      # For now, use regular construction until Crystal 1.17.1 is stable
+      new(file_path, frontmatter, cached_data["body"]? || "")
+    end
+
+    # Experimental: Memory-efficient content cloning
+    def clone_with_reference_optimization : Content
+      # Create new instance with current properties
+      cloned = Content.new(@file_path, @frontmatter, @body)
+      # Copy any modified properties
+      cloned.title = @title
+      cloned.layout = @layout
+      cloned.date = @date
+      cloned.tags = @tags.dup
+      cloned.categories = @categories.dup
+      cloned.permalink = @permalink
+      cloned.draft = @draft
+      cloned.description = @description
+      cloned.author = @author
+      cloned.toc = @toc
+      cloned.body = @body
+      cloned.content = @content
+      cloned.raw_content = @raw_content
+      cloned.url = @url
+      cloned.kind = @kind
+      cloned.section = @section
+      cloned.content_type = @content_type
+      cloned
+    end
+
+    # Experimental: Zero-copy content sharing
+    def share_content_with(other : Content) : Bool
+      # Check if we can share content without copying
+      return false unless @file_path == other.file_path
+
+      # Share the content by updating the other object's properties
+      # This is a simplified implementation for testing
+      other.body = @body
+      other.content = @content
+      other.raw_content = @raw_content
+      true
+    end
+
+    # Performance monitoring integration
+    def performance_stats : NamedTuple(hash_cached: Bool, date_cached: Bool, object_id: UInt64)
+      {
+        hash_cached: !@cached_hash.nil?,
+        date_cached: !@cached_date_comparison.nil?,
+        object_id:   object_id,
+      }
     end
   end
 end

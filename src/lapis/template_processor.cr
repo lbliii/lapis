@@ -1,10 +1,42 @@
 require "./content"
+require "./content_comparison"
+require "html"
+require "string_pool"
+require "./logger"
+require "./exceptions"
 
 module Lapis
   class TemplateProcessor
     getter context : TemplateContext
 
+    # StringPool for memory-efficient string caching
+    private STRING_POOL = StringPool.new(256)
+
+    # Pre-computed method tuples for efficient template processing
+    private SECTION_NAV_METHODS = Set{:"has_prev?", :"has_next?", :prev, :next}
+    private BREADCRUMB_METHODS  = Set{:title, :url, :active}
+    private MENU_ITEM_METHODS   = Set{:name, :url, :external}
+    private CONTENT_METHODS     = Set{:title, :url, :"date_formatted", :tags, :summary, :"reading_time"}
+    private ARRAY_METHODS       = Set{"first", "last", "size", "empty?", "uniq", "uniq_by", "sample", "shuffle", "rotate", "reverse", "sort_by_length", "partition", "compact", "chunk", "index", "rindex", "array_truncate", "any?", "all?", "none?", "one?"}
+
+    # Compile-time regexes for frequently used patterns
+    private IF_CONDITIONAL_PATTERN      = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private IF_ELSE_CONDITIONAL_PATTERN = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private FOR_LOOP_PATTERN            = /\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m
+    private VARIABLE_PATTERN            = /\{\{\s*([^}]+)\s*\}\}/
+    private METHOD_CALL_PATTERN         = /(\w+)\(([^)]*)\)/
+    private FILTER_PATTERN              = /(\w+)\(([^)]*)\)/
+
     def initialize(@context : TemplateContext)
+    end
+
+    # StringPool helper methods for memory-efficient string operations
+    private def cache_string(str : String) : String
+      STRING_POOL.get(str)
+    end
+
+    private def cache_template_pattern(pattern : String) : String
+      STRING_POOL.get(pattern)
     end
 
     def process(template : String) : String
@@ -22,9 +54,25 @@ module Lapis
       result
     end
 
+    # SLICE-BASED TEMPLATE PROCESSING FOR ZERO-COPY OPERATIONS
+    def process_slice(template : String) : String
+      template_slice = template.to_slice
+      result_slice = process_template_slice(template_slice)
+      result_slice.to_s
+    end
+
+    # SLICE-BASED TEMPLATE PROCESSING IMPLEMENTATION
+    private def process_template_slice(template_slice : Slice(UInt8)) : Slice(UInt8)
+      # For now, convert back to string and use existing processing
+      # This is a placeholder for future slice-based string processing
+      template_string = template_slice.to_s
+      processed_string = process(template_string)
+      processed_string.to_slice
+    end
+
     private def process_conditionals(template : String) : String
       # Handle {{ if condition }}...{{ endif }} blocks
-      result = template.gsub(/\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) do |match|
+      result = template.gsub(IF_CONDITIONAL_PATTERN) do |match|
         condition = $1.strip
         content = $2
 
@@ -37,7 +85,7 @@ module Lapis
       end
 
       # Handle {{ if condition }}...{{ else }}...{{ endif }} blocks
-      result = result.gsub(/\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) do |match|
+      result = result.gsub(IF_ELSE_CONDITIONAL_PATTERN) do |match|
         condition = $1.strip
         if_content = $2
         else_content = $3
@@ -54,7 +102,7 @@ module Lapis
 
     private def process_loops(template : String) : String
       # Handle {{ for item in collection }}...{{ endfor }} blocks
-      template.gsub(/\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m) do |match|
+      template.gsub(FOR_LOOP_PATTERN) do |match|
         item_var = $1.strip
         collection_expr = $2.strip
         loop_content = $3
@@ -79,9 +127,42 @@ module Lapis
       end
     end
 
+    # SLICE-BASED LOOP PROCESSING FOR ZERO-COPY OPERATIONS
+    private def process_loops_slice(template : String) : String
+      # Handle {{ for item in collection }}...{{ endfor }} blocks with slice processing
+      template.gsub(FOR_LOOP_PATTERN) do |match|
+        item_var = $1.strip
+        collection_expr = $2.strip
+        loop_content = $3
+
+        collection = evaluate_expression(collection_expr)
+
+        case collection
+        when Array
+          array_collection = collection.as(Array)
+          if array_collection.empty?
+            ""
+          else
+            # Use slice for more efficient processing
+            collection_slice = array_collection.to_slice
+            result_parts = [] of String
+
+            collection_slice.each_with_index do |item, index|
+              loop_context = create_loop_context(item_var, item, index)
+              result_parts << process_with_context(loop_content, loop_context)
+            end
+
+            result_parts.join("")
+          end
+        else
+          ""
+        end
+      end
+    end
+
     private def process_variables(template : String) : String
       # Process all {{ variable }} expressions
-      template.gsub(/\{\{\s*([^}]+)\s*\}\}/) do |match|
+      template.gsub(VARIABLE_PATTERN) do |match|
         expression = $1.strip
 
         # Skip if this looks like a control structure (already processed)
@@ -112,7 +193,7 @@ module Lapis
         # Handle method calls like "section_nav.has_prev?"
         value = evaluate_expression(condition)
         case value
-        when Bool then value.as(Bool)
+        when Bool then value.is_a?(Bool) ? value : false
         when Nil  then false
         else           !value.to_s.empty?
         end
@@ -120,13 +201,13 @@ module Lapis
         # Handle simple variable existence
         value = evaluate_expression(condition)
         case value
-        when Bool                  then value.as(Bool)
+        when Bool                  then value.is_a?(Bool) ? value : false
         when Nil                   then false
-        when Array                 then !value.as(Array).empty?
-        when String                then !value.as(String).empty?
-        when Array(MenuItem)       then !value.as(Array(MenuItem)).empty?
-        when Array(BreadcrumbItem) then !value.as(Array(BreadcrumbItem)).empty?
-        when Array(Content)        then !value.as(Array(Content)).empty?
+        when Array                 then !(value.is_a?(Array) ? value.empty? : true)
+        when String                then !(value.is_a?(String) ? value.empty? : true)
+        when Array(MenuItem)       then !(value.is_a?(Array(MenuItem)) ? value.empty? : true)
+        when Array(BreadcrumbItem) then !(value.is_a?(Array(BreadcrumbItem)) ? value.empty? : true)
+        when Array(Content)        then !(value.is_a?(Array(Content)) ? value.empty? : true)
         else                            true
         end
       end
@@ -139,64 +220,168 @@ module Lapis
         result = get_base_value(parts[0])
 
         parts[1..].each do |method|
-          case {result, method}
-          when {SectionNavigation, "has_prev?"}
-            result = result.as(SectionNavigation).has_prev?
-          when {SectionNavigation, "has_next?"}
-            result = result.as(SectionNavigation).has_next?
-          when {SectionNavigation, "prev"}
-            result = result.as(SectionNavigation).prev
-          when {SectionNavigation, "next"}
-            result = result.as(SectionNavigation).next
-          when {BreadcrumbItem, "title"}
-            result = result.as(BreadcrumbItem).title
-          when {BreadcrumbItem, "url"}
-            result = result.as(BreadcrumbItem).url
-          when {BreadcrumbItem, "active"}
-            result = result.as(BreadcrumbItem).active
-          when {MenuItem, "name"}
-            result = result.as(MenuItem).name
-          when {MenuItem, "url"}
-            result = result.as(MenuItem).url
-          when {MenuItem, "external"}
-            result = result.as(MenuItem).external
-          when {Content, "title"}
-            result = result.as(Content).title
-          when {Content, "url"}
-            result = result.as(Content).url
-          when {Content, "date_formatted"}
-            date = result.as(Content).date
-            result = date ? date.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
-          when {Content, "tags"}
-            result = result.as(Content).tags
-          when {Content, "summary"}
-            # Create PageOperations if needed
-            page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
-            result = page_ops.summary
-          when {Content, "reading_time"}
-            page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
-            result = page_ops.reading_time
-          when {Array, "first"}
-            if method.includes?("(")
-              # Handle first(n) calls
-              if match = method.match(/first\((\d+)\)/)
-                n = match[1].to_i
-                result = result.as(Array).first(n)
-              end
-            else
-              result = result.as(Array).first?
-            end
-          when {Array, "size"}
-            result = result.as(Array).size
-          else
-            # Generic method handling - return empty for unknown methods
-            result = ""
-          end
+          result = dispatch_template_method_tuple(result, method)
         end
+      end
+    end
 
-        result
+    # Optimized tuple-based method dispatch for template processing
+    private def dispatch_template_method_tuple(result, method : String)
+      # Use tuple operations for efficient method dispatch
+      case {result.class, method}
+      when {SectionNavigation.class, "has_prev?"}
+        dispatch_section_nav_method(result, :"has_prev?") if SECTION_NAV_METHODS.includes?(:"has_prev?")
+      when {SectionNavigation.class, "has_next?"}
+        dispatch_section_nav_method(result, :"has_next?") if SECTION_NAV_METHODS.includes?(:"has_next?")
+      when {SectionNavigation.class, "prev"}
+        dispatch_section_nav_method(result, :prev) if SECTION_NAV_METHODS.includes?(:prev)
+      when {SectionNavigation.class, "next"}
+        dispatch_section_nav_method(result, :next) if SECTION_NAV_METHODS.includes?(:next)
+      when {BreadcrumbItem.class, "title"}
+        dispatch_breadcrumb_method(result, :title) if BREADCRUMB_METHODS.includes?(:title)
+      when {BreadcrumbItem.class, "url"}
+        dispatch_breadcrumb_method(result, :url) if BREADCRUMB_METHODS.includes?(:url)
+      when {BreadcrumbItem.class, "active"}
+        dispatch_breadcrumb_method(result, :active) if BREADCRUMB_METHODS.includes?(:active)
+      when {MenuItem.class, "name"}
+        dispatch_menu_item_method(result, :name) if MENU_ITEM_METHODS.includes?(:name)
+      when {MenuItem.class, "url"}
+        dispatch_menu_item_method(result, :url) if MENU_ITEM_METHODS.includes?(:url)
+      when {MenuItem.class, "external"}
+        dispatch_menu_item_method(result, :external) if MENU_ITEM_METHODS.includes?(:external)
+      when {Content.class, "title"}
+        dispatch_content_template_method(result, :title) if CONTENT_METHODS.includes?(:title)
+      when {Content.class, "url"}
+        dispatch_content_template_method(result, :url) if CONTENT_METHODS.includes?(:url)
+      when {Content.class, "date_formatted"}
+        dispatch_content_template_method(result, :"date_formatted") if CONTENT_METHODS.includes?(:"date_formatted")
+      when {Content.class, "tags"}
+        dispatch_content_template_method(result, :tags) if CONTENT_METHODS.includes?(:tags)
+      when {Content.class, "summary"}
+        dispatch_content_template_method(result, :summary) if CONTENT_METHODS.includes?(:summary)
+      when {Content.class, "reading_time"}
+        dispatch_content_template_method(result, :"reading_time") if CONTENT_METHODS.includes?(:"reading_time")
+      when {Array.class, _}
+        dispatch_array_template_method(result, method) if ARRAY_METHODS.includes?(method)
       else
-        get_base_value(expression)
+        result
+      end || result
+    end
+
+    # Tuple-based method dispatchers using tuple iteration
+    private def dispatch_section_nav_method(result, method_symbol : Symbol)
+      SECTION_NAV_METHODS.to_a.each do |method|
+        return handle_section_nav_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_breadcrumb_method(result, method_symbol : Symbol)
+      BREADCRUMB_METHODS.to_a.each do |method|
+        return handle_breadcrumb_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_menu_item_method(result, method_symbol : Symbol)
+      MENU_ITEM_METHODS.to_a.each do |method|
+        return handle_menu_item_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_content_template_method(result, method_symbol : Symbol)
+      CONTENT_METHODS.to_a.each do |method|
+        return handle_content_template_method(result, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_array_template_method(result, method : String)
+      ARRAY_METHODS.each do |m|
+        return handle_array_template_method(result, m) if m == method
+      end
+      nil
+    end
+
+    # Handler methods using tuple operations
+    private def handle_section_nav_method(result, method : Symbol)
+      case method
+      when :"has_prev?" then result.as(SectionNavigation).has_prev?
+      when :"has_next?" then result.as(SectionNavigation).has_next?
+      when :prev        then result.as(SectionNavigation).prev
+      when :next        then result.as(SectionNavigation).next
+      else                   nil
+      end
+    end
+
+    private def handle_breadcrumb_method(result, method : Symbol)
+      case method
+      when :title  then result.as(BreadcrumbItem).title
+      when :url    then result.as(BreadcrumbItem).url
+      when :active then result.as(BreadcrumbItem).active
+      else              nil
+      end
+    end
+
+    private def handle_menu_item_method(result, method : Symbol)
+      case method
+      when :name     then result.as(MenuItem).name
+      when :url      then result.as(MenuItem).url
+      when :external then result.as(MenuItem).external
+      else                nil
+      end
+    end
+
+    private def handle_content_template_method(result, method : Symbol)
+      case method
+      when :title then result.as(Content).title
+      when :url   then result.as(Content).url
+      when :"date_formatted"
+        date = result.as(Content).date
+        date ? date.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
+      when :tags then result.as(Content).tags
+      when :summary
+        page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
+        page_ops.summary
+      when :"reading_time"
+        page_ops = PageOperations.new(result.as(Content), @context.query.site_content)
+        page_ops.reading_time
+      else nil
+      end
+    end
+
+    private def handle_array_template_method(result, method : String)
+      case method
+      when "first"
+        if method.includes?("(")
+          # Handle first(n) calls
+          if match = method.match(/first\((\d+)\)/, options: Regex::MatchOptions::None)
+            n = match[1].to_i
+            result.as(Array).first(n)
+          else
+            result.as(Array).first?
+          end
+        else
+          result.as(Array).first?
+        end
+      when "last"
+        if method.includes?("(")
+          if match = method.match(/last\((\d+)\)/, options: Regex::MatchOptions::None)
+            n = match[1].to_i
+            result.as(Array).last(n)
+          else
+            result.as(Array).last?
+          end
+        else
+          result.as(Array).last?
+        end
+      when "size"
+        result.as(Array).size
+      when "empty?"
+        result.as(Array).empty?
+      else
+        result
       end
     end
 
@@ -239,7 +424,7 @@ module Lapis
     end
 
     private def handle_method_call(call : String)
-      if match = call.match(/(\w+)\(([^)]*)\)/)
+      if match = call.match(METHOD_CALL_PATTERN, options: Regex::MatchOptions::None)
         method_name = match[1]
         args_str = match[2]
 
@@ -290,7 +475,7 @@ module Lapis
       when Content
         context["#{item_var}.title"] = item.title
         context["#{item_var}.url"] = item.url
-        context["#{item_var}.date_formatted"] = item.date ? item.date.not_nil!.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
+        context["#{item_var}.date_formatted"] = item.date.try(&.to_s(Lapis::DATE_FORMAT_HUMAN)) || ""
         context["#{item_var}.tags"] = item.tags.join(", ")
         context["#{item_var}.summary"] = PageOperations.new(item, @context.query.site_content).summary
         context["#{item_var}.reading_time"] = PageOperations.new(item, @context.query.site_content).reading_time.to_s
@@ -345,41 +530,92 @@ module Lapis
     private def apply_filter(value, filter : String)
       case filter
       when "title"
-        # Title case filter
-        value.to_s.split(/\s+/).map(&.capitalize).join(" ")
+        # Enhanced title case with Unicode support
+        str = value.to_s
+        return "" if str.empty?
+        String.build do |io|
+          str.split(/\s+/).each_with_index do |word, index|
+            io << " " if index > 0
+            io << word.capitalize
+          end
+        end
       when "upcase", "upper"
         value.to_s.upcase
       when "downcase", "lower"
         value.to_s.downcase
       when "slugify"
-        # Convert to URL-friendly slug
-        value.to_s.downcase.gsub(/[^a-z0-9]+/, "-").gsub(/^-|-$/, "")
+        # Enhanced slugify with Unicode normalization
+        str = value.to_s
+        return "" if str.empty?
+        SafeCast.optimized_slugify(str)
       when "strip"
         value.to_s.strip
+      when "lstrip"
+        value.to_s.lstrip
+      when "rstrip"
+        value.to_s.rstrip
+      when "unicode_normalize"
+        str = value.to_s
+        return "" if str.empty?
+        str.unicode_normalize
+      when "validate_utf8"
+        value.to_s.valid_encoding?.to_s
+      when "tr"
+        # Character translation
+        str = value.to_s
+        from = "" # Would need additional context for from/to
+        to = ""
+        str.tr(from, to)
+      when "squeeze"
+        value.to_s.squeeze
+      when "delete"
+        str = value.to_s
+        chars = "" # Would need additional context for chars to delete
+        str.delete(chars)
+      when "char_count"
+        value.to_s.size.to_s
+      when "byte_count"
+        value.to_s.bytesize.to_s
+      when "codepoint_count"
+        value.to_s.codepoints.size.to_s
+      when "reverse"
+        value.to_s.reverse
+      when "repeat"
+        str = value.to_s
+        count = 1 # Would need additional context for count
+        str * count
       when "plain"
         # Remove HTML tags for plain text output
         value.to_s.gsub(/<[^>]*>/, "")
       when "escape", "escape_html"
-        # HTML escape
-        value.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;").gsub("'", "&#39;")
+        # HTML escape using Crystal's official HTML module
+        HTML.escape(value.to_s)
       when "truncate"
-        # Default truncation at 50 characters
+        # Enhanced truncation with Unicode awareness
         text = value.to_s
-        text.size > 50 ? "#{text[0..47]}..." : text
+        return text if text.empty?
+        max_length = 50
+        if text.size > max_length
+          # Use Unicode-aware truncation
+          truncated = text[0...max_length - 3]
+          "#{truncated}..."
+        else
+          text
+        end
       when "first"
         case value
-        when Array then value.as(Array).first?
+        when Array then value.is_a?(Array) ? value.first? : nil
         else            value
         end
       when "last"
         case value
-        when Array then value.as(Array).last?
+        when Array then value.is_a?(Array) ? value.last? : nil
         else            value
         end
       when "size", "length"
         case value
-        when Array  then value.as(Array).size
-        when String then value.as(String).size
+        when Array  then value.is_a?(Array) ? value.size : 0
+        when String then value.is_a?(String) ? value.size : 0
         else             0
         end
       when "join"
@@ -387,7 +623,6 @@ module Lapis
         when Array then value.as(Array).join(", ")
         else            value.to_s
         end
-      when "reverse"
         case value
         when Array  then value.as(Array).reverse
         when String then value.as(String).reverse
@@ -395,14 +630,56 @@ module Lapis
         end
       when "sort"
         case value
-        when Array(String) then value.as(Array(String)).sort
-        when Array(Int32)  then value.as(Array(Int32)).sort
-        else                    value
+        when Array(String)  then value.as(Array(String)).sort
+        when Array(Int32)   then value.as(Array(Int32)).sort
+        when Array(Content) then value.as(Array(Content)).sort
+        else                     value
         end
+      when "clamp"
+        # Clamp filter for ranges - will be handled in apply_filter_with_args
+        value
       when "uniq", "unique"
         case value
-        when Array then value.as(Array).uniq
+        when Array then value.as(Array).to_set.to_a
         else            value
+        end
+      when "sample"
+        case value
+        when Array
+          count = arg.try(&.to_i?) || 1
+          value.as(Array).sample(count)
+        else
+          value
+        end
+      when "shuffle"
+        case value
+        when Array then value.as(Array).shuffle
+        else            value
+        end
+      when "compact"
+        case value
+        when Array then value.as(Array).compact
+        else            value
+        end
+      when "any?"
+        case value
+        when Array then value.as(Array).any? { |item| !item.nil? }
+        else            false
+        end
+      when "all?"
+        case value
+        when Array then value.as(Array).all? { |item| !item.nil? }
+        else            false
+        end
+      when "none?"
+        case value
+        when Array then value.as(Array).none?(Nil)
+        else            false
+        end
+      when "one?"
+        case value
+        when Array then value.as(Array).one? { |item| !item.nil? }
+        else            false
         end
       else
         # Handle filters with arguments like truncate(100) or min(5)
@@ -416,7 +693,7 @@ module Lapis
     end
 
     private def apply_filter_with_args(value, filter : String)
-      if match = filter.match(/(\w+)\(([^)]*)\)/)
+      if match = filter.match(FILTER_PATTERN, options: Regex::MatchOptions::None)
         filter_name = match[1]
         args_str = match[2]
         arg = args_str.to_i? || args_str
@@ -425,7 +702,12 @@ module Lapis
         when "truncate"
           if arg.is_a?(Int32)
             text = value.to_s
-            text.size > arg ? "#{text[0..arg - 3]}..." : text
+            if text.size > arg
+              range = 0...arg - 3
+              "#{text[range]}..."
+            else
+              text
+            end
           else
             value
           end
@@ -465,6 +747,33 @@ module Lapis
             value.as(Array).join(args_str.gsub("\"", ""))
           else
             value
+          end
+        when "clamp"
+          # Handle clamp(min,max) or clamp(range)
+          if args_str.includes?(",")
+            parts = args_str.split(",")
+            if parts.size == 2
+              min_val = parts[0].strip.to_i?
+              max_val = parts[1].strip.to_i?
+              if min_val && max_val && value.is_a?(Int32)
+                # Use Range for validation
+                range = min_val..max_val
+                range.includes?(value.as(Int32)) ? value : value.as(Int32).clamp(min_val, max_val)
+              else
+                value
+              end
+            else
+              value
+            end
+          else
+            # Single argument - treat as max (min is 0)
+            max_val = args_str.to_i?
+            if max_val && value.is_a?(Int32)
+              range = 0..max_val
+              range.includes?(value.as(Int32)) ? value : value.as(Int32).clamp(0, max_val)
+            else
+              value
+            end
           end
         else
           value

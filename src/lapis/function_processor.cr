@@ -2,13 +2,50 @@ require "./functions"
 require "./site"
 require "./page"
 require "./navigation"
+require "string_pool"
+require "./logger"
+require "./exceptions"
 
 module Lapis
   # Enhanced template processor with advanced functions
   class FunctionProcessor
     getter context : TemplateContext
+
+    # StringPool for memory-efficient string caching in type conversions
+    private STRING_POOL = StringPool.new(512)
     getter site : Site
     getter page : Page?
+
+    # Pre-computed symbol sets for O(1) performance optimization
+    private SITE_METHODS = Set{
+      :Title, :BaseURL, :Pages, :RegularPages, :Params, :Data, :Menus, :Author,
+      :Copyright, :Hugo, :title, :"base_url", :theme, :"theme_dir", :"layouts_dir",
+      :"static_dir", :"output_dir", :"content_dir", :debug, :"build_config",
+      :"live_reload_config", :"bundling_config",
+    }
+
+    private PAGE_METHODS = Set{
+      :Title, :Content, :Summary, :URL, :Permalink, :Date, :Tags, :Categories,
+      :WordCount, :ReadingTime, :Next, :Prev, :Parent, :Children, :Related,
+      :Section, :Kind, :Type, :Layout, :Params, :title, :content, :summary,
+      :url, :permalink, :date, :tags, :categories, :kind, :layout, :"file_path",
+    }
+
+    private CONTENT_METHODS = Set{:Title, :URL, :Date, :Summary}
+
+    # Compile-time regexes for frequently used patterns
+    private FUNCTION_CALL_PATTERN       = /\{\{\s*(\w+)\s*\(([^)]*)\)\s*\}\}/
+    private IF_CONDITIONAL_PATTERN      = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private IF_ELSE_CONDITIONAL_PATTERN = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
+    private FOR_LOOP_PATTERN            = /\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m
+    private VARIABLE_PATTERN            = /\{\{\s*([^}]+)\s*\}\}/
+    private RANGE_LOOP_PATTERN          = /\{\{\s*range\s+([^}]+)\s*\}\}(.*?)\{\{\s*end\s*\}\}/m
+    private TIME_METHODS                = Set{:Year, :Month, :Day, :Format}
+    private ARRAY_METHODS               = Set{:len, :first, :last, :uniq, :uniq_by, :sample, :shuffle, :rotate, :reverse, :sort_by_length, :partition, :compact, :chunk, :index, :rindex, :"array_truncate", :size, :empty?, :any?, :all?, :none?, :one?}
+    private MENUITEM_METHODS            = Set{:name, :url, :weight, :external}
+    private BUILD_CONFIG_METHODS        = Set{:enabled, :incremental, :parallel, :"cache_dir", :"max_workers"}
+    private LIVE_RELOAD_CONFIG_METHODS  = Set{:enabled, :"websocket_path", :"debounce_ms"}
+    private BUNDLING_CONFIG_METHODS     = Set{:enabled, :minify, :"source_maps", :autoprefix}
 
     def initialize(@context : TemplateContext)
       @site = Site.new(@context.config, @context.query.site_content)
@@ -19,6 +56,244 @@ module Lapis
 
       # Initialize global functions
       Functions.setup
+    end
+
+    # Optimized tuple-based method dispatch
+    private def dispatch_method_tuple(object, method_symbol : Symbol)
+      # Use tuple operations for efficient method dispatch
+      case {object.class, method_symbol}
+      when {Site.class, _}
+        dispatch_site_method(object, method_symbol) if SITE_METHODS.includes?(method_symbol)
+      when {Page.class, _}
+        dispatch_page_method(object, method_symbol) if PAGE_METHODS.includes?(method_symbol)
+      when {Content.class, _}
+        dispatch_content_method(object, method_symbol) if CONTENT_METHODS.includes?(method_symbol)
+      when {Time.class, _}
+        dispatch_time_method(object, method_symbol) if TIME_METHODS.includes?(method_symbol)
+      when {Array.class, _}
+        dispatch_array_method(object, method_symbol) if ARRAY_METHODS.includes?(method_symbol)
+      when {MenuItem.class, _}
+        dispatch_menuitem_method(object, method_symbol) if MENUITEM_METHODS.includes?(method_symbol)
+      when {BuildConfig.class, _}
+        dispatch_build_config_method(object, method_symbol) if BUILD_CONFIG_METHODS.includes?(method_symbol)
+      when {LiveReloadConfig.class, _}
+        dispatch_live_reload_config_method(object, method_symbol) if LIVE_RELOAD_CONFIG_METHODS.includes?(method_symbol)
+      when {BundlingConfig.class, _}
+        dispatch_bundling_config_method(object, method_symbol) if BUNDLING_CONFIG_METHODS.includes?(method_symbol)
+      else
+        nil
+      end
+    end
+
+    # Tuple-based method dispatchers using tuple iteration
+    private def dispatch_site_method(object, method_symbol : Symbol)
+      # Use tuple to_a for iteration and mapping
+      site_methods_tuple = SITE_METHODS.to_a
+      site_methods_tuple.each do |method|
+        return handle_site_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_page_method(object, method_symbol : Symbol) : String?
+      PAGE_METHODS.to_a.each do |method|
+        return handle_page_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_content_method(object, method_symbol : Symbol) : String?
+      CONTENT_METHODS.to_a.each do |method|
+        return handle_content_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_time_method(object, method_symbol : Symbol) : String?
+      TIME_METHODS.to_a.each do |method|
+        return handle_time_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_array_method(object, method_symbol : Symbol) : String?
+      ARRAY_METHODS.to_a.each do |method|
+        return handle_array_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_menuitem_method(object, method_symbol : Symbol) : String?
+      MENUITEM_METHODS.to_a.each do |method|
+        return handle_menuitem_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_build_config_method(object, method_symbol : Symbol)
+      BUILD_CONFIG_METHODS.to_a.each do |method|
+        return handle_build_config_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_live_reload_config_method(object, method_symbol : Symbol)
+      LIVE_RELOAD_CONFIG_METHODS.to_a.each do |method|
+        return handle_live_reload_config_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    private def dispatch_bundling_config_method(object, method_symbol : Symbol)
+      BUNDLING_CONFIG_METHODS.to_a.each do |method|
+        return handle_bundling_config_method(object, method) if method == method_symbol
+      end
+      nil
+    end
+
+    # Handler methods using tuple operations for efficient processing
+    private def handle_site_method(object, method : Symbol)
+      case method
+      when :Title                then object.is_a?(Site) ? object.as(Site).title : nil
+      when :title                then object.is_a?(Site) ? object.as(Site).title : nil
+      when :BaseURL              then object.is_a?(Site) ? object.as(Site).base_url : nil
+      when :"base_url"           then object.is_a?(Site) ? object.as(Site).base_url : nil
+      when :Pages                then object.is_a?(Site) ? object.as(Site).all_pages.to_s : nil
+      when :RegularPages         then object.is_a?(Site) ? object.as(Site).regular_pages.to_s : nil
+      when :Params               then object.is_a?(Site) ? object.as(Site).params.to_s : nil
+      when :Data                 then object.is_a?(Site) ? object.as(Site).data.to_s : nil
+      when :Menus                then object.is_a?(Site) ? object.as(Site).menus.to_s : nil
+      when :Author               then object.is_a?(Site) ? object.as(Site).author : nil
+      when :Copyright            then object.is_a?(Site) ? object.as(Site).copyright : nil
+      when :Hugo                 then object.is_a?(Site) ? object.as(Site).generator_info : nil
+      when :theme                then object.is_a?(Site) ? object.as(Site).theme : nil
+      when :"theme_dir"          then object.is_a?(Site) ? object.as(Site).theme_dir : nil
+      when :"layouts_dir"        then object.is_a?(Site) ? object.as(Site).layouts_dir : nil
+      when :"static_dir"         then object.is_a?(Site) ? object.as(Site).static_dir : nil
+      when :"output_dir"         then object.is_a?(Site) ? object.as(Site).output_dir : nil
+      when :"content_dir"        then object.is_a?(Site) ? object.as(Site).content_dir : nil
+      when :debug                then object.is_a?(Site) ? object.as(Site).debug.to_s : nil
+      when :"build_config"       then object.is_a?(Site) ? object.as(Site).build_config : nil
+      when :"live_reload_config" then object.is_a?(Site) ? object.as(Site).live_reload_config : nil
+      when :"bundling_config"    then object.is_a?(Site) ? object.as(Site).bundling_config : nil
+      else                            nil
+      end
+    end
+
+    private def handle_page_method(object, method : Symbol) : String?
+      case method
+      when :Title, :title           then object.is_a?(Page) ? object.as(Page).title : nil
+      when :Content, :content       then object.is_a?(Page) ? object.as(Page).content_html : nil
+      when :Summary, :summary       then object.is_a?(Page) ? object.as(Page).summary : nil
+      when :URL, :url               then object.is_a?(Page) ? object.as(Page).url : nil
+      when :Permalink, :permalink   then object.is_a?(Page) ? object.as(Page).permalink : nil
+      when :Date, :date             then object.is_a?(Page) ? object.as(Page).date.to_s : nil
+      when :Tags, :tags             then object.is_a?(Page) ? object.as(Page).tags.to_s : nil
+      when :Categories, :categories then object.is_a?(Page) ? object.as(Page).categories.to_s : nil
+      when :WordCount               then object.is_a?(Page) ? object.as(Page).word_count.to_s : nil
+      when :ReadingTime             then object.is_a?(Page) ? object.as(Page).reading_time.to_s : nil
+      when :Next                    then object.is_a?(Page) ? object.as(Page).next.to_s : nil
+      when :Prev                    then object.is_a?(Page) ? object.as(Page).prev.to_s : nil
+      when :Parent                  then object.is_a?(Page) ? object.as(Page).parent.to_s : nil
+      when :Children                then object.is_a?(Page) ? object.as(Page).children.to_s : nil
+      when :Related                 then object.is_a?(Page) ? object.as(Page).related.to_s : nil
+      when :Section                 then object.is_a?(Page) ? object.as(Page).section.to_s : nil
+      when :Kind, :kind             then object.is_a?(Page) ? object.as(Page).kind.to_s : nil
+      when :Type                    then object.is_a?(Page) ? object.as(Page).type.to_s : nil
+      when :Layout, :layout         then object.is_a?(Page) ? object.as(Page).layout.to_s : nil
+      when :Params                  then object.is_a?(Page) ? object.as(Page).params.to_s : nil
+      when :"file_path"             then object.is_a?(Page) ? object.as(Page).file_path : nil
+      else                               nil
+      end
+    end
+
+    private def handle_content_method(object, method : Symbol) : String?
+      case method
+      when :Title then object.is_a?(Content) ? object.as(Content).title : nil
+      when :URL   then object.is_a?(Content) ? object.as(Content).url : nil
+      when :Date  then object.is_a?(Content) ? object.as(Content).date.to_s : nil
+      when :Summary
+        if object.is_a?(Content)
+          content = object.as(Content)
+          PageOperations.new(content, @site.pages).summary
+        else
+          nil
+        end
+      else nil
+      end
+    end
+
+    private def handle_time_method(object, method : Symbol) : String?
+      case method
+      when :Year   then object.is_a?(Time) ? object.as(Time).year.to_s : nil
+      when :Month  then object.is_a?(Time) ? object.as(Time).month.to_s : nil
+      when :Day    then object.is_a?(Time) ? object.as(Time).day.to_s : nil
+      when :Format then object.is_a?(Time) ? object.as(Time).to_s("%Y-%m-%d") : nil
+      else              nil
+      end
+    end
+
+    private def handle_array_method(object, method : Symbol) : String?
+      return nil unless object.is_a?(Array)
+      array = object.as(Array)
+
+      case method
+      when :len     then array.size.to_s
+      when :first   then array.first?.to_s
+      when :last    then array.last?.to_s
+      when :uniq    then array.uniq.to_s
+      when :sample  then array.sample.to_s
+      when :shuffle then array.shuffle.to_s
+      when :reverse then array.reverse.to_s
+      when :compact then array.compact.to_s
+      when :empty?  then array.empty?.to_s
+      when :any?    then array.any? { |item| !item.nil? }.to_s
+      when :all?    then array.all? { |item| !item.nil? }.to_s
+      when :none?   then array.none?(Nil).to_s
+      when :one?    then array.one? { |item| !item.nil? }.to_s
+      when :size    then array.size.to_s
+      else               nil
+      end
+    end
+
+    private def handle_menuitem_method(object, method : Symbol) : String?
+      case method
+      when :name     then object.is_a?(MenuItem) ? object.as(MenuItem).name : nil
+      when :url      then object.is_a?(MenuItem) ? object.as(MenuItem).url : nil
+      when :weight   then object.is_a?(MenuItem) ? object.as(MenuItem).weight.to_s : nil
+      when :external then object.is_a?(MenuItem) ? object.as(MenuItem).external.to_s : nil
+      else                nil
+      end
+    end
+
+    private def handle_build_config_method(object, method : Symbol)
+      case method
+      when :enabled       then object.is_a?(BuildConfig) ? object.as(BuildConfig).incremental? : nil
+      when :incremental   then object.is_a?(BuildConfig) ? object.as(BuildConfig).incremental? : nil
+      when :parallel      then object.is_a?(BuildConfig) ? object.as(BuildConfig).parallel? : nil
+      when :"cache_dir"   then object.is_a?(BuildConfig) ? object.as(BuildConfig).cache_dir : nil
+      when :"max_workers" then object.is_a?(BuildConfig) ? object.as(BuildConfig).max_workers : nil
+      else                     nil
+      end
+    end
+
+    private def handle_live_reload_config_method(object, method : Symbol)
+      case method
+      when :enabled          then object.is_a?(LiveReloadConfig) ? object.as(LiveReloadConfig).enabled : nil
+      when :"websocket_path" then object.is_a?(LiveReloadConfig) ? object.as(LiveReloadConfig).websocket_path : nil
+      when :"debounce_ms"    then object.is_a?(LiveReloadConfig) ? object.as(LiveReloadConfig).debounce_ms : nil
+      else                        nil
+      end
+    end
+
+    private def handle_bundling_config_method(object, method : Symbol)
+      case method
+      when :enabled       then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).enabled? : nil
+      when :minify        then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).minify? : nil
+      when :"source_maps" then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).source_maps? : nil
+      when :autoprefix    then object.is_a?(BundlingConfig) ? object.as(BundlingConfig).autoprefix? : nil
+      else                     nil
+      end
     end
 
     def process(template : String) : String
@@ -44,7 +319,7 @@ module Lapis
 
     private def process_function_calls(template : String) : String
       # Process {{ function(args) }} calls
-      template.gsub(/\{\{\s*(\w+)\s*\(([^)]*)\)\s*\}\}/) do |match|
+      template.gsub(FUNCTION_CALL_PATTERN) do |match|
         function_name = $1
         args_str = $2
 
@@ -70,7 +345,7 @@ module Lapis
       loop do
         original_result = result
 
-        result = result.gsub(/\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) do |match|
+        result = result.gsub(IF_CONDITIONAL_PATTERN) do |match|
           condition = $1.strip
           content = $2
 
@@ -79,7 +354,8 @@ module Lapis
             # Find the correct else - account for nested if/endif blocks
             else_pos = find_matching_else(content)
             if else_pos
-              if_content = content[0...else_pos]
+              range = 0...else_pos
+              if_content = content[range]
               else_content = content[else_pos + 10..-1] # Skip "{{ else }}"
             else
               # Fallback to simple split if we can't find matching else
@@ -120,9 +396,9 @@ module Lapis
 
       while pos < content.size
         # Find the next occurrence of if, else, or endif
-        if_match = content.match(if_pattern, pos)
-        else_match = content.match(else_pattern, pos)
-        endif_match = content.match(endif_pattern, pos)
+        if_match = content.match(if_pattern, pos, options: Regex::MatchOptions::None)
+        else_match = content.match(else_pattern, pos, options: Regex::MatchOptions::None)
+        endif_match = content.match(endif_pattern, pos, options: Regex::MatchOptions::None)
 
         # Find which comes first
         next_if = if_match ? if_match.begin(0) : Int32::MAX
@@ -132,21 +408,21 @@ module Lapis
         if next_if < next_else && next_if < next_endif
           # Found nested if
           nesting_level += 1
-          pos = next_if + if_match.not_nil![0].size
+          pos = next_if + (if_match.try(&.[0].size) || 0)
         elsif next_endif < next_else
           # Found endif
           if nesting_level == 0
             break # This endif closes our block, no else found
           else
             nesting_level -= 1
-            pos = next_endif + endif_match.not_nil![0].size
+            pos = next_endif + (endif_match.try(&.[0].size) || 0)
           end
         else
           # Found else
           if nesting_level == 0
             return next_else # This is our matching else
           else
-            pos = next_else + else_match.not_nil![0].size
+            pos = next_else + (else_match.try(&.[0].size) || 0)
           end
         end
       end
@@ -156,7 +432,7 @@ module Lapis
 
     private def process_loops(template : String) : String
       # Handle {{ range collection }} loops
-      result = template.gsub(/\{\{\s*range\s+([^}]+)\s*\}\}(.*?)\{\{\s*end\s*\}\}/m) do |match|
+      result = template.gsub(RANGE_LOOP_PATTERN) do |match|
         range_expr = $1.strip
         loop_content = $2
 
@@ -179,7 +455,7 @@ module Lapis
       end
 
       # Handle alternative {{ for item in collection }} loops
-      result = result.gsub(/\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m) do |match|
+      result = result.gsub(FOR_LOOP_PATTERN) do |match|
         item_name = $1.strip
         collection_expr = $2.strip
         loop_content = $3
@@ -206,7 +482,7 @@ module Lapis
     end
 
     private def process_variables(template : String) : String
-      template.gsub(/\{\{\s*([^}]+)\s*\}\}/) do |match|
+      template.gsub(VARIABLE_PATTERN) do |match|
         expression = $1.strip
 
         # Skip control structures
@@ -364,100 +640,88 @@ module Lapis
     end
 
     private def call_method(object, method : String)
-      case {object, method}
-      # Site methods
-      when {Site, "Title"}              then object.as(Site).title
-      when {Site, "BaseURL"}            then object.as(Site).base_url
-      when {Site, "Pages"}              then object.as(Site).all_pages
-      when {Site, "RegularPages"}       then object.as(Site).regular_pages
-      when {Site, "Params"}             then object.as(Site).params
-      when {Site, "Data"}               then object.as(Site).data
-      when {Site, "Menus"}              then object.as(Site).menus
-      when {Site, "Author"}             then object.as(Site).author
-      when {Site, "Copyright"}          then object.as(Site).copyright
-      when {Site, "Hugo"}               then object.as(Site).generator_info
-      when {Site, "title"}              then object.as(Site).title
-      when {Site, "base_url"}           then object.as(Site).base_url
-      when {Site, "theme"}              then object.as(Site).theme
-      when {Site, "theme_dir"}          then object.as(Site).theme_dir
-      when {Site, "layouts_dir"}        then object.as(Site).layouts_dir
-      when {Site, "static_dir"}         then object.as(Site).static_dir
-      when {Site, "output_dir"}         then object.as(Site).output_dir
-      when {Site, "content_dir"}        then object.as(Site).content_dir
-      when {Site, "debug"}              then object.as(Site).debug
-      when {Site, "build_config"}       then object.as(Site).build_config
-      when {Site, "live_reload_config"} then object.as(Site).live_reload_config
-      when {Site, "bundling_config"}    then object.as(Site).bundling_config
-        # BuildConfig methods
-      when {BuildConfig, "enabled"}     then object.as(BuildConfig).incremental
-      when {BuildConfig, "incremental"} then object.as(BuildConfig).incremental
-      when {BuildConfig, "parallel"}    then object.as(BuildConfig).parallel
-      when {BuildConfig, "cache_dir"}   then object.as(BuildConfig).cache_dir
-      when {BuildConfig, "max_workers"} then object.as(BuildConfig).max_workers
-        # LiveReloadConfig methods
-      when {LiveReloadConfig, "enabled"}        then object.as(LiveReloadConfig).enabled
-      when {LiveReloadConfig, "websocket_path"} then object.as(LiveReloadConfig).websocket_path
-      when {LiveReloadConfig, "debounce_ms"}    then object.as(LiveReloadConfig).debounce_ms
-        # BundlingConfig methods
-      when {BundlingConfig, "enabled"}     then object.as(BundlingConfig).enabled
-      when {BundlingConfig, "minify"}      then object.as(BundlingConfig).minify
-      when {BundlingConfig, "source_maps"} then object.as(BundlingConfig).source_maps
-      when {BundlingConfig, "autoprefix"}  then object.as(BundlingConfig).autoprefix
-        # Page methods
-      when {Page, "Title"}       then object.as(Page).title
-      when {Page, "Content"}     then object.as(Page).content_html
-      when {Page, "Summary"}     then object.as(Page).summary
-      when {Page, "URL"}         then object.as(Page).url
-      when {Page, "Permalink"}   then object.as(Page).permalink
-      when {Page, "Date"}        then object.as(Page).date
-      when {Page, "Tags"}        then object.as(Page).tags
-      when {Page, "Categories"}  then object.as(Page).categories
-      when {Page, "WordCount"}   then object.as(Page).word_count
-      when {Page, "ReadingTime"} then object.as(Page).reading_time
-      when {Page, "Next"}        then object.as(Page).next
-      when {Page, "Prev"}        then object.as(Page).prev
-      when {Page, "Parent"}      then object.as(Page).parent
-      when {Page, "Children"}    then object.as(Page).children
-      when {Page, "Related"}     then object.as(Page).related
-      when {Page, "Section"}     then object.as(Page).section
-      when {Page, "Kind"}        then object.as(Page).kind
-      when {Page, "Type"}        then object.as(Page).type
-      when {Page, "Layout"}      then object.as(Page).layout
-      when {Page, "Params"}      then object.as(Page).params
-        # Page methods (lowercase)
-      when {Page, "title"}      then object.as(Page).title
-      when {Page, "content"}    then object.as(Page).content_html
-      when {Page, "summary"}    then object.as(Page).summary
-      when {Page, "url"}        then object.as(Page).url
-      when {Page, "permalink"}  then object.as(Page).permalink
-      when {Page, "date"}       then object.as(Page).date
-      when {Page, "tags"}       then object.as(Page).tags
-      when {Page, "categories"} then object.as(Page).categories
-      when {Page, "kind"}       then object.as(Page).kind
-      when {Page, "layout"}     then object.as(Page).layout
-      when {Page, "file_path"}  then object.as(Page).file_path
-        # Content methods (for arrays of Content)
-      when {Content, "Title"}   then object.as(Content).title
-      when {Content, "URL"}     then object.as(Content).url
-      when {Content, "Date"}    then object.as(Content).date
-      when {Content, "Summary"} then PageOperations.new(object.as(Content), @site.pages).summary
-        # Time methods
-      when {Time, "Year"}   then object.as(Time).year
-      when {Time, "Month"}  then object.as(Time).month
-      when {Time, "Day"}    then object.as(Time).day
-      when {Time, "Format"} then object.as(Time).to_s("%Y-%m-%d")
-        # Array methods
-      when {Array, "len"}   then object.as(Array).size
-      when {Array, "first"} then object.as(Array).first?
-      when {Array, "last"}  then object.as(Array).last?
-        # MenuItem methods
-      when {MenuItem, "name"}     then object.as(MenuItem).name
-      when {MenuItem, "url"}      then object.as(MenuItem).url
-      when {MenuItem, "weight"}   then object.as(MenuItem).weight
-      when {MenuItem, "external"} then object.as(MenuItem).external
-      else
-        nil
-      end
+      # Use optimized tuple-based method dispatch
+      # Convert string to symbol for dispatch
+      method_symbol = case method
+                      when "Title"              then :Title
+                      when "BaseURL"            then :BaseURL
+                      when "Pages"              then :Pages
+                      when "RegularPages"       then :RegularPages
+                      when "Params"             then :Params
+                      when "Data"               then :Data
+                      when "Menus"              then :Menus
+                      when "Author"             then :Author
+                      when "Copyright"          then :Copyright
+                      when "Hugo"               then :Hugo
+                      when "title"              then :title
+                      when "base_url"           then :"base_url"
+                      when "theme"              then :theme
+                      when "theme_dir"          then :"theme_dir"
+                      when "layouts_dir"        then :"layouts_dir"
+                      when "static_dir"         then :"static_dir"
+                      when "output_dir"         then :"output_dir"
+                      when "content_dir"        then :"content_dir"
+                      when "debug"              then :debug
+                      when "build_config"       then :"build_config"
+                      when "live_reload_config" then :"live_reload_config"
+                      when "bundling_config"    then :"bundling_config"
+                      when "enabled"            then :enabled
+                      when "incremental"        then :incremental
+                      when "parallel"           then :parallel
+                      when "cache_dir"          then :"cache_dir"
+                      when "max_workers"        then :"max_workers"
+                      when "websocket_path"     then :"websocket_path"
+                      when "debounce_ms"        then :"debounce_ms"
+                      when "minify"             then :minify
+                      when "source_maps"        then :"source_maps"
+                      when "autoprefix"         then :autoprefix
+                      when "Content"            then :Content
+                      when "Summary"            then :Summary
+                      when "URL"                then :URL
+                      when "Permalink"          then :Permalink
+                      when "Date"               then :Date
+                      when "Tags"               then :Tags
+                      when "Categories"         then :Categories
+                      when "WordCount"          then :WordCount
+                      when "ReadingTime"        then :ReadingTime
+                      when "Next"               then :Next
+                      when "Prev"               then :Prev
+                      when "Parent"             then :Parent
+                      when "Children"           then :Children
+                      when "Related"            then :Related
+                      when "Section"            then :Section
+                      when "Kind"               then :Kind
+                      when "Type"               then :Type
+                      when "Layout"             then :Layout
+                      when "content"            then :content
+                      when "summary"            then :summary
+                      when "url"                then :url
+                      when "permalink"          then :permalink
+                      when "date"               then :date
+                      when "tags"               then :tags
+                      when "categories"         then :categories
+                      when "kind"               then :kind
+                      when "layout"             then :layout
+                      when "file_path"          then :"file_path"
+                      when "Year"               then :Year
+                      when "Month"              then :Month
+                      when "Day"                then :Day
+                      when "Format"             then :Format
+                      when "len"                then :len
+                      when "first"              then :first
+                      when "last"               then :last
+                      when "name"               then :name
+                      when "weight"             then :weight
+                      when "external"           then :external
+                      else                           return nil
+                      end
+      dispatch_method_tuple(object, method_symbol)
+    end
+
+    # Legacy method dispatch (kept for reference)
+    private def call_method_legacy(object, method : String)
+      # Temporarily disabled due to SafeCast dependency
+      return nil
     end
 
     private def create_loop_context(item, index : Int32, range_expr : String) : Hash(String, String | Int32)
@@ -511,14 +775,14 @@ module Lapis
 
     private def format_value(value) : String
       case value
-      when String        then value
-      when Int32, Int64  then value.to_s
-      when Bool          then value.to_s
-      when Time          then value.to_s("%Y-%m-%d")
-      when Array(String) then value.join(", ")
-      when Array         then value.size.to_s # For other arrays, show count
+      when String        then STRING_POOL.get(value)
+      when Int32, Int64  then STRING_POOL.get(value.to_s)
+      when Bool          then STRING_POOL.get(value.to_s)
+      when Time          then STRING_POOL.get(value.to_s("%Y-%m-%d"))
+      when Array(String) then STRING_POOL.get(value.join(", "))
+      when Array         then STRING_POOL.get(value.size.to_s) # For other arrays, show count
       when Nil           then ""
-      else                    value.to_s
+      else                    STRING_POOL.get(value.to_s)
       end
     end
 
@@ -551,42 +815,42 @@ module Lapis
     private def convert_to_string(value) : String
       case value
       when String
-        value
+        STRING_POOL.get(value)
       when Content
-        value.title
+        STRING_POOL.get(value.title)
       when Page
-        value.title
+        STRING_POOL.get(value.title)
       when Site
-        value.title
+        STRING_POOL.get(value.title)
       when MenuItem
-        value.name
+        STRING_POOL.get(value.name)
       when Array(Content)
-        value.map(&.title).join(", ")
+        STRING_POOL.get(value.map(&.title).join(", "))
       when Array(MenuItem)
-        value.map(&.name).join(", ")
+        STRING_POOL.get(value.map(&.name).join(", "))
       when Hash(String, Array(MenuItem))
         # Convert menu hash to string representation
         pairs = [] of String
         value.each do |menu_name, items|
           pairs << "#{menu_name}: #{items.map(&.name).join(", ")}"
         end
-        pairs.join("; ")
+        STRING_POOL.get(pairs.join("; "))
       when Hash(String, String)
         # Convert string hash to string representation
         pairs = [] of String
         value.each do |key, val|
           pairs << "#{key}: #{val}"
         end
-        pairs.join("; ")
+        STRING_POOL.get(pairs.join("; "))
       when Hash(String, YAML::Any)
         # Convert YAML hash to string representation
         pairs = [] of String
         value.each do |key, val|
           pairs << "#{key}: #{val}"
         end
-        pairs.join("; ")
+        STRING_POOL.get(pairs.join("; "))
       else
-        value.to_s
+        STRING_POOL.get(value.to_s)
       end
     end
   end

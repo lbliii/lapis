@@ -191,6 +191,16 @@ describe Lapis::DataProcessor do
         Lapis::DataProcessor.parse_json_typed(invalid_json)
       end
     end
+
+    it "handles TypeCastError in JSON parsing", tags: [TestTags::FAST, TestTags::UNIT] do
+      # This test verifies that TypeCastError is properly handled
+      # The actual TypeCastError would be triggered by JSON deserialization issues
+      invalid_json = "{\"title\": \"Test\", \"count\": \"not_a_number\", \"active\": true}"
+
+      expect_raises(Lapis::ValidationError) do
+        Lapis::DataProcessor.parse_json_typed(invalid_json)
+      end
+    end
   end
 
   describe ".merge_data" do

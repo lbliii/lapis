@@ -57,6 +57,42 @@ describe "Lapis Exceptions" do
     end
   end
 
+  describe "TypeCastError" do
+    it "inherits from LapisError", tags: [TestTags::FAST, TestTags::UNIT] do
+      error = Lapis::TypeCastError.new("Type cast error")
+
+      error.should be_a(Lapis::LapisError)
+      error.message.should eq("Type cast error")
+    end
+
+    it "can have type context information", tags: [TestTags::FAST, TestTags::UNIT] do
+      error = Lapis::TypeCastError.new(
+        "Cast failed",
+        source_type: "String",
+        target_type: "Int32",
+        value: "hello"
+      )
+
+      error.context["source_type"].should eq("String")
+      error.context["target_type"].should eq("Int32")
+      error.context["value"].should eq("hello")
+    end
+
+    it "can wrap another exception", tags: [TestTags::FAST, TestTags::UNIT] do
+      cause = Exception.new("Original error")
+      error = Lapis::TypeCastError.new(
+        "Wrapped error",
+        cause,
+        source_type: "JSON",
+        target_type: "PostData"
+      )
+
+      error.cause.should eq(cause)
+      error.context["source_type"].should eq("JSON")
+      error.context["target_type"].should eq("PostData")
+    end
+  end
+
   describe "BuildError" do
     it "inherits from LapisError", tags: [TestTags::FAST, TestTags::UNIT] do
       error = Lapis::BuildError.new("Build error")

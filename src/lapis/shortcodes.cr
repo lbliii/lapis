@@ -1,3 +1,5 @@
+require "html"
+
 module Lapis
   class ShortcodeProcessor
     property config : Config
@@ -75,9 +77,9 @@ module Lapis
 
     private def generate_responsive_image(image_path : String, alt_text : String) : String
       # Use the AssetHelpers for responsive images
-      base_name = File.basename(image_path, File.extname(image_path))
-      ext = File.extname(image_path)
-      dir = File.dirname(image_path) == "." ? "" : "#{File.dirname(image_path)}/"
+      base_name = Path[image_path].stem
+      ext = Path[image_path].extension
+      dir = Path[image_path].parent.to_s == "." ? "" : "#{Path[image_path].parent}/"
 
       # Generate srcset
       sizes = [320, 640, 1024, 1920]
@@ -156,9 +158,9 @@ module Lapis
       # This would scan the static folder for images
       images = [] of String
 
-      gallery_path = File.join(@config.static_dir, folder_path)
+      gallery_path = Path[@config.static_dir].join(folder_path).to_s
       if Dir.exists?(gallery_path)
-        Dir.glob(File.join(gallery_path, "*.{jpg,jpeg,png,gif}")).each do |image_file|
+        Dir.glob(Path[gallery_path].join("*.{jpg,jpeg,png,gif}").to_s).each do |image_file|
           relative_path = image_file[@config.static_dir.size + 1..]
           images << relative_path
         end
@@ -167,7 +169,7 @@ module Lapis
       return %(<p class="gallery-error">Gallery folder not found: #{folder_path}</p>) if images.empty?
 
       image_items = images.map do |image_path|
-        alt_text = humanize(File.basename(image_path, File.extname(image_path)))
+        alt_text = humanize(Path[image_path].stem)
         <<-HTML
         <div class="gallery-item">
           <img src="/assets/#{image_path}"
@@ -211,11 +213,7 @@ module Lapis
     end
 
     private def escape_html(text : String) : String
-      text.gsub("&", "&amp;")
-        .gsub("<", "&lt;")
-        .gsub(">", "&gt;")
-        .gsub("\"", "&quot;")
-        .gsub("'", "&#39;")
+      HTML.escape(text)
     end
 
     private def humanize(text : String) : String

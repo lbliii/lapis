@@ -127,9 +127,9 @@ module Lapis
     private def initialize_cache_files
       # Create empty cache files if they don't exist
       cache_files = {
-        File.join(@cache_dir, "timestamps.yml")    => ({} of String => String).to_yaml,
-        File.join(@cache_dir, "dependencies.yml")  => ({} of String => Array(String)).to_yaml,
-        File.join(@cache_dir, "build_cache.yml")   => ({} of String => String).to_yaml
+        File.join(@cache_dir, "timestamps.yml")   => ({} of String => String).to_yaml,
+        File.join(@cache_dir, "dependencies.yml") => ({} of String => Array(String)).to_yaml,
+        File.join(@cache_dir, "build_cache.yml")  => ({} of String => String).to_yaml,
       }
 
       cache_files.each do |file, initial_content|

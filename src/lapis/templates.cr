@@ -1,4 +1,5 @@
 require "ecr"
+require "uri"
 require "./base_content"
 require "./theme_helpers"
 require "./partials"
@@ -21,9 +22,13 @@ module Lapis
     property theme_layouts_dir : String
     property theme_manager : ThemeManager
 
+    # Compile-time regexes for frequently used patterns
+    private EXTENDS_PATTERN = /\{\{\s*extends\s+"([^"]+)"\s*\}\}/
+    private BLOCK_PATTERN   = /\{\{\s*block\s+"([^"]+)"\s*\}\}(.*?)\{\{\s*endblock\s*\}\}/m
+
     def initialize(@config : Config)
       @layouts_dir = @config.layouts_dir
-      @theme_layouts_dir = File.join(@config.theme_dir, "layouts")
+      @theme_layouts_dir = Path[@config.theme_dir].join("layouts").to_s
       @theme_manager = ThemeManager.new(@config.theme, @config.root_dir, @config.theme_dir)
 
       # Validate theme is available
@@ -48,7 +53,7 @@ module Lapis
           layout_content = File.read(layout_path)
 
           # Check if this layout extends another layout
-          if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
+          if extends_match = layout_content.match(EXTENDS_PATTERN, options: Regex::MatchOptions::None)
             parent_layout = extends_match[1]
             render_with_parent(layout_content, parent_layout, context)
           else
@@ -74,10 +79,10 @@ module Lapis
       # Build the output path
       if url_path.ends_with?("/")
         # Directory-style URL
-        File.join(@config.output_dir, url_path, "index.#{extension}")
+        Path[@config.output_dir].join(url_path, "index.#{extension}").to_s
       else
         # File-style URL
-        File.join(@config.output_dir, "#{url_path}.#{extension}")
+        Path[@config.output_dir].join("#{url_path}.#{extension}").to_s
       end
     end
 
@@ -113,7 +118,7 @@ module Lapis
         layout_content = File.read(layout_path)
 
         # Check if this layout extends another layout
-        if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
+        if extends_match = layout_content.match(EXTENDS_PATTERN, options: Regex::MatchOptions::None)
           parent_layout = extends_match[1]
           render_with_parent(layout_content, parent_layout, context)
         else
@@ -183,11 +188,11 @@ module Lapis
         # For single pages: section/single -> _default/single -> explicit layout
         candidates = [] of String
         unless content.section.empty?
-          candidates << File.join(content.section, "single#{format_suffix}.#{extension}")
-          candidates << File.join(content.section, "single.#{extension}")
+          candidates << Path[content.section].join("single#{format_suffix}.#{extension}").to_s
+          candidates << Path[content.section].join("single.#{extension}").to_s
         end
-        candidates << File.join("_default", "single#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "single.#{extension}")
+        candidates << Path["_default"].join("single#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("single.#{extension}").to_s
 
         # Fallback to explicit layout if specified
         if content.layout != "default"
@@ -198,38 +203,38 @@ module Lapis
         # For list/section pages: section/list -> _default/list
         candidates = [] of String
         unless content.section.empty?
-          candidates << File.join(content.section, "list#{format_suffix}.#{extension}")
-          candidates << File.join(content.section, "list.#{extension}")
+          candidates << Path[content.section].join("list#{format_suffix}.#{extension}").to_s
+          candidates << Path[content.section].join("list.#{extension}").to_s
         end
-        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "list.#{extension}")
+        candidates << Path["_default"].join("list#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("list.#{extension}").to_s
       when .home?
         # For home page: index -> _default/home -> _default/list
         candidates = [] of String
         candidates << "index#{format_suffix}.#{extension}"
         candidates << "index.#{extension}"
-        candidates << File.join("_default", "home#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "home.#{extension}")
-        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "list.#{extension}")
+        candidates << Path["_default"].join("home#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("home.#{extension}").to_s
+        candidates << Path["_default"].join("list#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("list.#{extension}").to_s
       when .taxonomy?
         # For taxonomy pages: taxonomy -> _default/taxonomy -> _default/list
         candidates = [] of String
         candidates << "taxonomy#{format_suffix}.#{extension}"
         candidates << "taxonomy.#{extension}"
-        candidates << File.join("_default", "taxonomy#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "taxonomy.#{extension}")
-        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "list.#{extension}")
+        candidates << Path["_default"].join("taxonomy#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("taxonomy.#{extension}").to_s
+        candidates << Path["_default"].join("list#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("list.#{extension}").to_s
       when .term?
         # For term pages: term -> _default/term -> _default/list
         candidates = [] of String
         candidates << "term#{format_suffix}.#{extension}"
         candidates << "term.#{extension}"
-        candidates << File.join("_default", "term#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "term.#{extension}")
-        candidates << File.join("_default", "list#{format_suffix}.#{extension}")
-        candidates << File.join("_default", "list.#{extension}")
+        candidates << Path["_default"].join("term#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("term.#{extension}").to_s
+        candidates << Path["_default"].join("list#{format_suffix}.#{extension}").to_s
+        candidates << Path["_default"].join("list.#{extension}").to_s
       else
         candidates = [] of String
       end
@@ -709,8 +714,8 @@ module Lapis
       # This is a simplified version - in a real implementation,
       # this would use the generator's content loading logic
       if Dir.exists?(@config.content_dir)
-        Dir.glob(File.join(@config.content_dir, "**", "*.md")).each do |file_path|
-          next if File.basename(file_path) == "index.md"
+        Dir.glob(Path[@config.content_dir].join("**", "*.md").to_s).each do |file_path|
+          next if Path[file_path].basename == "index.md"
           begin
             page_content = Content.load(file_path, @config.content_dir)
             page_content.process_content(@config)
@@ -735,7 +740,7 @@ module Lapis
 
     def content : String
       posts_html = @posts.map do |post|
-        date_str = post.date ? post.date.not_nil!.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
+        date_str = post.date.try(&.to_s(Lapis::DATE_FORMAT_HUMAN)) || ""
         tags_html = post.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
 
         <<-HTML
@@ -786,16 +791,37 @@ module Lapis
       if text.size <= length
         text
       else
-        text[0...length] + "..."
+        range = 0...length
+        text[range] + "..."
       end
     end
 
     def self.url_for(path : String, baseurl : String) : String
-      if baseurl.ends_with?("/")
-        baseurl.rchop + path
-      else
-        baseurl + path
-      end
+      base_uri = URI.parse(baseurl)
+      path_uri = URI.parse(path)
+      base_uri.resolve(path_uri).to_s
+    end
+
+    def self.relative_url_for(path : String, baseurl : String) : String
+      base_uri = URI.parse(baseurl)
+      path_uri = URI.parse(path)
+      base_uri.relativize(path_uri).to_s
+    end
+
+    def self.normalize_url(url : String) : String
+      URI.parse(url).normalize.to_s
+    end
+
+    def self.url_components(url : String) : Hash(String, String | Int32 | Nil)
+      uri = URI.parse(url)
+      {
+        "scheme"   => uri.scheme,
+        "host"     => uri.host,
+        "port"     => uri.port,
+        "path"     => uri.path,
+        "query"    => uri.query,
+        "fragment" => uri.fragment,
+      }
     end
 
     def self.read_template_file(file_path : String) : String

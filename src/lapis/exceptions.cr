@@ -76,6 +76,16 @@ module Lapis
     end
   end
 
+  # Path processing errors
+  class PathError < LapisError
+    def initialize(message : String, path : String? = nil, operation : String? = nil)
+      context = {} of String => String
+      context["path"] = path if path
+      context["operation"] = operation if operation
+      super(message, context)
+    end
+  end
+
   # Asset processing errors
   class AssetError < LapisError
     def initialize(message : String, asset_path : String? = nil, asset_type : String? = nil)
@@ -103,6 +113,25 @@ module Lapis
       context["command"] = command if command
       context["exit_code"] = exit_code.to_s if exit_code
       super(message, context)
+    end
+  end
+
+  # Type casting errors
+  class TypeCastError < LapisError
+    def initialize(message : String, source_type : String? = nil, target_type : String? = nil, value : String? = nil)
+      context = {} of String => String
+      context["source_type"] = source_type if source_type
+      context["target_type"] = target_type if target_type
+      context["value"] = value if value
+      super(message, context)
+    end
+
+    def initialize(message : String, cause : Exception, source_type : String? = nil, target_type : String? = nil, value : String? = nil)
+      context = {} of String => String
+      context["source_type"] = source_type if source_type
+      context["target_type"] = target_type if target_type
+      context["value"] = value if value
+      super(message, cause, context)
     end
   end
 end

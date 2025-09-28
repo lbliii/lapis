@@ -1,4 +1,5 @@
 require "./content"
+require "./content_comparison"
 
 module Lapis
   class PageOperations
@@ -31,6 +32,30 @@ module Lapis
       summary.empty? ? plain_content[0..length]? || "" : summary
     end
 
+    # SLICE-BASED SUMMARY FOR ZERO-COPY OPERATIONS
+    def summary_slice(length : Int32 = 160) : String
+      if summary_from_frontmatter = @content.frontmatter["summary"]?
+        return summary_from_frontmatter.as_s
+      end
+
+      if description = @content.frontmatter["description"]?
+        return description.as_s
+      end
+
+      # Extract first paragraph or truncate content using slice operations
+      plain_content = @content.body.gsub(/<[^>]*>/, "").strip
+      sentences = plain_content.split(/[.!?]+/)
+
+      summary = ""
+      sentences.each do |sentence|
+        next_summary = summary.empty? ? sentence.strip : "#{summary} #{sentence.strip}"
+        break if next_summary.size > length
+        summary = next_summary
+      end
+
+      summary.empty? ? plain_content[0..length]? || "" : summary
+    end
+
     def reading_time : Int32
       words = word_count
       # Average reading speed: 200 words per minute
@@ -44,7 +69,7 @@ module Lapis
 
     def next_in_section : Content?
       section_pages = @site_content.select { |c| c.section == @content.section && c.kind.single? }
-        .sort_by { |c| c.date || Time.unix(0) }.reverse
+        .sort
 
       current_index = section_pages.index(@content)
       return nil unless current_index
@@ -54,12 +79,41 @@ module Lapis
 
     def prev_in_section : Content?
       section_pages = @site_content.select { |c| c.section == @content.section && c.kind.single? }
-        .sort_by { |c| c.date || Time.unix(0) }.reverse
+        .sort
 
       current_index = section_pages.index(@content)
       return nil unless current_index
 
       section_pages[current_index + 1]?
+    end
+
+    # SLICE-BASED SECTION NAVIGATION FOR ZERO-COPY OPERATIONS
+    def next_slice_in_section : Content?
+      section_pages = @site_content.select { |c| c.section == @content.section && c.kind.single? }
+        .sort
+
+      return nil if section_pages.empty?
+
+      # Use slice for more efficient processing
+      section_slice = section_pages.to_slice
+      current_index = section_slice.index(@content)
+      return nil unless current_index
+
+      section_slice[current_index - 1]? if current_index > 0
+    end
+
+    def prev_slice_in_section : Content?
+      section_pages = @site_content.select { |c| c.section == @content.section && c.kind.single? }
+        .sort
+
+      return nil if section_pages.empty?
+
+      # Use slice for more efficient processing
+      section_slice = section_pages.to_slice
+      current_index = section_slice.index(@content)
+      return nil unless current_index
+
+      section_slice[current_index + 1]?
     end
 
     def parent : Content?

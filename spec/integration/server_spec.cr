@@ -95,6 +95,7 @@ describe "Server Integration" do
 
       with_temp_directory do |temp_dir|
         config.output_dir = File.join(temp_dir, "output")
+        Dir.mkdir_p(config.output_dir)
 
         # Create test HTML file
         html_content = "<html><body><h1>Test</h1></body></html>"

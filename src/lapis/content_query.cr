@@ -1,6 +1,8 @@
 require "./content"
 require "./collections"
 
+# Removed content_comparison - now optimized directly in Content class
+
 module Lapis
   class ContentQuery
     getter site_content : Array(Content)
@@ -41,8 +43,7 @@ module Lapis
 
     def recent(count : Int32 = 5) : Array(Content)
       @site_content.select(&.kind.single?)
-        .sort_by { |c| c.date || Time.unix(0) }
-        .reverse
+        .sort
         .first(count)
     end
 
@@ -163,34 +164,21 @@ module Lapis
           property_value = get_property_value(content, key.to_s)
           matches_value?(property_value, value)
         end
-      end
+      end.tap { |result| Logger.debug("Filtered content", count: result.size, filters: filters.keys) }
 
       QueryBuilder.new(filtered, @collections)
     end
 
     def sort_by(property : String, reverse : Bool = false) : QueryBuilder
-      sorted = @current_content.sort do |a, b|
-        a_value = get_property_value(a, property)
-        b_value = get_property_value(b, property)
-
-        case {a_value, b_value}
-        when {Time, Time}
-          a_value.as(Time) <=> b_value.as(Time)
-        when {String, String}
-          a_value.as(String) <=> b_value.as(String)
-        when {Number, Number}
-          a_value.as(Number) <=> b_value.as(Number)
-        else
-          a_value.to_s <=> b_value.to_s
-        end
-      end
-
-      final_content = reverse ? sorted.reverse : sorted
-      QueryBuilder.new(final_content, @collections)
+      # Use Content's optimized comparison directly
+      sorted = @current_content.sort
+      reverse ? sorted.reverse : sorted
+      QueryBuilder.new(sorted, @collections)
     end
 
     def limit(count : Int32) : QueryBuilder
       QueryBuilder.new(@current_content.first(count), @collections)
+        .tap { |result| Logger.debug("Limited content", count: result.count, limit: count) }
     end
 
     def first(count : Int32) : Array(Content)
@@ -235,6 +223,59 @@ module Lapis
 
     def distinct(property : String) : Array(String)
       pluck(property).uniq
+    end
+
+    # NEW METHODS FOR MODERN ARRAY OPERATIONS:
+
+    def partition_by(property : String) : NamedTuple(published: Array(Content), drafts: Array(Content))
+      published, drafts = @current_content.partition { |content| get_property_value(content, property).to_s == "published" }
+      {published: published, drafts: drafts}
+    end
+
+    def chunk_by(property : String) : Hash(String, Array(Content))
+      @current_content.chunk_by { |content| get_property_value(content, property).to_s }
+    end
+
+    def compact : QueryBuilder
+      # Remove nil/empty content
+      filtered = @current_content.compact.reject(&.title.blank?)
+      QueryBuilder.new(filtered, @collections)
+    end
+
+    def uniq : QueryBuilder
+      # Remove duplicate content based on URL
+      unique_content = @current_content.uniq_by(&.url)
+      QueryBuilder.new(unique_content, @collections)
+    end
+
+    def sample(count : Int32 = 1) : Array(Content)
+      @current_content.sample(count)
+    end
+
+    def shuffle : QueryBuilder
+      shuffled = @current_content.shuffle
+      QueryBuilder.new(shuffled, @collections)
+    end
+
+    def rotate(n : Int32 = 1) : QueryBuilder
+      rotated = @current_content.rotate(n)
+      QueryBuilder.new(rotated, @collections)
+    end
+
+    def truncate(range : Range(Int32, Int32)) : QueryBuilder
+      # Validate range before processing
+      return QueryBuilder.new([] of Content, @collections) if range.size <= 0
+
+      truncated = @current_content.truncate(range)
+      QueryBuilder.new(truncated, @collections)
+    end
+
+    def index_of(content : Content) : Int32?
+      @current_content.index(content)
+    end
+
+    def last_index_of(content : Content) : Int32?
+      @current_content.rindex(content)
     end
 
     private def get_property_value(content : Content, property : String)

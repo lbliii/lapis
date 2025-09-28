@@ -15,6 +15,8 @@ module Lapis
     property base_url : String
 
     def initialize(@items : Array(Content), @per_page : Int32 = 10, @current_page : Int32 = 1, @base_url : String = "/posts")
+      validate_per_page(@per_page)
+      validate_current_page(@current_page)
     end
 
     def total_pages : Int32
@@ -26,17 +28,37 @@ module Lapis
     end
 
     def current_items : Array(Content)
-      start_index = (@current_page - 1) * @per_page
-      end_index = start_index + @per_page - 1
-      @items[start_index..end_index]? || [] of Content
+      return [] of Content unless valid_page?(@current_page) && @per_page > 0
+
+      begin
+        @items.each_slice(@per_page).to_a[@current_page - 1]? || [] of Content
+      rescue ex
+        Logger.warn("Error in current_items", error: ex.message, per_page: @per_page, current_page: @current_page)
+        [] of Content
+      end
+    end
+
+    # SLICE-BASED CURRENT ITEMS FOR ZERO-COPY OPERATIONS
+    def current_slice : Slice(Content)
+      return Slice(Content).new(0) unless valid_page?(@current_page) && @per_page > 0
+
+      begin
+        start_index = (@current_page - 1) * @per_page
+        end_index = Math.min(start_index + @per_page, @items.size)
+        return Slice(Content).new(0) if start_index >= @items.size
+        @items.to_slice[start_index, end_index - start_index]
+      rescue ex
+        Logger.warn("Error in current_slice", error: ex.message, per_page: @per_page, current_page: @current_page)
+        Slice(Content).new(0)
+      end
     end
 
     def has_previous? : Bool
-      @current_page > 1
+      (1..total_pages).includes?(@current_page - 1)
     end
 
     def has_next? : Bool
-      @current_page < total_pages
+      (1..total_pages).includes?(@current_page + 1)
     end
 
     def previous_page : Int32?
@@ -63,10 +85,34 @@ module Lapis
       page == 1 ? @base_url + "/" : "#{@base_url}/page/#{page}/"
     end
 
-    def page_range(window : Int32 = 2) : Array(Int32)
+    # Range-based validation methods
+    def valid_page?(page : Int32) : Bool
+      (1..total_pages).includes?(page)
+    end
+
+    def page_count_in_range(start : Int32, finish : Int32) : Int32
+      range = start..finish
+      range.size
+    end
+
+    def page_range(window : Int32 = 2) : Range(Int32, Int32)
       start_page = [@current_page - window, 1].max
       end_page = [@current_page + window, total_pages].min
-      (start_page..end_page).to_a
+      start_page..end_page
+    end
+
+    def page_range_array(window : Int32 = 2) : Array(Int32)
+      page_range(window).to_a
+    end
+
+    # SLICE-BASED PAGE RANGE FOR ZERO-COPY OPERATIONS
+    def page_range_slice(window : Int32 = 2) : Slice(Int32)
+      range = page_range(window)
+      return Slice(Int32).new(0) if range.size <= 0
+
+      result = Array(Int32).new(range.size)
+      range.each { |page| result << page }
+      result.to_slice
     end
 
     def page_numbers(window : Int32 = 5) : Array(PageInfo)
@@ -93,7 +139,7 @@ module Lapis
       end
 
       # Add pages in window
-      (start_page..end_page).each do |page|
+      (start_page..end_page).each_with_index do |page, index|
         pages << PageInfo.new(page, page_url(page), page == @current_page)
       end
 
@@ -127,7 +173,7 @@ module Lapis
       end
 
       # Page numbers
-      page_range.each do |page|
+      page_range(2).each_with_index do |page, index|
         if page == @current_page
           nav_items << %(<span class="pagination-current">#{page}</span>)
         else
@@ -136,10 +182,10 @@ module Lapis
       end
 
       # Show ellipsis and last page if needed
-      if page_range.last < total_pages - 1
+      if page_range(2).end < total_pages - 1
         nav_items << %(<span class="pagination-ellipsis">…</span>)
         nav_items << %(<a href="#{page_url(total_pages)}" class="pagination-page">#{total_pages}</a>)
-      elsif page_range.last == total_pages - 1
+      elsif page_range(2).end == total_pages - 1
         nav_items << %(<a href="#{page_url(total_pages)}" class="pagination-page">#{total_pages}</a>)
       end
 
@@ -161,6 +207,18 @@ module Lapis
       </nav>
       HTML
     end
+
+    private def validate_per_page(per_page : Int32)
+      if per_page <= 0
+        raise ArgumentError.new("per_page must be greater than 0, got: #{per_page}")
+      end
+    end
+
+    private def validate_current_page(current_page : Int32)
+      if current_page < 1
+        raise ArgumentError.new("current_page must be greater than or equal to 1, got: #{current_page}")
+      end
+    end
   end
 
   class PaginationGenerator
@@ -169,10 +227,19 @@ module Lapis
     def initialize(@config : Config)
     end
 
-    def generate_paginated_archives(posts : Array(Content), per_page : Int32 = 10)
-      total_pages = (posts.size.to_f / per_page).ceil.to_i
+    private def validate_per_page(per_page : Int32)
+      if per_page <= 0
+        raise ArgumentError.new("per_page must be greater than 0, got: #{per_page}")
+      end
+    end
 
-      (1..total_pages).each do |page_num|
+    def generate_paginated_archives(posts : Array(Content), per_page : Int32 = 10)
+      validate_per_page(per_page)
+      total_pages = (posts.size.to_f / per_page).ceil.to_i
+      page_range = 1..total_pages
+
+      page_range.each_with_index do |page_num, index|
+        Logger.debug("Generating paginated archive page", page: page_num, total_pages: total_pages, index: index)
         paginator = Paginator.new(posts, per_page, page_num, "/posts")
         generate_archive_page(paginator, page_num)
       end
@@ -181,11 +248,14 @@ module Lapis
     end
 
     def generate_tag_paginated_archives(posts_by_tag : Hash(String, Array(Content)), per_page : Int32 = 10)
+      validate_per_page(per_page)
       posts_by_tag.each do |tag, tag_posts|
         tag_slug = tag.downcase.gsub(/[^a-z0-9]/, "-")
         total_pages = (tag_posts.size.to_f / per_page).ceil.to_i
+        page_range = 1..total_pages
 
-        (1..total_pages).each do |page_num|
+        page_range.each_with_index do |page_num, index|
+          Logger.debug("Generating tag paginated archive page", tag: tag, page: page_num, total_pages: total_pages, index: index)
           paginator = Paginator.new(tag_posts, per_page, page_num, "/tags/#{tag_slug}")
           generate_tag_archive_page(paginator, tag, tag_slug, page_num)
         end
@@ -237,7 +307,7 @@ module Lapis
       if Dir.exists?(@config.static_dir)
         css_dir = File.join(@config.static_dir, "css")
         if Dir.exists?(css_dir)
-          Dir.glob(File.join(css_dir, "*.css")).each do |css_file|
+          Dir.glob(File.join(css_dir, "*.css")).each_with_index do |css_file, index|
             relative_path = css_file[@config.static_dir.size + 1..]
             css_files << %(<link rel="stylesheet" href="/assets/#{relative_path}">)
           end

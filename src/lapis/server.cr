@@ -30,8 +30,25 @@ module Lapis
       end
 
       begin
+        # Configure socket options if available
+        configure_server_socket(server) if server.responds_to?(:socket)
+
         address = server.bind_tcp(@config.host, @config.port)
-        Logger.info("Development server started", host: @config.host, port: @config.port.to_s)
+
+        # Display server URL with clickable link
+        server_url = "http://#{@config.host}:#{@config.port}"
+        puts "\n🎉 Server is running!".colorize(:green).bold
+        puts "🌐 Open your site: #{server_url}".colorize(:cyan).bold
+        puts "   💡 Click the link above or copy-paste it into your browser".colorize(:dim)
+        puts ""
+
+        Logger.info("Development server started", host: @config.host, port: @config.port.to_s, url: server_url)
+        Logger.info("Socket options",
+          reuse_address: @config.socket_reuse_address,
+          keepalive: @config.socket_keepalive,
+          timeout: @config.socket_timeout,
+          send_buffer: @config.socket_send_buffer_size,
+          recv_buffer: @config.socket_recv_buffer_size)
         Logger.info("Live reload enabled with WebSocket support")
         Logger.info("Press Ctrl+C to stop")
 
@@ -50,6 +67,18 @@ module Lapis
       @generator.build
       @last_build_time = Time.utc
       Logger.build_operation("Initial build complete")
+    end
+
+    private def configure_server_socket(server : HTTP::Server)
+      # Note: HTTP::Server doesn't expose socket configuration directly
+      # This method is a placeholder for future enhancements or custom server implementations
+      # For now, we log the configuration options for debugging purposes
+      Logger.debug("Socket configuration requested",
+        reuse_address: @config.socket_reuse_address,
+        keepalive: @config.socket_keepalive,
+        timeout: @config.socket_timeout)
+    rescue ex
+      Logger.warn("Failed to configure socket options", error: ex.message)
     end
 
     private def handle_request(context : HTTP::Server::Context)

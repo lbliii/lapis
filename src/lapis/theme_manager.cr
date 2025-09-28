@@ -14,7 +14,7 @@ module Lapis
 
     def initialize(@current_theme : String, project_root : String = ".", theme_dir : String? = nil)
       @project_root = project_root
-      @global_themes_dir = File.expand_path("~/.lapis/themes")
+      @global_themes_dir = Path["~/.lapis/themes"].expand.to_s
 
       # Use custom theme_dir if provided
       if theme_dir
@@ -28,6 +28,8 @@ module Lapis
 
     # Main theme resolution - finds templates, assets, etc.
     def resolve_file(file_path : String, file_type : String = "layout") : String?
+      Logger.path_operation("resolve_file", file_path, type: file_type)
+
       search_paths = case file_type
                      when "layout"
                        layout_search_paths(file_path)
@@ -56,14 +58,14 @@ module Lapis
 
       # Collect from all theme paths (reverse order for proper precedence)
       @theme_paths.reverse.each do |theme_path|
-        static_dir = File.join(theme_path, "static")
+        static_dir = Path[theme_path].join("static").to_s
         next unless Dir.exists?(static_dir)
 
         collect_assets_from_dir(static_dir, "", assets)
       end
 
       # User static assets override everything
-      user_static = File.join(@project_root, "static")
+      user_static = Path[@project_root].join("static").to_s
       if Dir.exists?(user_static)
         collect_assets_from_dir(user_static, "", assets)
       end
@@ -104,11 +106,11 @@ module Lapis
     def detect_shard_themes : Array(ShardTheme)
       shard_themes = [] of ShardTheme
 
-      lib_dir = File.join(@project_root, "lib")
+      lib_dir = Path[@project_root].join("lib").to_s
       return shard_themes unless Dir.exists?(lib_dir)
 
       Dir.each_child(lib_dir) do |shard_name|
-        shard_path = File.join(lib_dir, shard_name)
+        shard_path = Path[lib_dir].join(shard_name).to_s
         next unless Dir.exists?(shard_path)
 
         # Check if this shard is a Lapis theme
@@ -131,11 +133,11 @@ module Lapis
       themes = {} of String => String
 
       # 1. Local themes in themes/ directory
-      themes_dir = File.join(@project_root, "themes")
+      themes_dir = Path[@project_root].join("themes").to_s
       if Dir.exists?(themes_dir)
         Dir.each_child(themes_dir) do |theme_name|
-          theme_path = File.join(themes_dir, theme_name)
-          if Dir.exists?(theme_path) && Dir.exists?(File.join(theme_path, "layouts"))
+          theme_path = Path[themes_dir].join(theme_name).to_s
+          if Dir.exists?(theme_path) && Dir.exists?(Path[theme_path].join("layouts").to_s)
             themes[theme_name] = "local"
           end
         end
@@ -149,8 +151,8 @@ module Lapis
       # 3. Global themes
       if Dir.exists?(@global_themes_dir)
         Dir.each_child(@global_themes_dir) do |theme_name|
-          theme_path = File.join(@global_themes_dir, theme_name)
-          if Dir.exists?(theme_path) && Dir.exists?(File.join(theme_path, "layouts"))
+          theme_path = Path[@global_themes_dir].join(theme_name).to_s
+          if Dir.exists?(theme_path) && Dir.exists?(Path[theme_path].join("layouts").to_s)
             themes[theme_name] ||= "global" # Don't override local/shard themes
           end
         end
@@ -178,31 +180,31 @@ module Lapis
 
       # 0. Custom theme directory (highest priority)
       if @custom_theme_dir
-        custom_path = File.expand_path(@custom_theme_dir.not_nil!, @project_root)
+        custom_path = Path[@custom_theme_dir.try { |dir| dir } || "themes/default"].expand(@project_root).to_s
         @theme_paths << custom_path if Dir.exists?(custom_path)
       end
 
       # 1. Project-local themes directory
-      project_themes = File.join(@project_root, "themes", @current_theme)
+      project_themes = Path[@project_root].join("themes", @current_theme).to_s
       @theme_paths << project_themes if Dir.exists?(project_themes)
 
       # 2. Shard-based themes (lib/theme-name)
-      shard_theme_path = File.join(@project_root, "lib", @current_theme)
+      shard_theme_path = Path[@project_root].join("lib", @current_theme).to_s
       @theme_paths << shard_theme_path if Dir.exists?(shard_theme_path)
 
       # Alternative shard naming patterns
       ["lapis-theme-#{@current_theme}", "lapis_theme_#{@current_theme}"].each do |shard_name|
-        shard_path = File.join(@project_root, "lib", shard_name)
+        shard_path = Path[@project_root].join("lib", shard_name).to_s
         @theme_paths << shard_path if Dir.exists?(shard_path)
       end
 
       # 3. Global themes directory
-      global_theme = File.join(@global_themes_dir, @current_theme)
+      global_theme = Path[@global_themes_dir].join(@current_theme).to_s
       @theme_paths << global_theme if Dir.exists?(global_theme)
 
       # 4. Embedded default theme (always available as fallback)
       if @current_theme == "default"
-        embedded_theme = File.join(@project_root, "themes", "default")
+        embedded_theme = Path[@project_root].join("themes", "default").to_s
         @theme_paths << embedded_theme if Dir.exists?(embedded_theme)
       end
 
@@ -220,16 +222,16 @@ module Lapis
       paths = [] of String
 
       # 1. User layout overrides (highest priority)
-      user_layout = File.join(@project_root, "layouts", file_path)
+      user_layout = Path[@project_root].join("layouts", file_path).to_s
       paths << user_layout
 
       # 2. Theme layouts
       @theme_paths.each do |theme_path|
-        theme_layout = File.join(theme_path, "layouts", file_path)
+        theme_layout = Path[theme_path].join("layouts", file_path).to_s
         paths << theme_layout
 
         # Also check _default subdirectory
-        default_layout = File.join(theme_path, "layouts", "_default", file_path)
+        default_layout = Path[theme_path].join("layouts", "_default", file_path).to_s
         paths << default_layout
       end
 
@@ -240,12 +242,12 @@ module Lapis
       paths = [] of String
 
       # 1. User partials
-      user_partial = File.join(@project_root, "layouts", "partials", file_path)
+      user_partial = Path[@project_root].join("layouts", "partials", file_path).to_s
       paths << user_partial
 
       # 2. Theme partials
       @theme_paths.each do |theme_path|
-        theme_partial = File.join(theme_path, "layouts", "partials", file_path)
+        theme_partial = Path[theme_path].join("layouts", "partials", file_path).to_s
         paths << theme_partial
       end
 
@@ -256,12 +258,12 @@ module Lapis
       paths = [] of String
 
       # 1. User static assets
-      user_asset = File.join(@project_root, "static", file_path)
+      user_asset = Path[@project_root].join("static", file_path).to_s
       paths << user_asset
 
       # 2. Theme static assets
       @theme_paths.each do |theme_path|
-        theme_asset = File.join(theme_path, "static", file_path)
+        theme_asset = Path[theme_path].join("static", file_path).to_s
         paths << theme_asset
       end
 
@@ -273,9 +275,9 @@ module Lapis
 
       # Search in theme root and common subdirectories
       @theme_paths.each do |theme_path|
-        paths << File.join(theme_path, file_path)
-        paths << File.join(theme_path, "config", file_path)
-        paths << File.join(theme_path, "data", file_path)
+        paths << Path[theme_path].join(file_path).to_s
+        paths << Path[theme_path].join("config", file_path).to_s
+        paths << Path[theme_path].join("data", file_path).to_s
       end
 
       paths
@@ -300,7 +302,7 @@ module Lapis
         end
 
         # Check for layouts directory
-        layouts_dir = File.join(theme_path, "layouts")
+        layouts_dir = Path[theme_path].join("layouts").to_s
         unless Dir.exists?(layouts_dir)
           result["error"] = "Missing layouts directory"
           return result
@@ -308,17 +310,17 @@ module Lapis
         result["has_layouts"] = true
 
         # Check for essential layout files
-        baseof_html_default = File.join(layouts_dir, "_default", "baseof.html")
-        baseof_html_root = File.join(layouts_dir, "baseof.html")
+        baseof_html_default = Path[layouts_dir].join("_default", "baseof.html").to_s
+        baseof_html_root = Path[layouts_dir].join("baseof.html").to_s
         result["has_baseof"] = File.exists?(baseof_html_default) || File.exists?(baseof_html_root)
 
-        default_layout = File.join(layouts_dir, "_default", "single.html") ||
-                         File.join(layouts_dir, "index.html")
-        result["has_default_layout"] = File.exists?(File.join(layouts_dir, "_default", "single.html")) ||
-                                       File.exists?(File.join(layouts_dir, "index.html"))
+        default_layout = Path[layouts_dir].join("_default", "single.html").to_s ||
+                         Path[layouts_dir].join("index.html").to_s
+        result["has_default_layout"] = File.exists?(Path[layouts_dir].join("_default", "single.html").to_s) ||
+                                       File.exists?(Path[layouts_dir].join("index.html").to_s)
 
         # Check for theme configuration
-        theme_config = File.join(theme_path, "theme.yml")
+        theme_config = Path[theme_path].join("theme.yml").to_s
         result["has_theme_config"] = File.exists?(theme_config)
 
         # Theme is valid if it has layouts and at least one layout file
@@ -336,7 +338,7 @@ module Lapis
       result = validate_theme(shard_path)
 
       # Additional shard-specific validations
-      shard_yml = File.join(shard_path, "shard.yml")
+      shard_yml = Path[shard_path].join("shard.yml").to_s
       unless File.exists?(shard_yml)
         result["valid"] = false
         result["error"] = "Missing shard.yml file"
@@ -389,11 +391,11 @@ module Lapis
 
     # Check if a directory contains a valid Lapis theme shard
     private def lapis_theme_shard?(shard_path : String) : Bool
-      shard_yml = File.join(shard_path, "shard.yml")
+      shard_yml = Path[shard_path].join("shard.yml").to_s
       return false unless File.exists?(shard_yml)
 
       # Must have layouts directory
-      return false unless Dir.exists?(File.join(shard_path, "layouts"))
+      return false unless Dir.exists?(Path[shard_path].join("layouts").to_s)
 
       begin
         shard_config = YAML.parse(File.read(shard_yml)).as_h
@@ -428,8 +430,8 @@ module Lapis
 
     private def collect_assets_from_dir(dir : String, prefix : String, assets : Hash(String, String))
       Dir.each_child(dir) do |child|
-        child_path = File.join(dir, child)
-        relative_path = prefix.empty? ? child : File.join(prefix, child)
+        child_path = Path[dir].join(child).to_s
+        relative_path = prefix.empty? ? child : Path[prefix].join(child).to_s
 
         if Dir.exists?(child_path)
           collect_assets_from_dir(child_path, relative_path, assets)

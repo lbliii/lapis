@@ -3,6 +3,7 @@ require "yaml"
 require "log"
 require "./logger"
 require "./exceptions"
+require "./pretty_print_utils"
 
 module Lapis
   # Enhanced JSON/YAML processing with validation
@@ -29,6 +30,7 @@ module Lapis
 
     # Type-safe JSON parsing method
     def self.parse_json_typed(json_string : String) : PostData
+      raise ArgumentError.new("JSON string cannot be empty") if json_string.strip.empty?
       Logger.debug("Parsing JSON with type safety", size: json_string.size.to_s)
 
       begin
@@ -38,6 +40,9 @@ module Lapis
       rescue ex : JSON::ParseException
         Logger.error("Type-safe JSON parsing error", error: ex.message.to_s)
         raise ValidationError.new("Type-safe JSON parsing error: #{ex.message}", "json", json_string[0..100])
+      rescue ex : ::TypeCastError
+        Logger.error("Type cast error in JSON parsing", error: ex.message.to_s)
+        raise Lapis::TypeCastError.new("Type cast error in JSON parsing: #{ex.message}", ex, "JSON", "PostData", json_string[0..100])
       rescue ex
         Logger.error("Unexpected type-safe JSON error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected type-safe JSON error: #{ex.message}")
@@ -46,6 +51,7 @@ module Lapis
 
     # JSON processing
     def self.parse_json(json_string : String) : JSON::Any
+      raise ArgumentError.new("JSON string cannot be empty") if json_string.strip.empty?
       Logger.debug("Parsing JSON", size: json_string.size.to_s)
 
       begin
@@ -55,6 +61,9 @@ module Lapis
       rescue ex : JSON::ParseException
         Logger.error("JSON parsing error", error: ex.message.to_s)
         raise ValidationError.new("JSON parsing error: #{ex.message}", "json", json_string[0..100])
+      rescue ex : ::TypeCastError
+        Logger.error("Type cast error in JSON parsing", error: ex.message.to_s)
+        raise Lapis::TypeCastError.new("Type cast error in JSON parsing: #{ex.message}", ex, "JSON", "JSON::Any", json_string[0..100])
       rescue ex
         Logger.error("Unexpected JSON error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected JSON error: #{ex.message}")
@@ -63,6 +72,7 @@ module Lapis
 
     # YAML processing
     def self.parse_yaml(yaml_string : String) : YAML::Any
+      raise ArgumentError.new("YAML string cannot be empty") if yaml_string.strip.empty?
       Logger.debug("Parsing YAML", size: yaml_string.size.to_s)
 
       begin
@@ -72,6 +82,9 @@ module Lapis
       rescue ex : YAML::ParseException
         Logger.error("YAML parsing error", error: ex.message.to_s)
         raise ValidationError.new("YAML parsing error: #{ex.message}", "yaml", yaml_string[0..100])
+      rescue ex : ::TypeCastError
+        Logger.error("Type cast error in YAML parsing", error: ex.message.to_s)
+        raise Lapis::TypeCastError.new("Type cast error in YAML parsing: #{ex.message}", ex, "YAML", "YAML::Any", yaml_string[0..100])
       rescue ex
         Logger.error("Unexpected YAML error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected YAML error: #{ex.message}")
@@ -122,12 +135,15 @@ module Lapis
       end
     end
 
-    # Pretty print JSON
+    # Pretty print JSON with enhanced formatting
     def self.pretty_json(data : JSON::Any) : String
       Logger.debug("Pretty printing JSON")
 
       begin
-        pretty = data.to_pretty_json
+        # Use PrettyPrintUtils for enhanced formatting
+        io = IO::Memory.new
+        PrettyPrintUtils.format_data_structure(data, io, 80)
+        pretty = io.to_s
         Logger.debug("JSON pretty printing successful")
         pretty
       rescue ex
@@ -136,18 +152,42 @@ module Lapis
       end
     end
 
-    # Pretty print YAML
+    # Pretty print YAML with enhanced formatting
     def self.pretty_yaml(data : YAML::Any) : String
       Logger.debug("Pretty printing YAML")
 
       begin
-        pretty = data.to_yaml
+        # Use PrettyPrintUtils for enhanced formatting
+        io = IO::Memory.new
+        PrettyPrintUtils.format_data_structure(data, io, 80)
+        pretty = io.to_s
         Logger.debug("YAML pretty printing successful")
         pretty
       rescue ex
         Logger.error("YAML pretty printing failed", error: ex.message)
         raise ValidationError.new("YAML pretty printing failed: #{ex.message}")
       end
+    end
+
+    # Enhanced pretty print with custom formatting options
+    def self.pretty_print(data : JSON::Any | YAML::Any, width : Int32 = 80, indent : Int32 = 2) : String
+      Logger.debug("Pretty printing data structure", width: width.to_s, indent: indent.to_s)
+
+      begin
+        io = IO::Memory.new
+        PrettyPrintUtils.format_data_structure(data, io, width, indent)
+        pretty = io.to_s
+        Logger.debug("Data structure pretty printing successful")
+        pretty
+      rescue ex
+        Logger.error("Data structure pretty printing failed", error: ex.message)
+        raise ValidationError.new("Data structure pretty printing failed: #{ex.message}")
+      end
+    end
+
+    # Pretty print with debug logging
+    def self.debug_pretty_print(data : JSON::Any | YAML::Any, message : String = "Data structure", **context)
+      Logger.debug_data(message, data, **context)
     end
 
     # Extract specific fields from JSON/YAML
@@ -173,19 +213,14 @@ module Lapis
     end
 
     # Merge multiple JSON/YAML objects
-    def self.merge_data(data_objects : Array(JSON::Any | YAML::Any)) : JSON::Any | YAML::Any
+    def self.merge_data(data_objects : Array(JSON::Any | YAML::Any)) : JSON::Any | YAML::Any | Nil
       Logger.debug("Merging data objects", count: data_objects.size.to_s)
 
-      return JSON::Any.new(nil) if data_objects.empty?
+      return nil if data_objects.empty?
 
-      result = data_objects[0]
-
-      data_objects[1..].each do |data|
-        result = merge_single_data(result, data)
-      end
-
-      Logger.debug("Data merge completed")
-      result
+      data_objects[1..].reduce(data_objects[0]) do |result, data|
+        merge_single_data(result, data)
+      end.tap { |merged| Logger.debug("Data merge completed", final_keys: merged.try(&.as_h?.try(&.keys)) || [] of String) }
     end
 
     private def self.convert_json_to_yaml(json_data : JSON::Any) : String
@@ -218,13 +253,33 @@ module Lapis
         # Convert primitive types explicitly for type safety
         case json_data.raw
         when String
-          YAML::Any.new(json_data.raw.as(String))
+          begin
+            YAML::Any.new(json_data.raw.as(String))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to String, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Int64
-          YAML::Any.new(json_data.raw.as(Int64))
+          begin
+            YAML::Any.new(json_data.raw.as(Int64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Int64, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Float64
-          YAML::Any.new(json_data.raw.as(Float64))
+          begin
+            YAML::Any.new(json_data.raw.as(Float64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Float64, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Bool
-          YAML::Any.new(json_data.raw.as(Bool))
+          begin
+            YAML::Any.new(json_data.raw.as(Bool))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Bool, using to_s", value: json_data.raw.inspect)
+            YAML::Any.new(json_data.raw.to_s)
+          end
         when Nil
           YAML::Any.new(nil)
         when Array(JSON::Any)
@@ -257,13 +312,33 @@ module Lapis
         # Convert primitive types explicitly for type safety
         case yaml_data.raw
         when String
-          JSON::Any.new(yaml_data.raw.as(String))
+          begin
+            JSON::Any.new(yaml_data.raw.as(String))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to String, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Int64
-          JSON::Any.new(yaml_data.raw.as(Int64))
+          begin
+            JSON::Any.new(yaml_data.raw.as(Int64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Int64, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Float64
-          JSON::Any.new(yaml_data.raw.as(Float64))
+          begin
+            JSON::Any.new(yaml_data.raw.as(Float64))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Float64, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Bool
-          JSON::Any.new(yaml_data.raw.as(Bool))
+          begin
+            JSON::Any.new(yaml_data.raw.as(Bool))
+          rescue ::TypeCastError
+            Logger.warn("Failed to cast to Bool, using to_s", value: yaml_data.raw.inspect)
+            JSON::Any.new(yaml_data.raw.to_s)
+          end
         when Nil
           JSON::Any.new(nil)
         else

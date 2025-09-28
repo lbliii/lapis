@@ -108,13 +108,13 @@ module Lapis
       Log.info { "File watcher monitoring directories:" }
       config = @config.live_reload_config
 
-      if config.watch_content && Dir.exists?(@config.content_dir)
+      if config.watch_content? && Dir.exists?(@config.content_dir)
         Log.info { "  - content: #{@config.content_dir}" }
       end
-      if config.watch_layouts && Dir.exists?(@config.layouts_dir)
+      if config.watch_layouts? && Dir.exists?(@config.layouts_dir)
         Log.info { "  - layouts: #{@config.layouts_dir}" }
       end
-      if config.watch_static && Dir.exists?(@config.static_dir)
+      if config.watch_static? && Dir.exists?(@config.static_dir)
         Log.info { "  - static: #{@config.static_dir}" }
       end
 
@@ -139,13 +139,13 @@ module Lapis
 
       config = @config.live_reload_config
 
-      if config.watch_content && Dir.exists?(@config.content_dir)
+      if config.watch_content? && Dir.exists?(@config.content_dir)
         scan_directory(@config.content_dir, "content")
       end
-      if config.watch_layouts && Dir.exists?(@config.layouts_dir)
+      if config.watch_layouts? && Dir.exists?(@config.layouts_dir)
         scan_directory(@config.layouts_dir, "layouts")
       end
-      if config.watch_static && Dir.exists?(@config.static_dir)
+      if config.watch_static? && Dir.exists?(@config.static_dir)
         scan_directory(@config.static_dir, "static")
       end
     end
@@ -167,13 +167,13 @@ module Lapis
     private def check_for_changes
       config = @config.live_reload_config
 
-      if config.watch_content && Dir.exists?(@config.content_dir)
+      if config.watch_content? && Dir.exists?(@config.content_dir)
         check_directory(@config.content_dir, "content")
       end
-      if config.watch_layouts && Dir.exists?(@config.layouts_dir)
+      if config.watch_layouts? && Dir.exists?(@config.layouts_dir)
         check_directory(@config.layouts_dir, "layouts")
       end
-      if config.watch_static && Dir.exists?(@config.static_dir)
+      if config.watch_static? && Dir.exists?(@config.static_dir)
         check_directory(@config.static_dir, "static")
       end
     end

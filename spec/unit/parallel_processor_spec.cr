@@ -50,11 +50,13 @@ describe Lapis::ParallelProcessor do
         Lapis::Result.new(task.id, true, "success")
       end
 
-      # Test with very short timeout
+      # Note: WaitGroup doesn't support timeout in the same way as channels
+      # The timeout parameter is kept for API compatibility but not actively used
       results = processor.process_parallel(tasks, task_processor, 50.milliseconds)
 
-      # Should return partial results due to timeout
-      results.size.should be <= 1
+      # Should complete all tasks (WaitGroup waits for all to finish)
+      results.size.should eq(1)
+      results.first.success.should be_true
     end
 
     it "handles empty task arrays", tags: [TestTags::FAST, TestTags::UNIT] do
@@ -90,15 +92,16 @@ describe Lapis::ParallelProcessor do
   end
 
   describe "worker management" do
-    it "spawns correct number of workers", tags: [TestTags::FAST, TestTags::UNIT] do
+    it "uses WaitGroup for synchronization", tags: [TestTags::FAST, TestTags::UNIT] do
       config = Lapis::BuildConfig.new(max_workers: 3)
       processor = Lapis::ParallelProcessor.new(config)
 
-      # Access private method for testing
-      processor.responds_to?(:spawn_workers).should be_true
+      # With WaitGroup, we don't need to test worker spawning directly
+      # The synchronization is handled automatically
+      processor.config.max_workers.should eq(3)
     end
 
-    it "handles worker cleanup", tags: [TestTags::FAST, TestTags::UNIT] do
+    it "handles task completion automatically", tags: [TestTags::FAST, TestTags::UNIT] do
       config = Lapis::BuildConfig.new(max_workers: 2)
       processor = Lapis::ParallelProcessor.new(config)
 
@@ -108,33 +111,33 @@ describe Lapis::ParallelProcessor do
         Lapis::Result.new(task.id, true, "success")
       end
 
-      # Process tasks to initialize workers
-      processor.process_parallel(tasks, task_processor)
+      # Process tasks - WaitGroup handles synchronization automatically
+      results = processor.process_parallel(tasks, task_processor)
 
-      # Workers should be cleaned up
-      processor.running.should be_false
+      # Should complete successfully
+      results.size.should eq(1)
+      results.first.success.should be_true
     end
   end
 
   describe "error handling" do
-    it "handles channel errors gracefully", tags: [TestTags::FAST, TestTags::UNIT] do
+    it "handles exceptions gracefully", tags: [TestTags::FAST, TestTags::UNIT] do
       config = Lapis::BuildConfig.new(max_workers: 1)
       processor = Lapis::ParallelProcessor.new(config)
-
-      # Close channels to simulate error
-      processor.work_channel.close
 
       tasks = [Lapis::Task.new("task1", "file1.md", :content_process)]
 
       task_processor = ->(task : Lapis::Task) do
-        Lapis::Result.new(task.id, true, "success")
+        raise "Simulated error"
       end
 
-      # Should handle closed channel gracefully
+      # Should handle exceptions gracefully
       results = processor.process_parallel(tasks, task_processor)
 
-      # Should return empty results due to channel error
-      results.size.should eq(0)
+      # Should return error result
+      results.size.should eq(1)
+      results.first.success.should be_false
+      results.first.error.should eq("Simulated error")
     end
   end
 end

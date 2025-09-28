@@ -12,6 +12,9 @@ dependencies:
   markd:
     github: icyleaf/markd
     version: "~> 0.5.0"
+  colorize:
+    github: crystal-lang/colorize
+    version: "~> 0.1.0"
 
 development_dependencies:
   ameba:
