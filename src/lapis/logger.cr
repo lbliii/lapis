@@ -9,49 +9,30 @@ module Lapis
     def self.setup(config : Config? = nil)
       return if @@initialized
 
+      # Determine log level
+      log_level =
+        if config && config.debug
+          Log::Severity::Debug
+        elsif ENV["LAPIS_LOG_LEVEL"]?
+          case ENV["LAPIS_LOG_LEVEL"].downcase
+          when "debug" then Log::Severity::Debug
+          when "info"  then Log::Severity::Info
+          when "warn"  then Log::Severity::Warn
+          when "error" then Log::Severity::Error
+          else              Log::Severity::Info
+          end
+        else
+          Log::Severity::Info
+        end
+
       # Simple console logging setup
       Log.setup do |c|
-        c.bind "*", :info, Log::IOBackend.new(STDOUT)
+        c.bind "*", log_level, Log::IOBackend.new(STDOUT)
       end
 
       @@initialized = true
       Log.info { "Lapis logging system initialized" }
     end
-
-    # Determine appropriate log level
-    private def self.determine_log_level(config : Config?) : Log::Severity
-      if config && config.debug
-        Log::Severity::Debug
-      elsif ENV["LAPIS_LOG_LEVEL"]?
-        case ENV["LAPIS_LOG_LEVEL"].downcase
-        when "debug" then Log::Severity::Debug
-        when "info"  then Log::Severity::Info
-        when "warn"  then Log::Severity::Warn
-        when "error" then Log::Severity::Error
-        else              Log::Severity::Info
-        end
-      else
-        Log::Severity::Info
-      end
-    end
-
-    # Convenience methods for different log levels
-    def self.debug(message : String, **context)
-      Log.debug { format_message(message, context) }
-    end
-
-    def self.info(message : String, **context)
-      Log.info { format_message(message, context) }
-    end
-
-    def self.warn(message : String, **context)
-      Log.warn { format_message(message, context) }
-    end
-
-    def self.error(message : String, **context)
-      Log.error { format_message(message, context) }
-    end
-
     def self.fatal(message : String, **context)
       Log.fatal { format_message(message, context) }
     end
