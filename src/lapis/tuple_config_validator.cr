@@ -322,7 +322,7 @@ module Lapis
 
     # Convert ConfigStructure NamedTuple back to Hash
     private def convert_config_tuple_to_hash(config_tuple : ConfigStructure) : Hash(String, YAML::Any)
-      config_tuple.to_h.transform_values { |v| YAML::Any.new(v) }
+      config_tuple.to_h.transform_keys(&.to_s).transform_values { |v| YAML::Any.new(v) }
     end
 
     # Enhanced configuration merging with type safety

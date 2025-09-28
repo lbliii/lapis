@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Site - Test Site</title>
+  <meta name="description" content="">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+
+    header {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+
+    .site-title {
+      font-size: 2em;
+      font-weight: bold;
+      color: #2c3e50;
+      text-decoration: none;
+    }
+
+    .site-description {
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .content {
+      margin-bottom: 40px;
+    }
+
+    .meta {
+      color: #666;
+      font-size: 0.9em;
+      margin-bottom: 20px;
+    }
+
+    .tag, .category {
+      background: #f8f9fa;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      margin-right: 5px;
+    }
+
+    footer {
+      border-top: 1px solid #eee;
+      padding-top: 20px;
+      text-align: center;
+      color: #666;
+      font-size: 0.9em;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      color: #2c3e50;
+    }
+
+    a {
+      color: #3498db;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    pre {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+
+    code {
+      background: #f8f9fa;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+
+    blockquote {
+      border-left: 4px solid #3498db;
+      margin: 0;
+      padding-left: 20px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="site-title">Test Site</a>
+    <div class="site-description"></div>
+  </header>
+
+  <main>
+    <article class="content">
+      <h1>Test Site</h1>
+
+      <div class="meta">
+        
+        
+        
+      </div>
+
+      <p>Welcome to your new Lapis site! Start by adding some content.</p>
+    </article>
+  </main>
+
+  <footer>
+    <p>Built with <a href="https://github.com/lapis-lang/lapis">Lapis</a> static site generator</p>
+  </footer>
+
+  <!-- Theme Debug Information -->
+  <div id="lapis-debug" style="position: fixed; bottom: 0; right: 0; width: 400px; max-height: 300px; background: #1a1a1a; color: #fff; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #333; z-index: 9999; overflow-y: auto; display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0; color: #4CAF50;">🔧 Lapis Debug</h3>
+      <button onclick="toggleDebug()" style="background: #333; color: #fff; border: 1px solid #555; padding: 2px 6px; cursor: pointer;">×</button>
+    </div>
+
+    <div class="debug-section">
+      <h4 style="color: #FF9800; margin: 5px 0;">Theme Info</h4>
+      <div><strong>Current Theme:</strong> default</div>
+      <div><strong>Theme Dir:</strong> themes/default</div>
+      <div><strong>Layouts Dir:</strong> layouts</div>
+      <div><strong>Static Dir:</strong> static</div>
+      <div><strong>Status:</strong> <span style="color: #F44336;">FALLBACK MODE</span></div>
+    </div>
+
+    <div class="debug-section">
+      <h4 style="color: #2196F3; margin: 5px 0;">Page Info</h4>
+      <div><strong>Layout:</strong> </div>
+      <div><strong>Kind:</strong> </div>
+      <div><strong>URL:</strong> </div>
+      <div><strong>File Path:</strong> </div>
+      <div><strong>Output Path:</strong> </div>
+    </div>
+
+    <div class="debug-section">
+      <h4 style="color: #9C27B0; margin: 5px 0;">Site Config</h4>
+      <div><strong>Title:</strong> Test Site</div>
+      <div><strong>Base URL:</strong> </div>
+      <div><strong>Output Dir:</strong> test_incremental_site/public</div>
+      <div><strong>Content Dir:</strong> content</div>
+      <div><strong>Debug Mode:</strong> </div>
+    </div>
+
+    <div class="debug-section">
+      <h4 style="color: #F44336; margin: 5px 0;">Template Context</h4>
+      <div><strong>Template Engine:</strong> Lapis v0.4.0</div>
+      <div><strong>Theme Manager:</strong> <span style="color: #F44336;">FAILED</span></div>
+      <div><strong>Partial System:</strong> <span style="color: #F44336;">DISABLED</span></div>
+      <div><strong>Live Reload:</strong> </div>
+    </div>
+
+    <div class="debug-section">
+      <h4 style="color: #4CAF50; margin: 5px 0;">Content Stats</h4>
+      <div><strong>Total Posts:</strong> </div>
+      <div><strong>Total Pages:</strong> </div>
+      <div><strong>Tags:</strong> </div>
+      <div><strong>Categories:</strong> </div>
+    </div>
+
+    <div class="debug-section">
+      <h4 style="color: #795548; margin: 5px 0;">Template Resolution</h4>
+      <div><strong>Current Template:</strong> <span style="color: #F44336;">FALLBACK</span></div>
+      <div><strong>Template Engine:</strong> Lapis Fallback</div>
+      <div><strong>Partial System:</strong> <span style="color: #F44336;">NOT AVAILABLE</span></div>
+      <div><strong>Theme Helpers:</strong> <span style="color: #F44336;">DISABLED</span></div>
+    </div>
+
+    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333; font-size: 10px; color: #888;">
+      <div>Press <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">Ctrl+D</kbd> to toggle</div>
+      <div>Add <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">?debug=true</kbd> to URL</div>
+      <div>Set <kbd style="background: #333; padding: 2px 4px; border-radius: 2px;">debug: true</kbd> in config</div>
+    </div>
+  </div>
+
+  <script>
+  let debugVisible = false;
+
+  function toggleDebug() {
+    const debugPanel = document.getElementById('lapis-debug');
+    if (debugPanel) {
+      debugVisible = !debugVisible;
+      debugPanel.style.display = debugVisible ? 'block' : 'none';
+    }
+  }
+
+  // Keyboard shortcut to toggle debug panel
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'd') {
+      e.preventDefault();
+      toggleDebug();
+    }
+  });
+
+  // Auto-show debug panel in development mode or with ?debug=true
+  function shouldShowDebug() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return window.location.hostname === 'localhost' ||
+           window.location.hostname === '127.0.0.1' ||
+           urlParams.get('debug') === 'true' ||
+           urlParams.get('lapis-debug') === 'true';
+  }
+
+  if (shouldShowDebug()) {
+    setTimeout(() => {
+      const debugPanel = document.getElementById('lapis-debug');
+      if (debugPanel) {
+        debugPanel.style.display = 'block';
+        debugVisible = true;
+      }
+    }, 1000);
+  }
+  </script>
+
+  <style>
+  #lapis-debug {
+    box-shadow: -2px -2px 10px rgba(0,0,0,0.3);
+    border-radius: 5px 0 0 0;
+  }
+
+  #lapis-debug .debug-section {
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #333;
+  }
+
+  #lapis-debug .debug-section:last-child {
+    border-bottom: none;
+  }
+
+  #lapis-debug div {
+    margin: 2px 0;
+    word-break: break-all;
+  }
+
+  #lapis-debug strong {
+    color: #fff;
+    font-weight: bold;
+  }
+
+  kbd {
+    font-family: monospace;
+    font-size: 10px;
+  }
+  </style>
+</body>
+</html>

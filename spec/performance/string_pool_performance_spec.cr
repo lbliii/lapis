@@ -1,12 +1,16 @@
 require "../spec_helper"
+require "string_pool"
 
 describe "StringPool Performance Integration" do
   it "validates StringPool memory efficiency in template processing" do
-    require "string_pool"
-
     # Test data setup
-    template_processor = Lapis::TemplateProcessor.new(Lapis::TemplateContext.new)
-    function_processor = Lapis::FunctionProcessor.new(Lapis::TemplateContext.new)
+    config = TestDataFactory.create_config("Test Site", "test_output")
+    frontmatter = TestDataFactory.create_content("Test Page", "test-page")
+    content = Lapis::Content.new("content/test-page.md", frontmatter, "Test content")
+    context = Lapis::TemplateContext.new(config, content)
+    
+    template_processor = Lapis::TemplateProcessor.new(context)
+    function_processor = Lapis::FunctionProcessor.new(context)
 
     # Benchmark string operations without StringPool
     start_time = Time.monotonic
@@ -72,7 +76,6 @@ describe "StringPool Performance Integration" do
   end
 
   it "validates StringPool effectiveness in function processing" do
-    require "string_pool"
 
     pool = StringPool.new(256)
 
@@ -127,7 +130,6 @@ describe "StringPool Performance Integration" do
   end
 
   it "measures memory usage reduction with StringPool" do
-    require "string_pool"
 
     # Create a scenario with many duplicate strings
     common_strings = [

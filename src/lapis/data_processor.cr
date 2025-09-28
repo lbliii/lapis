@@ -220,7 +220,7 @@ module Lapis
 
       data_objects[1..].reduce(data_objects[0]) do |result, data|
         merge_single_data(result, data)
-      end.tap { |merged| Logger.debug("Data merge completed", final_keys: merged.try(&.as_h?.keys) || [] of String) }
+      end.tap { |merged| Logger.debug("Data merge completed", final_keys: merged.try(&.as_h?.try(&.keys)) || [] of String) }
     end
 
     private def self.convert_json_to_yaml(json_data : JSON::Any) : String

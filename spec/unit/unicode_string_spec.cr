@@ -30,8 +30,8 @@ describe "Unicode String Processing" do
 
     it "checks Unicode normalization status" do
       test_string = "café"
-      Lapis::SafeCast.is_unicode_normalized?(test_string, :nfc).should be_true
-      Lapis::SafeCast.is_unicode_normalized?(test_string, :nfd).should be_false
+      Lapis::SafeCast.unicode_normalized?(test_string, :nfc).should be_true
+      Lapis::SafeCast.unicode_normalized?(test_string, :nfd).should be_false
     end
 
     it "performs advanced character analysis" do

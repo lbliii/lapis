@@ -64,7 +64,7 @@ module Lapis
       update_stats
       return {} of String => String unless @stats
 
-      stats = @stats.try { |s| s } || GC::Stats.new
+      stats = @stats.try { |s| s } || GC.stats
       heap_size = stats.heap_size.to_i64
       free_bytes = stats.free_bytes.to_i64
       {

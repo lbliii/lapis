@@ -1,0 +1,5 @@
+  title: "Test Site"
+  build:
+    incremental: true
+    cache_dir: ".test-cache"
+  theme: "default"

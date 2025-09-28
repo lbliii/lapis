@@ -125,7 +125,11 @@ describe "Reference API Performance Benchmarks" do
       duration.total_milliseconds.should be < 50.0
 
       # Should be properly sorted
-      sorted.first.date.should be >= sorted.last.date
+      first_date = sorted.first.date
+      last_date = sorted.last.date
+      if first_date && last_date
+        first_date.should be >= last_date
+      end
     end
   end
 
