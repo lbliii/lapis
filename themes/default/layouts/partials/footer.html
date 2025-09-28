@@ -1,3 +1,67 @@
 <footer class="site-footer">
-  <p>&copy; {{ site.title }} - Built with <a href="https://github.com/lapis-lang/lapis">Lapis</a></p>
+  <div class="footer-container">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>{{ site.title }}</h3>
+        <p>{{ site.description }}</p>
+        <div class="social-links">
+          {{ if site.social.github }}
+            <a href="https://github.com/{{ site.social.github }}" aria-label="GitHub">
+              <span class="social-icon">🐙</span>
+            </a>
+          {{ end }}
+          {{ if site.social.twitter }}
+            <a href="https://twitter.com/{{ site.social.twitter }}" aria-label="Twitter">
+              <span class="social-icon">🐦</span>
+            </a>
+          {{ end }}
+          {{ if site.social.email }}
+            <a href="mailto:{{ site.social.email }}" aria-label="Email">
+              <span class="social-icon">📧</span>
+            </a>
+          {{ end }}
+        </div>
+      </div>
+      
+      <div class="footer-section">
+        <h4>Navigation</h4>
+        <ul class="footer-links">
+          {{ range site.regular_pages }}
+            {{ if and (ne .url "/") (not .draft) }}
+              <li><a href="{{ .url }}">{{ .title }}</a></li>
+            {{ end }}
+          {{ end }}
+          <li><a href="/posts/">Posts</a></li>
+        </ul>
+      </div>
+      
+      <div class="footer-section">
+        <h4>Resources</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/lapis-lang/lapis">GitHub</a></li>
+          <li><a href="https://github.com/lapis-lang/lapis/discussions">Discussions</a></li>
+          <li><a href="https://github.com/lapis-lang/lapis/issues">Issues</a></li>
+          <li><a href="https://github.com/lapis-lang/lapis/blob/main/CONTRIBUTING.md">Contributing</a></li>
+        </ul>
+      </div>
+      
+      <div class="footer-section">
+        <h4>Site Info</h4>
+        <div class="site-stats">
+          <div class="stat">
+            <span class="stat-number">{{ len site.pages }}</span>
+            <span class="stat-label">Pages</span>
+          </div>
+          <div class="stat">
+            <span class="stat-number">{{ len site.posts }}</span>
+            <span class="stat-label">Posts</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer-bottom">
+      <p>&copy; {{ now | dateFormat "2006" }} {{ site.title }}. Built with <a href="https://github.com/lapis-lang/lapis">Lapis</a> ⚡</p>
+    </div>
+  </div>
 </footer>

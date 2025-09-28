@@ -1,8 +1,9 @@
 title: "Lapis Example Site"
 baseurl: "http://localhost:3000"
-description: "Showcasing the power of Crystal-based static site generation with modern features"
+description: "Comprehensive showcase of Crystal-powered static site generation with modern features, performance optimization, and developer experience"
 author: "Lapis Team"
 theme: "default"
+theme_dir: "../themes/default"
 
 # Multi-format output configuration
 outputs:
@@ -11,7 +12,7 @@ outputs:
   list: ["html", "rss"]
 
 # Blog-specific settings
-posts_per_page: 10
+posts_per_page: 6
 excerpt_length: 200
 show_reading_time: true
 
@@ -20,9 +21,10 @@ social:
   twitter: "lapis_ssg"
   github: "lapis-lang/lapis"
   email: "hello@lapis-example.com"
+  linkedin: "lapis-ssg"
 
 # SEO settings
-google_analytics: ""
+google_analytics: "GA-XXXXXXXXX"
 facebook_app_id: ""
 
 # Build settings
@@ -39,3 +41,57 @@ markdown:
   toc: true
   smart_quotes: true
   footnotes: true
+  tables: true
+  strikethrough: true
+  autolinks: true
+
+# Performance optimization
+build:
+  incremental: true
+  parallel: false
+  cache_dir: ".lapis-cache"
+  max_workers: 4
+
+# Asset optimization
+bundling:
+  enabled: true
+  minify: true
+  source_maps: false
+  autoprefix: true
+
+# Live reload for development
+live_reload:
+  enabled: true
+  websocket_path: "/ws"
+  debounce_ms: 300
+
+# Plugin configuration
+plugins:
+  seo:
+    enabled: true
+    generate_sitemap: true
+    generate_robots_txt: true
+    auto_meta_tags: true
+    structured_data: true
+    social_cards: true
+  
+  analytics:
+    enabled: true
+    providers:
+      google_analytics:
+        tracking_id: "GA-XXXXXXXXX"
+        enabled: true
+      plausible:
+        domain: "example.com"
+        enabled: false
+
+# Custom taxonomies
+taxonomies:
+  tags:
+    weight: 1
+  categories:
+    weight: 2
+  authors:
+    weight: 3
+  series:
+    weight: 4

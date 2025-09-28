@@ -5,19 +5,29 @@
   {{ partial "head" . }}
   {{ endblock }}
 </head>
-<body>
+<body class="layout-{{ page.layout | default: "default" }}">
   {{ block "header" }}
   {{ partial "header" . }}
   {{ endblock }}
 
-  {{ block "main" }}
-  <main class="main-content">
-    {{ content }}
-  </main>
-  {{ endblock }}
+  <div class="site-container">
+    {{ block "sidebar" }}
+    {{ partial "sidebar" . }}
+    {{ endblock }}
+
+    {{ block "main" }}
+    <main class="main-content">
+      <div class="content-wrapper">
+        {{ content }}
+      </div>
+    </main>
+    {{ endblock }}
+  </div>
 
   {{ block "footer" }}
   {{ partial "footer" . }}
   {{ endblock }}
+
+  <script src="/assets/js/main.js"></script>
 </body>
 </html>

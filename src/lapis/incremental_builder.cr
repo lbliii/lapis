@@ -15,6 +15,7 @@ module Lapis
     def initialize(@cache_dir : String)
       Logger.debug("Initializing incremental builder", cache_dir: @cache_dir)
       Dir.mkdir_p(@cache_dir)
+      initialize_cache_files
       load_cache
       Logger.debug("Incremental builder initialized",
         cache_dir: @cache_dir,
@@ -121,6 +122,17 @@ module Lapis
         "dependencies"        => @dependencies.size,
         "build_cache_entries" => @build_cache.size,
       }
+    end
+
+    private def initialize_cache_files
+      # Create empty cache files if they don't exist
+      timestamps_file = File.join(@cache_dir, "timestamps.yml")
+      dependencies_file = File.join(@cache_dir, "dependencies.yml")
+      cache_file = File.join(@cache_dir, "build_cache.yml")
+
+      File.write(timestamps_file, ({} of String => String).to_yaml) unless File.exists?(timestamps_file)
+      File.write(dependencies_file, ({} of String => Array(String)).to_yaml) unless File.exists?(dependencies_file)
+      File.write(cache_file, ({} of String => String).to_yaml) unless File.exists?(cache_file)
     end
 
     private def load_cache

@@ -104,25 +104,34 @@ module Lapis
 
       # Scan static directory
       if Dir.exists?(@config.static_dir)
+        Logger.debug("Scanning static directory", path: @config.static_dir)
         Dir.glob(File.join(@config.static_dir, "**/*")).each do |file_path|
           next unless File.file?(file_path)
 
           asset_info = PipelineAssetInfo.new(file_path)
           assets << asset_info
+          Logger.debug("Found static asset", path: file_path, type: asset_info.type.to_s)
         end
+      else
+        Logger.debug("Static directory not found", path: @config.static_dir)
       end
 
       # Scan theme assets
-      theme_assets_dir = File.join("themes", @config.theme, "assets")
+      theme_assets_dir = File.join(@config.theme_dir, "static")
       if Dir.exists?(theme_assets_dir)
+        Logger.debug("Scanning theme assets directory", path: theme_assets_dir)
         Dir.glob(File.join(theme_assets_dir, "**/*")).each do |file_path|
           next unless File.file?(file_path)
 
           asset_info = PipelineAssetInfo.new(file_path)
           assets << asset_info
+          Logger.debug("Found theme asset", path: file_path, type: asset_info.type.to_s)
         end
+      else
+        Logger.debug("Theme assets directory not found", path: theme_assets_dir)
       end
 
+      Logger.debug("Total assets discovered", count: assets.size.to_s)
       assets
     end
 
@@ -455,8 +464,14 @@ module Lapis
       # Extract relative path from static directory or theme
       if full_path.starts_with?(@config.static_dir)
         full_path[@config.static_dir.size + 1..]
-      elsif full_path.starts_with?("themes")
-        full_path
+      elsif full_path.starts_with?(@config.theme_dir)
+        # For theme assets, extract path relative to theme/static
+        theme_static_dir = File.join(@config.theme_dir, "static")
+        if full_path.starts_with?(theme_static_dir)
+          full_path[theme_static_dir.size + 1..]
+        else
+          File.basename(full_path)
+        end
       else
         File.basename(full_path)
       end

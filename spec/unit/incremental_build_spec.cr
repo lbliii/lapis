@@ -77,10 +77,9 @@ describe "Incremental Build System" do
       # Test that generator can be instantiated with incremental config
       generator.should be_a(Lapis::Generator)
 
-      # Test that the build method can be called (even if it might fail due to missing files)
-      expect_raises(Exception) do
-        generator.build_with_analytics
-      end
+      # Test that the build method works with incremental config
+      # The method should complete successfully when all required directories exist
+      generator.build_with_analytics
     end
 
     it "uses regular build when incremental is disabled" do
@@ -92,10 +91,9 @@ describe "Incremental Build System" do
       # Test that generator can be instantiated with non-incremental config
       generator.should be_a(Lapis::Generator)
 
-      # Test that the build method can be called (even if it might fail due to missing files)
-      expect_raises(Exception) do
-        generator.build_with_analytics
-      end
+      # Test that the build method works with non-incremental config
+      # The method should complete successfully when all required directories exist
+      generator.build_with_analytics
     end
   end
 end

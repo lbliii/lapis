@@ -234,11 +234,8 @@ module Lapis
             build_parallel: config.build_config.parallel,
             build_max_workers: config.build_config.max_workers)
           config
-        rescue ex : YAML::ParseException
-          Logger.error("Failed to parse config file",
-            path: path,
-            error: ex.message)
-          raise ex
+        rescue YAML::ParseException => ex
+          raise ConfigError.new("Failed to parse config file: #{ex.message}")
         rescue ex
           Logger.error("Failed to load config file",
             path: path,
@@ -284,6 +281,10 @@ module Lapis
 
       if @root_dir.empty?
         @root_dir = "."
+      end
+
+      if @port == 0
+        @port = 3000
       end
     end
   end
