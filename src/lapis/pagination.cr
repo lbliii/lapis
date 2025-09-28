@@ -15,10 +15,11 @@ module Lapis
     property base_url : String
 
     def initialize(@items : Array(Content), @per_page : Int32 = 10, @current_page : Int32 = 1, @base_url : String = "/posts")
+      validate_per_page(@per_page)
+      validate_current_page(@current_page)
     end
 
     def total_pages : Int32
-      return 0 if @per_page <= 0
       (@items.size.to_f / @per_page).ceil.to_i
     end
 
@@ -206,6 +207,18 @@ module Lapis
       </nav>
       HTML
     end
+
+    private def validate_per_page(per_page : Int32)
+      if per_page <= 0
+        raise ArgumentError.new("per_page must be greater than 0, got: #{per_page}")
+      end
+    end
+
+    private def validate_current_page(current_page : Int32)
+      if current_page < 1
+        raise ArgumentError.new("current_page must be greater than or equal to 1, got: #{current_page}")
+      end
+    end
   end
 
   class PaginationGenerator
@@ -214,7 +227,14 @@ module Lapis
     def initialize(@config : Config)
     end
 
+    private def validate_per_page(per_page : Int32)
+      if per_page <= 0
+        raise ArgumentError.new("per_page must be greater than 0, got: #{per_page}")
+      end
+    end
+
     def generate_paginated_archives(posts : Array(Content), per_page : Int32 = 10)
+      validate_per_page(per_page)
       total_pages = (posts.size.to_f / per_page).ceil.to_i
       page_range = 1..total_pages
 
@@ -228,6 +248,7 @@ module Lapis
     end
 
     def generate_tag_paginated_archives(posts_by_tag : Hash(String, Array(Content)), per_page : Int32 = 10)
+      validate_per_page(per_page)
       posts_by_tag.each do |tag, tag_posts|
         tag_slug = tag.downcase.gsub(/[^a-z0-9]/, "-")
         total_pages = (tag_posts.size.to_f / per_page).ceil.to_i

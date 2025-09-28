@@ -48,8 +48,11 @@ module Lapis
 
         # Send input if provided
         if input && process.input
-          process.input.try(&.print(input))
-          process.input.try(&.close)
+          begin
+            process.input.try(&.print(input))
+          ensure
+            process.input.try(&.close)
+          end
         end
 
         # Wait for process completion with timeout
@@ -111,8 +114,11 @@ module Lapis
 
       # Send input if provided
       if input && process.input
-        process.input.try(&.print(input))
-        process.input.try(&.close)
+        begin
+          process.input.try(&.print(input))
+        ensure
+          process.input.try(&.close)
+        end
       end
 
       Logger.info("Command started asynchronously",

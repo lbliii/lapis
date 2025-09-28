@@ -72,14 +72,14 @@ module Lapis
       end
     end
 
-    # Base processor template using Proc#partial for specialization
+    # Base processor template using proper closure for specialization
     private def create_base_processor(processor : Proc(String, String)) : Proc(Task, Result)
-      ->(proc : Proc(String, String), task : Task) do
+      ->(task : Task) do
         start_time = Time.monotonic
         Logger.debug("Processing task", task_id: task.id, file: task.file_path)
 
         begin
-          output = proc.call(task.file_path)
+          output = processor.call(task.file_path)
           duration = Time.monotonic - start_time
           Logger.debug("Task completed successfully",
             task_id: task.id,
@@ -93,7 +93,7 @@ module Lapis
             duration_ms: duration.total_milliseconds.to_i.to_s)
           Result.new(task.id, false, nil, ex.message, duration)
         end
-      end.partial(processor)
+      end
     end
 
     def process_parallel(tasks : Array(Task), processor : Proc(Task, Result), timeout : Time::Span? = nil) : Array(Result)
@@ -115,9 +115,8 @@ module Lapis
             Logger.debug("Processing task", task_id: task.id, file: task.file_path)
 
             begin
-              # Clone processor for thread safety using Proc#clone
-              cloned_processor = processor.clone
-              result = route_task_by_type(task, cloned_processor)
+              # Use processor directly - Procs are thread-safe when they don't capture mutable state
+              result = route_task_by_type(task, processor)
               duration = Time.monotonic - start_time
 
               if result.success
@@ -170,7 +169,7 @@ module Lapis
         Task.new("content_#{index}", file_path, :content_process)
       end
 
-      # Use Proc#partial to create specialized content processor
+      # Use closure to create specialized content processor
       content_processor = create_base_processor(processor)
       process_parallel(tasks, content_processor)
     end
@@ -180,7 +179,7 @@ module Lapis
         Task.new("asset_#{index}", file_path, :asset_process)
       end
 
-      # Use Proc#partial to create specialized asset processor
+      # Use closure to create specialized asset processor
       asset_processor = create_base_processor(processor)
       process_parallel(tasks, asset_processor)
     end

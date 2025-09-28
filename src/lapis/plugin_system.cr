@@ -187,10 +187,14 @@ module Lapis
       end
     end
 
-    # Enhanced conversion using NamedTuple.from for type safety
+    # Enhanced conversion using NamedTuple constructor for type safety
     private def convert_yaml_to_plugin_config(yaml_hash : Hash(YAML::Any, YAML::Any)) : PluginConfigStructure
-      # Use NamedTuple.from for automatic type casting
-      PluginConfigStructure.from(yaml_hash.transform_values(&.raw))
+      # Use NamedTuple constructor for automatic type casting
+      transformed = yaml_hash.transform_values(&.raw)
+      {
+        enabled: transformed["enabled"]?.as?(Bool),
+        options: transformed["options"]?.as?(Hash(String, String)),
+      }
     end
 
     # Legacy method for backward compatibility
@@ -221,7 +225,17 @@ module Lapis
     private def convert_named_tuple_to_hash(config_tuple : PluginConfigStructure) : Hash(String, YAML::Any)
       result = Hash(String, YAML::Any).new
       config_tuple.each do |key, value|
-        result[key.to_s] = YAML::Any.new(value)
+        case value
+        when Bool
+          result[key.to_s] = YAML::Any.new(value)
+        when Hash(String, String)
+          yaml_hash = value.transform_keys { |k| YAML::Any.new(k) }.transform_values { |v| YAML::Any.new(v) }
+          result[key.to_s] = YAML::Any.new(yaml_hash)
+        when String
+          result[key.to_s] = YAML::Any.new(value)
+        else
+          result[key.to_s] = YAML::Any.new(nil)
+        end
       end
       result
     end
@@ -321,7 +335,17 @@ module Lapis
     private def convert_named_tuple_to_hash(config_tuple : PluginConfigStructure) : Hash(String, YAML::Any)
       result = Hash(String, YAML::Any).new
       config_tuple.each do |key, value|
-        result[key.to_s] = YAML::Any.new(value)
+        case value
+        when Bool
+          result[key.to_s] = YAML::Any.new(value)
+        when Hash(String, String)
+          yaml_hash = value.transform_keys { |k| YAML::Any.new(k) }.transform_values { |v| YAML::Any.new(v) }
+          result[key.to_s] = YAML::Any.new(yaml_hash)
+        when String
+          result[key.to_s] = YAML::Any.new(value)
+        else
+          result[key.to_s] = YAML::Any.new(nil)
+        end
       end
       result
     end
@@ -380,7 +404,17 @@ module Lapis
     private def convert_named_tuple_to_hash(config_tuple : PluginConfigStructure) : Hash(String, YAML::Any)
       result = Hash(String, YAML::Any).new
       config_tuple.each do |key, value|
-        result[key.to_s] = YAML::Any.new(value)
+        case value
+        when Bool
+          result[key.to_s] = YAML::Any.new(value)
+        when Hash(String, String)
+          yaml_hash = value.transform_keys { |k| YAML::Any.new(k) }.transform_values { |v| YAML::Any.new(v) }
+          result[key.to_s] = YAML::Any.new(yaml_hash)
+        when String
+          result[key.to_s] = YAML::Any.new(value)
+        else
+          result[key.to_s] = YAML::Any.new(nil)
+        end
       end
       result
     end

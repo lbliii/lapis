@@ -317,17 +317,17 @@ module Lapis
 
     # Convert Hash to type-safe ConfigStructure NamedTuple
     private def convert_hash_to_config_tuple(config : Hash(String, YAML::Any)) : ConfigStructure
-      ConfigStructure.from({
-        "title"       => config["title"]?.try(&.as_s) || "Default Site",
-        "base_url"    => config["base_url"]?.try(&.as_s) || "",
-        "theme"       => config["theme"]?.try(&.as_s) || "default",
-        "output_dir"  => config["output_dir"]?.try(&.as_s) || "public",
-        "content_dir" => config["content_dir"]?.try(&.as_s) || "content",
-        "description" => config["description"]?.try(&.as_s),
-        "author"      => config["author"]?.try(&.as_s),
-        "copyright"   => config["copyright"]?.try(&.as_s),
-        "debug"       => config["debug"]?.try(&.as_bool),
-      })
+      {
+        title:       config["title"]?.try(&.as_s) || "Default Site",
+        base_url:    config["base_url"]?.try(&.as_s) || "",
+        theme:       config["theme"]?.try(&.as_s) || "default",
+        output_dir:  config["output_dir"]?.try(&.as_s) || "public",
+        content_dir: config["content_dir"]?.try(&.as_s) || "content",
+        description: config["description"]?.try(&.as_s),
+        author:      config["author"]?.try(&.as_s),
+        copyright:   config["copyright"]?.try(&.as_s),
+        debug:       config["debug"]?.try(&.as_bool),
+      }
     end
 
     # Convert ConfigStructure NamedTuple back to Hash

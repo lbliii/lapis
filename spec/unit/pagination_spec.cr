@@ -105,22 +105,24 @@ describe Lapis::Paginator do
   end
 
   describe "Error handling" do
-    it "handles zero per_page gracefully", tags: [TestTags::FAST, TestTags::UNIT] do
+    it "raises ArgumentError for zero per_page", tags: [TestTags::FAST, TestTags::UNIT] do
       content = (1..5).map do |i|
         TestDataFactory.create_content_item("Post #{i}", "2024-01-#{i.to_s.rjust(2, '0')}", ["test"], "posts")
       end
 
-      paginator = Lapis::Paginator.new(content, 0, 1)
-      paginator.current_items.should be_empty
+      expect_raises(ArgumentError, "per_page must be greater than 0, got: 0") do
+        Lapis::Paginator.new(content, 0, 1)
+      end
     end
 
-    it "handles negative page numbers gracefully", tags: [TestTags::FAST, TestTags::UNIT] do
+    it "raises ArgumentError for negative page numbers", tags: [TestTags::FAST, TestTags::UNIT] do
       content = (1..5).map do |i|
         TestDataFactory.create_content_item("Post #{i}", "2024-01-#{i.to_s.rjust(2, '0')}", ["test"], "posts")
       end
 
-      paginator = Lapis::Paginator.new(content, 3, -1)
-      paginator.current_items.should be_empty
+      expect_raises(ArgumentError, "current_page must be greater than or equal to 1, got: -1") do
+        Lapis::Paginator.new(content, 3, -1)
+      end
     end
 
     it "handles large page numbers gracefully", tags: [TestTags::FAST, TestTags::UNIT] do

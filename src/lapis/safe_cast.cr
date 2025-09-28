@@ -97,8 +97,7 @@ module Lapis
       first_char = chars[0]
       return false unless first_char.letter? || first_char == '_'
       # Remaining characters must be letters, digits, or underscores
-      range = 1...chars.size
-      range.all? { |i| chars[i].letter? || chars[i].number? || chars[i] == '_' }
+      chars[1..].all? { |char| char.letter? || char.number? || char == '_' }
     end
 
     # Safely cast an object to a symbol, returning nil if the cast fails
@@ -154,8 +153,7 @@ module Lapis
       chars = str.chars
       first_char = chars[0]
       return false unless first_char.letter? || first_char == '_'
-      range = 1...chars.size
-      range.all? { |i| chars[i].letter? || chars[i].number? || chars[i] == '_' }
+      chars[1..].all? { |char| char.letter? || char.number? || char == '_' }
     end
 
     # Check if a string contains only whitespace
@@ -178,8 +176,7 @@ module Lapis
     def self.capitalize_first(str : String) : String
       return str if str.empty?
       chars = str.chars
-      range = 1...chars.size
-      chars[0].upcase.to_s + range.map { |i| chars[i] }.join
+      chars[0].upcase.to_s + chars[1..].join
     end
 
     # Check if string starts with uppercase letter using Char API

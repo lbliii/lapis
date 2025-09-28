@@ -646,7 +646,9 @@ module Lapis
         items = args[0]?.try(&.split(",")) || [] of String
         count = args[1]?.try(&.to_i?) || 1
         return "" if items.empty?
-        items.sample(count).join(",")
+        # Bounds checking: ensure count doesn't exceed items.size
+        safe_count = Math.min(count, items.size)
+        items.sample(safe_count).join(",")
       }
 
       FUNCTIONS[:shuffle] = ->(args : Array(String)) : String {
@@ -677,8 +679,10 @@ module Lapis
         items = args[0]?.try(&.split(",")) || [] of String
         count = args[1]?.try(&.to_i?) || 1
         return "" if items.empty?
+        # Bounds checking: ensure count doesn't exceed items.size
+        safe_count = Math.min(count, items.size)
         # For now, use regular array operations - slice ops need more work
-        items.sample(count).join(",")
+        items.sample(safe_count).join(",")
       }
 
       FUNCTIONS[:slice_shuffle] = ->(args : Array(String)) : String {
