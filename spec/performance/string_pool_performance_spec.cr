@@ -8,7 +8,7 @@ describe "StringPool Performance Integration" do
     frontmatter = TestDataFactory.create_content("Test Page", "test-page")
     content = Lapis::Content.new("content/test-page.md", frontmatter, "Test content")
     context = Lapis::TemplateContext.new(config, content)
-    
+
     template_processor = Lapis::TemplateProcessor.new(context)
     function_processor = Lapis::FunctionProcessor.new(context)
 
@@ -76,7 +76,6 @@ describe "StringPool Performance Integration" do
   end
 
   it "validates StringPool effectiveness in function processing" do
-
     pool = StringPool.new(256)
 
     # Test common function processing scenarios
@@ -130,7 +129,6 @@ describe "StringPool Performance Integration" do
   end
 
   it "measures memory usage reduction with StringPool" do
-
     # Create a scenario with many duplicate strings
     common_strings = [
       "{{ title }}",
