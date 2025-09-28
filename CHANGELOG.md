@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `{% quote %}` - Styled blockquotes with attribution
   - `{% toc %}` - Table of contents generation
   - `{% recent_posts %}` - Dynamic recent posts listing
+- **Enhanced Processing**: Improved shortcode processing order and reliability
+- **HTML Generation**: Clean, semantic HTML output with proper escaping
+- **Helper Functions**: Added text humanization and improved content formatting
 
 #### Advanced Content Features
 - **RSS/Atom/JSON Feeds**: Automatic feed generation in multiple formats
@@ -45,6 +48,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Live Reload**: Instant browser updates during development
 - **Smart Content Creation**: Intelligent defaults for new pages and posts
 
+#### Professional Theme System
+- **Hugo-Style Theme Configuration**: Configure themes via `theme: "name"` in config.yml
+- **Smart Theme Resolution**: Automatic fallback from site themes → built-in themes → default
+- **CSS Cascade Priority**: Theme base styles → site overrides → page-specific styles
+- **Theme Asset Processing**: Automatic copying of theme assets with override support
+- **Clean Architecture**: Single theme location, no duplicates or confusion
+- **Hugo-Style Partials**: `{{ partial "head" . }}` for reusable template components
+- **Automatic CSS Discovery**: `{{ auto_css }}` eliminates manual CSS management
+- **Partial Hierarchy**: Site partials override theme partials with intelligent fallbacks
+
+#### Advanced Layout System
+- **Hugo-Style Partials System**: Complete `{{ partial "name" . }}` implementation following Hugo conventions
+- **Built-in Partials**: Automatic head, header, footer partials with intelligent fallbacks
+- **Partial Override Hierarchy**: Site partials → theme partials → built-in partials
+- **Automatic Asset Discovery**: Zero-configuration CSS loading with theme cascade
+- **Template Context Enhancement**: Rich context with theme-aware CSS building
+- **Layout Inheritance**: Improved template inheritance with block system
+- **Asset Pipeline Integration**: Seamless integration between themes and asset processing
+
 ### 🛠️ Improvements
 
 #### CLI Enhancements
@@ -63,6 +85,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shortcode Processing**: Proper processing order ensuring reliable content generation
 - **Template System**: Improved template inheritance and customization
 
+#### Theme & Layout Improvements
+- **Unified Theme Architecture**: Eliminated duplicate theme directories and confusion
+- **Config-Driven Themes**: Added `theme` configuration parameter with intelligent resolution
+- **CSS Cascade System**: Proper inheritance from theme → site → page-specific styles
+- **Hugo-Style Partials**: Complete partials system with `{{ partial "name" . }}` support
+- **Automatic CSS Discovery**: Replaced manual `css_includes` with intelligent auto-discovery
+- **Partial Template Hierarchy**: Site partials override theme partials with built-in fallbacks
+- **Template CLI Updates**: Generate override files instead of theme replacements
+- **Asset Processing**: Enhanced to handle both theme and site assets with proper priority
+
 ### 🔧 Technical Details
 
 #### Dependencies
@@ -75,6 +107,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Incremental Processing**: Only rebuild what's changed
 - **Optimized Assets**: Smart caching and compression
 
+#### Template Engine
+- **Partials Module**: Complete Hugo-compatible partials system
+- **Automatic Discovery**: CSS and partial auto-detection with fallbacks
+- **Template Hierarchy**: Site → theme → built-in template resolution
+- **Legacy Support**: Backwards compatibility with existing `css_includes`
+
 ### 📚 Documentation
 - **Example Site**: Comprehensive showcase of all v0.2.0 features
 - **Template Documentation**: Detailed guides for each template type
@@ -86,6 +124,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved duplicate header issues in content generation
 - Fixed asset processing pipeline compilation errors
 - Improved error handling in template system
+- Fixed theme CSS loading issue where theme styles weren't being applied
+- Resolved duplicate "Recent Posts" headers in content output
+- Fixed theme path resolution for proper asset copying
+- Eliminated theme directory duplication and confusion
+- Replaced brittle manual CSS management with automatic discovery
+- Fixed CSS loading inconsistencies across different page types (home, posts, archives)
 
 ---
 

@@ -2,6 +2,7 @@ title: "Lapis Example Site"
 baseurl: "http://localhost:3000"
 description: "Showcasing the power of Crystal-based static site generation with modern features"
 author: "Lapis Team"
+theme: "default"
 
 # Blog-specific settings
 posts_per_page: 10

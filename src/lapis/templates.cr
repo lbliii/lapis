@@ -1,15 +1,19 @@
 require "ecr"
 require "./base_content"
+require "./theme_helpers"
+require "./partials"
 
 module Lapis
   class TemplateEngine
+    include ThemeHelpers
+
     property config : Config
     property layouts_dir : String
     property theme_layouts_dir : String
 
     def initialize(@config : Config)
       @layouts_dir = @config.layouts_dir
-      @theme_layouts_dir = File.join(@config.theme_dir, "default", "layouts")
+      @theme_layouts_dir = File.join(@config.theme_dir, "layouts")
     end
 
     def render(content : Content, layout : String? = nil) : String
@@ -106,16 +110,22 @@ module Lapis
     end
 
     private def process_template(template : String, context : TemplateContext) : String
-      # Simple template processing - replace variables
-      result = template
+      # Process partials first (Hugo-style)
+      result = Partials.process_partials(template, context, @config.theme_dir)
 
-      # Replace basic variables
+      # Process basic variables
       result = result.gsub("{{ title }}", context.content.title)
       result = result.gsub("{{ content }}", context.content.content)
       result = result.gsub("{{ site.title }}", context.site_title)
       result = result.gsub("{{ site.description }}", context.site_description)
       result = result.gsub("{{ site.author }}", context.site_author)
       result = result.gsub("{{ site.baseurl }}", context.site_baseurl)
+
+      # Legacy CSS includes support (will be deprecated)
+      result = result.gsub("{{ css_includes }}", context.css_includes)
+
+      # Auto CSS discovery (preferred method)
+      result = result.gsub("{{ auto_css }}", Partials.generate_auto_css(context))
 
       # Date formatting
       if date = context.content.date
@@ -292,6 +302,8 @@ module Lapis
   end
 
   class TemplateContext
+    include ThemeHelpers
+
     getter config : Config
     getter content : BaseContent
 
@@ -312,6 +324,24 @@ module Lapis
 
     def site_baseurl : String
       @config.baseurl
+    end
+
+    # Get CSS includes with proper theme cascade
+    def css_includes(page_name : String? = nil) : String
+      build_css_includes(page_name).join("\n  ")
+    end
+
+    # Legacy support for existing templates
+    def site
+      self
+    end
+
+    def title
+      @content.title
+    end
+
+    def description
+      @content.description || @content.excerpt
     end
   end
 

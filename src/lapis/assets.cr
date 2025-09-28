@@ -12,21 +12,39 @@ module Lapis
     end
 
     def process_all_assets
-      return unless Dir.exists?(@source_dir)
-
       Dir.mkdir_p(@output_dir)
       processed_count = 0
 
-      Dir.glob(File.join(@source_dir, "**", "*")).each do |file_path|
-        next unless File.file?(file_path)
+      # Process theme assets first (base layer)
+      theme_static_dir = File.join(@config.theme_dir, "static")
+      if Dir.exists?(theme_static_dir)
+        Dir.glob(File.join(theme_static_dir, "**", "*")).each do |file_path|
+          next unless File.file?(file_path)
 
-        relative_path = file_path[@source_dir.size + 1..]
+          relative_path = file_path[theme_static_dir.size + 1..]
 
-        if image_file?(file_path)
-          process_image(file_path, relative_path)
-          processed_count += 1
-        else
-          copy_asset(file_path, relative_path)
+          if image_file?(file_path)
+            process_image(file_path, relative_path)
+            processed_count += 1
+          else
+            copy_asset(file_path, relative_path)
+          end
+        end
+      end
+
+      # Process site assets (override layer)
+      if Dir.exists?(@source_dir)
+        Dir.glob(File.join(@source_dir, "**", "*")).each do |file_path|
+          next unless File.file?(file_path)
+
+          relative_path = file_path[@source_dir.size + 1..]
+
+          if image_file?(file_path)
+            process_image(file_path, relative_path)
+            processed_count += 1
+          else
+            copy_asset(file_path, relative_path)
+          end
         end
       end
 

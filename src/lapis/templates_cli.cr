@@ -8,7 +8,7 @@ module Lapis
       "blog" => {
         "name" => "Personal Blog",
         "description" => "A clean, responsive blog template perfect for personal writing",
-        "files" => ["config.yml", "content/index.md", "content/about.md", "content/posts/welcome.md", "static/css/blog.css"]
+        "files" => ["config.yml", "content/index.md", "content/about.md", "content/posts/welcome.md", "static/css/custom.css"]
       },
       "docs" => {
         "name" => "Documentation Site",
@@ -296,193 +296,84 @@ module Lapis
 
       File.write("content/posts/welcome.md", first_post)
 
-      # Enhanced CSS for blog
+      # Site-specific CSS overrides (inherits from theme)
       blog_css = <<-CSS
-      /* Enhanced Blog Theme for Lapis */
+      /* Site-specific customizations that override theme defaults */
+      /* This file inherits from themes/default/static/css/style.css */
 
+      /* Customize brand colors */
       :root {
-        --primary-color: #667eea;
-        --secondary-color: #764ba2;
-        --accent-color: #f093fb;
-        --text-color: #2d3748;
-        --text-light: #718096;
-        --bg-color: #ffffff;
-        --bg-secondary: #f7fafc;
-        --border-color: #e2e8f0;
-        --success-color: #48bb78;
-        --warning-color: #ed8936;
-        --error-color: #f56565;
-        --code-bg: #1a202c;
-        --code-text: #e2e8f0;
+        --primary-color: #667eea;    /* Override theme's primary color */
+        --secondary-color: #764ba2;  /* Override theme's secondary color */
+        --accent-color: #f093fb;     /* Override theme's accent color */
       }
 
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --text-color: #f7fafc;
-          --text-light: #a0aec0;
-          --bg-color: #1a202c;
-          --bg-secondary: #2d3748;
-          --border-color: #4a5568;
-        }
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        line-height: 1.7;
-        color: var(--text-color);
-        background: var(--bg-color);
-        margin: 0;
-        padding: 0;
-      }
-
-      /* Enhanced Navigation */
-      .site-header {
+      /* Blog-specific enhancements */
+      .blog-intro {
+        text-align: center;
+        padding: 3rem 0;
         background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
         color: white;
-        padding: 2rem 0;
         margin-bottom: 3rem;
-      }
-
-      .site-nav {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 0 2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .site-title {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: white;
-        text-decoration: none;
-      }
-
-      .nav-links {
-        display: flex;
-        gap: 2rem;
-      }
-
-      .nav-links a {
-        color: white;
-        text-decoration: none;
-        font-weight: 500;
-        transition: opacity 0.2s;
-      }
-
-      .nav-links a:hover {
-        opacity: 0.8;
-      }
-
-      /* Main Content */
-      .main-content {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 0 2rem;
-        display: grid;
-        grid-template-columns: 1fr 300px;
-        gap: 4rem;
-      }
-
-      .content-area {
-        min-width: 0;
-      }
-
-      .sidebar {
-        background: var(--bg-secondary);
-        padding: 2rem;
         border-radius: 12px;
-        height: fit-content;
-        position: sticky;
-        top: 2rem;
       }
 
-      /* Enhanced Typography */
-      h1, h2, h3, h4, h5, h6 {
-        color: var(--text-color);
-        font-weight: 700;
-        line-height: 1.3;
-        margin-top: 2.5rem;
+      .blog-intro h1 {
+        margin-bottom: 1rem;
+        color: white;
+      }
+
+      .blog-intro p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      /* Enhanced post cards */
+      .recent-post {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--border-color);
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      .recent-post:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      }
+
+      .recent-post h3 {
+        margin-top: 0;
         margin-bottom: 1rem;
       }
 
-      h1 { font-size: 2.5rem; }
-      h2 { font-size: 2rem; }
-      h3 { font-size: 1.5rem; }
-
-      /* Shortcode Styles */
-      .alert {
-        padding: 1rem 1.5rem;
-        border-radius: 8px;
-        margin: 1.5rem 0;
-        display: flex;
-        align-items: flex-start;
-        gap: 0.75rem;
-      }
-
-      .alert-info { background: #ebf8ff; border-left: 4px solid #3182ce; }
-      .alert-warning { background: #fffbeb; border-left: 4px solid #d69e2e; }
-      .alert-error { background: #fed7d7; border-left: 4px solid #e53e3e; }
-      .alert-success { background: #f0fff4; border-left: 4px solid #38a169; }
-
-      .custom-quote {
-        border-left: 4px solid var(--accent-color);
-        padding: 1.5rem 2rem;
-        margin: 2rem 0;
-        background: var(--bg-secondary);
-        border-radius: 0 8px 8px 0;
-        font-size: 1.1em;
-        font-style: italic;
-      }
-
-      .button {
-        display: inline-block;
-        padding: 0.75rem 1.5rem;
-        border-radius: 6px;
+      .recent-post h3 a {
+        color: var(--primary-color);
         text-decoration: none;
-        font-weight: 600;
-        transition: all 0.2s;
-        margin: 0.5rem 0.5rem 0.5rem 0;
+        transition: color 0.2s;
       }
 
-      .button-primary {
-        background: var(--primary-color);
-        color: white;
+      .recent-post h3 a:hover {
+        color: var(--secondary-color);
       }
 
-      .button-primary:hover {
-        background: var(--secondary-color);
-        transform: translateY(-1px);
-      }
-
-      /* Responsive Design */
+      /* Responsive adjustments */
       @media (max-width: 768px) {
-        .main-content {
-          grid-template-columns: 1fr;
-          gap: 2rem;
+        .blog-intro {
+          padding: 2rem 1rem;
+          margin-bottom: 2rem;
         }
 
-        .site-nav {
-          flex-direction: column;
-          gap: 1rem;
-          text-align: center;
+        .recent-post {
+          padding: 1.5rem;
         }
-
-        .nav-links {
-          gap: 1rem;
-        }
-
-        h1 { font-size: 2rem; }
-        h2 { font-size: 1.5rem; }
       }
       CSS
 
-      File.write("static/css/blog.css", blog_css)
+      File.write("static/css/custom.css", blog_css)
 
       puts "Created blog template with enhanced features"
     end
