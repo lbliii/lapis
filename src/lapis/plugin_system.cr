@@ -69,14 +69,24 @@ module Lapis
     end
 
     def emit_event(event : PluginEvent, generator : Generator, **kwargs)
+      Logger.debug("Emitting plugin event", 
+        event: event.to_s,
+        plugin_count: @plugins.size)
+      
       @plugins.each do |plugin|
         begin
+          Logger.debug("Processing plugin event", 
+            plugin: plugin.name,
+            event: event.to_s)
+          
           case event
           when .before_build?
             plugin.on_before_build(generator)
           when .after_content_load?
             content = kwargs[:content]?
-            plugin.on_after_content_load(generator, content) if content
+            if content && content.is_a?(YAML::Any) && content.as_a?
+              plugin.on_after_content_load(generator, content.as_a.map { |c| c.as(Content) })
+            end
           when .before_page_render?
             content = kwargs[:content]?
             plugin.on_before_page_render(generator, content) if content && content.is_a?(Content)
@@ -95,7 +105,12 @@ module Lapis
             plugin.on_after_asset_process(generator, asset_path, output_path) if asset_path && output_path
           end
         rescue ex
-          Logger.error("Plugin error", plugin: plugin.name, event: event.to_s, error: ex.message)
+          Logger.error("Plugin event failed", 
+            plugin: plugin.name,
+            event: event.to_s,
+            error: ex.message,
+            error_class: ex.class.name)
+          # Continue with other plugins
         end
       end
     end
@@ -216,13 +231,13 @@ module Lapis
     private def add_seo_meta_tags(content : Content)
       # Add default meta tags if not present
       unless content.frontmatter["description"]?
-        content.frontmatter["description"] = content.excerpt || content.content[0..150] + "..."
+        content.frontmatter["description"] = YAML::Any.new(content.excerpt || content.content[0..150] + "...")
       end
       
       unless content.frontmatter["keywords"]?
         # Extract keywords from content
         keywords = extract_keywords(content.content)
-        content.frontmatter["keywords"] = keywords.join(", ")
+        content.frontmatter["keywords"] = YAML::Any.new(keywords.join(", "))
       end
     end
 

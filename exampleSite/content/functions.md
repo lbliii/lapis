@@ -1,13 +1,13 @@
 ---
 title: "Template Functions in Lapis"
 date: "2025-09-28"
-description: "Comprehensive guide to Hugo-compatible template functions in Lapis"
-tags: ["templates", "functions", "hugo", "documentation"]
+description: "Comprehensive guide to template functions in Lapis"
+tags: ["templates", "functions", "documentation"]
 ---
 
 # Template Functions in Lapis
 
-Lapis provides a comprehensive set of **Hugo-compatible template functions** that make your templates powerful and expressive. These functions follow Hugo's API while adding developer-friendly alternatives.
+Lapis provides a comprehensive set of **template functions** that make your templates powerful and expressive. These functions follow established conventions while adding developer-friendly alternatives.
 
 ## String Functions
 
@@ -256,4 +256,4 @@ Combine functions for powerful transformations:
 {{ $slug := urlize (lower page.title) }}
 ```
 
-Functions make Lapis templates incredibly powerful while keeping them readable and maintainable. The Hugo-compatible API ensures easy migration, while the intuitive syntax makes them accessible to all developers.
+Functions make Lapis templates incredibly powerful while keeping them readable and maintainable. The established API ensures easy migration, while the intuitive syntax makes them accessible to all developers.

@@ -11,10 +11,54 @@ theme: "default"
 # Build configuration for performance optimization
 build:
   incremental: true      # Enable incremental builds for faster rebuilds
-  parallel: true         # Enable parallel processing
+  parallel: false        # Enable parallel processing and advanced asset pipeline
   cache_dir: ".lapis-cache"  # Directory for build cache
   max_workers: 4         # Number of parallel workers (auto-detected if not set)
   clean_build: false     # Force clean build (clears cache)
+
+# Asset bundling and optimization
+bundling:
+  enabled: true          # Enable asset bundling and optimization
+  minify: true          # Minify CSS and JavaScript
+  source_maps: false    # Generate source maps for debugging
+  autoprefix: true      # Add vendor prefixes to CSS
+  tree_shake: false     # Remove unused JavaScript (experimental)
+  
+  # CSS bundles - combine multiple CSS files
+  css_bundles:
+    - name: "main"
+      files:
+        - "static/css/reset.css"
+        - "static/css/base.css"
+        - "static/css/layout.css"
+        - "themes/default/assets/css/theme.css"
+      output: "assets/css/main.min.css"
+      order: 1
+      
+    - name: "components"
+      files:
+        - "static/css/components/buttons.css"
+        - "static/css/components/cards.css"
+        - "static/css/components/forms.css"
+      output: "assets/css/components.min.css"
+      order: 2
+  
+  # JavaScript bundles - combine multiple JS files
+  js_bundles:
+    - name: "main"
+      files:
+        - "static/js/utils.js"
+        - "static/js/main.js"
+        - "themes/default/assets/js/theme.js"
+      output: "assets/js/main.min.js"
+      order: 1
+      
+    - name: "analytics"
+      files:
+        - "static/js/analytics/gtag.js"
+        - "static/js/analytics/events.js"
+      output: "assets/js/analytics.min.js"
+      order: 2
 
 # Live reload configuration for development
 live_reload:

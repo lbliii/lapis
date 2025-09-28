@@ -1,0 +1,51 @@
+title: Debug Site
+port: 3001
+output_dir: debug_output
+debug: true
+baseurl: https://debug.example.com
+author: Debug Author
+description: A debug site for Lapis testing
+language_code: en
+timezone: UTC
+
+# Build configuration
+build:
+  incremental: false
+  parallel: false
+  cache_dir: .debug_cache
+  clean_output: true
+
+# Logging configuration
+logging:
+  level: debug
+  file: debug.log
+  debug: true
+
+# Server configuration
+server:
+  host: 127.0.0.1
+  port: 3001
+  live_reload: true
+
+# Asset configuration
+assets:
+  minify: false
+  compress: false
+  cache_busting: false
+
+# Template configuration
+templates:
+  default_layout: default
+  auto_escape: false
+  strict_variables: true
+
+# Content configuration
+content:
+  markdown:
+    smart: false
+    safe: true
+  frontmatter:
+    delimiters: ["---", "---"]
+  permalinks:
+    posts: /:year/:month/:day/:slug/
+    pages: /:slug/

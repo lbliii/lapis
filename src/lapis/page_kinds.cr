@@ -1,5 +1,5 @@
 module Lapis
-  # Page kinds define the type of page being rendered, following Hugo's model
+  # Page kinds define the type of page being rendered
   enum PageKind
     # Individual content pages (blog posts, articles, etc.)
     Single

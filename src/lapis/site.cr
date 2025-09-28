@@ -4,7 +4,7 @@ require "./collections"
 require "yaml"
 
 module Lapis
-  # Site object - Hugo-compatible global site context
+  # Site object - global site context
   class Site
     getter config : Config
     getter pages : Array(Content)
@@ -22,7 +22,7 @@ module Lapis
       load_data_files
     end
 
-    # BASIC SITE PROPERTIES (Hugo-compatible)
+    # BASIC SITE PROPERTIES
 
     def title : String
       @config.title
@@ -57,7 +57,7 @@ module Lapis
       @config.description
     end
 
-    # CONTENT COLLECTIONS (Hugo-compatible)
+    # CONTENT COLLECTIONS
 
     def all_pages : Array(Content)
       @pages
@@ -75,7 +75,7 @@ module Lapis
       @pages.find(&.kind.home?)
     end
 
-    # PAGE QUERIES (Hugo-compatible)
+    # PAGE QUERIES
 
     def get_page(path : String) : Content?
       @pages.find { |p| p.url == path || p.file_path.includes?(path) }
@@ -103,7 +103,7 @@ module Lapis
       where(field, "eq", value)
     end
 
-    # TAXONOMIES (Hugo-compatible)
+    # TAXONOMIES
 
     def taxonomies : Hash(String, Hash(String, Array(Content)))
       taxonomies = {} of String => Hash(String, Array(Content))
@@ -139,7 +139,7 @@ module Lapis
       taxonomies["categories"]? || {} of String => Array(Content)
     end
 
-    # SECTIONS (Hugo-compatible)
+    # SECTIONS
 
     def sections : Hash(String, Array(Content))
       sections = {} of String => Array(Content)
@@ -155,15 +155,15 @@ module Lapis
       sections[name]? || [] of Content
     end
 
-    # BUILD INFO (Hugo-compatible)
+    # BUILD INFO
 
     def build_date : Time
       Time.utc
     end
 
-    def hugo : Hash(String, String)
+    def generator_info : Hash(String, String)
       {
-        "version" => "lapis-0.4.0", # Lapis version mimicking Hugo
+        "version" => "lapis-0.4.0",
         "generator" => "Lapis Static Site Generator",
         "environment" => ENV["LAPIS_ENV"]? || "production",
         "commit_hash" => "",
@@ -172,14 +172,14 @@ module Lapis
     end
 
     def generator : String
-      hugo["generator"]
+      generator_info["generator"]
     end
 
     def version : String
-      hugo["version"]
+      generator_info["version"]
     end
 
-    # URLS AND PATHS (Hugo-compatible)
+    # URLS AND PATHS
 
     def base_url_scheme : String
       uri = URI.parse(@config.baseurl)

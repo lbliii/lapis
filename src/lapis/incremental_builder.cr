@@ -13,27 +13,50 @@ module Lapis
     property build_cache : Hash(String, String) = {} of String => String
 
     def initialize(@cache_dir : String)
+      Logger.debug("Initializing incremental builder", cache_dir: @cache_dir)
       Dir.mkdir_p(@cache_dir)
       load_cache
+      Logger.debug("Incremental builder initialized",
+        cache_dir: @cache_dir,
+        cached_files: @file_timestamps.size,
+        dependencies: @dependencies.size,
+        build_cache_entries: @build_cache.size)
     end
 
     def needs_rebuild?(file_path : String) : Bool
       return true unless File.exists?(file_path)
-      
+
       current_time = File.info(file_path).modification_time
       cached_time = @file_timestamps[file_path]?
-      
-      return true unless cached_time
-      
+
+      if cached_time.nil?
+        Logger.debug("File needs rebuild (no cache)", file: file_path)
+        return true
+      end
+
       # Check if file itself changed
-      return true if current_time > cached_time
-      
+      if current_time > cached_time
+        Logger.debug("File needs rebuild (modified)",
+          file: file_path,
+          cached_time: cached_time.to_s,
+          current_time: current_time.to_s)
+        return true
+      end
+
       # Check if any dependencies changed
       if deps = @dependencies[file_path]?
-        deps.any? { |dep| needs_rebuild?(dep) }
-      else
-        false
+        deps.each do |dep|
+          if needs_rebuild?(dep)
+            Logger.debug("File needs rebuild (dependency changed)",
+              file: file_path,
+              dependency: dep)
+            return true
+          end
+        end
       end
+
+      Logger.debug("File unchanged", file: file_path)
+      false
     end
 
     def add_dependency(file_path : String, dependency : String)
@@ -70,16 +93,22 @@ module Lapis
     end
 
     def save_cache
+      Logger.debug("Saving cache",
+        cache_dir: @cache_dir,
+        timestamps: @file_timestamps.size,
+        dependencies: @dependencies.size,
+        build_cache: @build_cache.size)
       save_timestamps
       save_dependencies
       save_build_cache
+      Logger.debug("Cache saved successfully")
     end
 
     def clear_cache
       @file_timestamps.clear
       @dependencies.clear
       @build_cache.clear
-      
+
       if Dir.exists?(@cache_dir)
         FileUtils.rm_rf(@cache_dir)
         Dir.mkdir_p(@cache_dir)
@@ -88,9 +117,9 @@ module Lapis
 
     def cache_stats : Hash(String, Int32)
       {
-        "cached_files" => @file_timestamps.size,
-        "dependencies" => @dependencies.size,
-        "build_cache_entries" => @build_cache.size
+        "cached_files"        => @file_timestamps.size,
+        "dependencies"        => @dependencies.size,
+        "build_cache_entries" => @build_cache.size,
       }
     end
 
@@ -103,7 +132,7 @@ module Lapis
     private def load_timestamps
       timestamps_file = File.join(@cache_dir, "timestamps.yml")
       return unless File.exists?(timestamps_file)
-      
+
       begin
         timestamps_data = YAML.parse(File.read(timestamps_file))
         timestamps_data.as_h.each do |path, time_str|
@@ -118,7 +147,7 @@ module Lapis
     private def load_dependencies
       dependencies_file = File.join(@cache_dir, "dependencies.yml")
       return unless File.exists?(dependencies_file)
-      
+
       begin
         deps_data = YAML.parse(File.read(dependencies_file))
         deps_data.as_h.each do |file, deps_array|
@@ -134,7 +163,7 @@ module Lapis
     private def load_build_cache
       cache_file = File.join(@cache_dir, "build_cache.yml")
       return unless File.exists?(cache_file)
-      
+
       begin
         cache_data = YAML.parse(File.read(cache_file))
         cache_data.as_h.each do |file, content|
@@ -148,8 +177,8 @@ module Lapis
 
     private def save_timestamps
       timestamps_file = File.join(@cache_dir, "timestamps.yml")
-      timestamps_data = @file_timestamps.transform_values { |time| time.to_s("%Y-%m-%d %H:%M:%S") }
-      
+      timestamps_data = @file_timestamps.transform_values(&.to_s("%Y-%m-%d %H:%M:%S"))
+
       File.write(timestamps_file, timestamps_data.to_yaml)
       Logger.debug("Saved #{@file_timestamps.size} file timestamps")
     end

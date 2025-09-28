@@ -41,41 +41,38 @@ module Lapis
     end
 
     private def handle_websocket_connection(context : HTTP::Server::Context)
-      begin
-        # Create WebSocket handler using the proper Crystal API
-        websocket_handler = HTTP::WebSocketHandler.new do |socket|
-          @websocket_handler.add_connection(socket)
-          
-          puts "WebSocket connection established for #{context.request.path}"
-          
-          # Set up message handlers
-          socket.on_message do |message|
-            puts "Received WebSocket message: #{message}"
-            # Handle incoming messages if needed
-          end
-          
-          socket.on_close do |code, message|
-            puts "WebSocket connection closed: #{code} - #{message}"
-            @websocket_handler.remove_connection(socket)
-          end
-          
-          socket.on_ping do |message|
-            puts "Received WebSocket ping"
-            socket.pong(message)
-          end
+      # Create WebSocket handler using the proper Crystal API
+      websocket_handler = HTTP::WebSocketHandler.new do |socket|
+        @websocket_handler.add_connection(socket)
+
+        puts "WebSocket connection established for #{context.request.path}"
+
+        # Set up message handlers
+        socket.on_message do |message|
+          puts "Received WebSocket message: #{message}"
+          # Handle incoming messages if needed
         end
-        
-        # Handle the WebSocket upgrade
-        websocket_handler.call(context)
-        
-      rescue ex
-        puts "Error handling WebSocket connection: #{ex.message}"
+
+        socket.on_close do |code, message|
+          puts "WebSocket connection closed: #{code} - #{message}"
+          @websocket_handler.remove_connection(socket)
+        end
+
+        socket.on_ping do |message|
+          puts "Received WebSocket ping"
+          socket.pong(message)
+        end
       end
+
+      # Handle the WebSocket upgrade
+      websocket_handler.call(context)
+    rescue ex
+      puts "Error handling WebSocket connection: #{ex.message}"
     end
 
     private def handle_file_change(file_path : String)
       puts "Handling file change: #{file_path}"
-      
+
       # Determine what needs to be rebuilt
       if should_rebuild_site?(file_path)
         rebuild_and_notify(file_path)
@@ -111,12 +108,12 @@ module Lapis
 
     private def rebuild_and_notify(file_path : String)
       puts "Rebuilding site due to: #{file_path}"
-      
+
       begin
         @generator.build
         @last_build_time = Time.utc
         puts "Site rebuilt successfully"
-        
+
         # Notify clients to reload
         @websocket_handler.broadcast_reload(file_path)
       rescue ex
@@ -128,7 +125,7 @@ module Lapis
 
     private def notify_asset_change(file_path : String)
       puts "Asset changed: #{file_path}"
-      
+
       ext = File.extname(file_path).downcase
       case ext
       when ".css"

@@ -224,32 +224,54 @@ module Lapis
       end
 
       analytics.time_operation("Content Processing") do
-        generate_content_pages(all_content)
+        Logger.info("Build strategy decision", 
+          incremental: @config.build_config.incremental,
+          parallel: @config.build_config.parallel)
+        
+        if @config.build_config.incremental
+          Logger.info("Using incremental build strategy")
+          generate_content_pages_incremental_v2(all_content)
+        else
+          Logger.info("Using regular build strategy")
+          generate_content_pages(all_content)
+        end
         analytics.track_content("pages", all_content.size)
       end
 
       analytics.time_operation("Asset Processing") do
+        Logger.info("Starting asset processing")
         @asset_processor.process_all_assets
+        Logger.info("Asset processing completed")
         # Track asset counts would be added here
       end
 
       analytics.time_operation("Archive Generation") do
+        Logger.info("Starting archive generation")
         generate_index_page(all_content)
+        Logger.debug("Index page generated")
         generate_archive_pages(all_content)
+        Logger.debug("Archive pages generated")
+        Logger.info("Archive generation completed")
       end
 
       analytics.time_operation("Feed Generation") do
+        Logger.info("Starting feed generation")
         generate_feeds(all_content)
+        Logger.info("Feed generation completed")
         # generate_sitemap(all_content) # TODO: Implement sitemap generator
       end
 
       # Calculate output file sizes
+      Logger.info("Calculating output file sizes")
       calculate_output_sizes(analytics)
 
+      Logger.info("Finishing build analytics")
       analytics.finish_build
 
       # Print analytics report
+      Logger.info("Generating analytics report")
       puts analytics.generate_report
+      Logger.info("Build completed successfully")
     end
 
     private def calculate_output_sizes(analytics : BuildAnalytics)

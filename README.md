@@ -362,7 +362,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Inspired by [Hugo](https://gohugo.io/) for its speed and simplicity
+- Inspired by modern static site generators for their speed and simplicity
 - Inspired by [Sphinx](https://www.sphinx-doc.org/) for its documentation features
 - Built with [Crystal](https://crystal-lang.org/) for performance and developer happiness
 

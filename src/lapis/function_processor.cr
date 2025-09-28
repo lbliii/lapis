@@ -4,7 +4,7 @@ require "./page"
 require "./navigation"
 
 module Lapis
-  # Enhanced template processor with Hugo-compatible functions
+  # Enhanced template processor with advanced functions
   class FunctionProcessor
     getter context : TemplateContext
     getter site : Site
@@ -155,7 +155,7 @@ module Lapis
     end
 
     private def process_loops(template : String) : String
-      # Handle Hugo-style {{ range collection }} loops
+      # Handle {{ range collection }} loops
       result = template.gsub(/\{\{\s*range\s+([^}]+)\s*\}\}(.*?)\{\{\s*end\s*\}\}/m) do |match|
         range_expr = $1.strip
         loop_content = $2
@@ -221,10 +221,10 @@ module Lapis
       end
     end
 
-    private def parse_function_args(args_str : String) : Array(String | Int32 | Bool | Array(String) | Time | Nil)
-      return [] of String | Int32 | Bool | Array(String) | Time | Nil if args_str.strip.empty?
+    private def parse_function_args(args_str : String) : Array(String)
+      return [] of String if args_str.strip.empty?
 
-      args = [] of String | Int32 | Bool | Array(String) | Time | Nil
+      args = [] of String
 
       # Simple argument parsing - split by comma, handle quotes
       parts = args_str.split(",")
@@ -237,18 +237,20 @@ module Lapis
           # String literal
           args << arg[1..-2]
         elsif arg == "true"
-          args << true
+          args << "true"
         elsif arg == "false"
-          args << false
+          args << "false"
         elsif int_val = arg.to_i?
-          args << int_val
+          args << int_val.to_s
         else
           # Variable reference
           value = evaluate_expression(arg)
           # Convert complex types to simple types for function arguments
           case value
-          when String, Int32, Bool, Array(String), Time, Nil
+          when String
             args << value
+          when Int32, Bool, Time, Nil
+            args << value.to_s
           when Content
             args << value.title
           when Page
@@ -258,30 +260,30 @@ module Lapis
           when MenuItem
             args << value.name
           when Array(Content)
-            args << value.map(&.title)
+            args << value.map(&.title).join(",")
           when Array(MenuItem)
-            args << value.map(&.name)
+            args << value.map(&.name).join(",")
           when Hash(String, Array(MenuItem))
             # Convert menu hash to array of menu names
             menu_names = [] of String
             value.each do |menu_name, items|
               menu_names << "#{menu_name}: #{items.map(&.name).join(", ")}"
             end
-            args << menu_names
+            args << menu_names.join(",")
           when Hash(String, String)
             # Convert string hash to array of key-value pairs
             pairs = [] of String
             value.each do |key, val|
               pairs << "#{key}: #{val}"
             end
-            args << pairs
+            args << pairs.join(",")
           when Hash(String, YAML::Any)
             # Convert YAML hash to array of key-value pairs
             pairs = [] of String
             value.each do |key, val|
               pairs << "#{key}: #{val.to_s}"
             end
-            args << pairs
+            args << pairs.join(",")
           else
             args << value.to_s
           end
@@ -359,7 +361,7 @@ module Lapis
       else
         # Try as function call without parentheses
         if Functions.has_function?(name)
-          Functions.call(name, [] of String | Int32 | Bool | Array(String) | Time | Nil)
+          Functions.call(name, [] of String)
         else
           nil
         end
@@ -378,7 +380,7 @@ module Lapis
       when {Site, "Menus"} then object.as(Site).menus
       when {Site, "Author"} then object.as(Site).author
       when {Site, "Copyright"} then object.as(Site).copyright
-      when {Site, "Hugo"} then object.as(Site).hugo
+      when {Site, "Hugo"} then object.as(Site).generator_info
 
       # Page methods
       when {Page, "Title"} then object.as(Page).title

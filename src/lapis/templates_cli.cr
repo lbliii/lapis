@@ -2,7 +2,7 @@ module Lapis
   # Template manager for creating sites from predefined templates
   #
   # Standard: Use "exampleSite" directory for the official example/demo site
-  # This follows Hugo's convention and provides a single reference implementation
+  # This provides a single reference implementation
   class TemplateManager
     BUILTIN_TEMPLATES = {
       "blog" => {

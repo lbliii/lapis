@@ -16,7 +16,7 @@ module Lapis
 
       @watching = true
       puts "File watcher started (efficient polling mode)"
-      
+
       spawn do
         watch_loop
       end
@@ -35,7 +35,7 @@ module Lapis
 
       puts "Watching directories:"
       config = @config.live_reload_config
-      
+
       if config.watch_content && Dir.exists?(@config.content_dir)
         puts "  - content: #{@config.content_dir}"
       end
@@ -51,7 +51,7 @@ module Lapis
 
         begin
           check_for_changes
-          sleep 2.seconds  # Much more efficient than 1 second polling
+          sleep 2.seconds # Much more efficient than 1 second polling
         rescue ex
           puts "Error in file watcher: #{ex.message}"
           sleep 5.seconds
@@ -67,13 +67,13 @@ module Lapis
       scan_directory(@config.content_dir, "*.md") if config.watch_content
       scan_directory(@config.layouts_dir, "*") if config.watch_layouts
       scan_directory(@config.static_dir, "*") if config.watch_static
-      
+
       # Scan theme directories
       if config.watch_layouts
         theme_layouts_dir = File.join(@config.theme_dir, "layouts")
         scan_directory(theme_layouts_dir, "*") if Dir.exists?(theme_layouts_dir)
       end
-      
+
       if config.watch_static
         theme_static_dir = File.join(@config.theme_dir, "static")
         scan_directory(theme_static_dir, "*") if Dir.exists?(theme_static_dir)
@@ -188,6 +188,5 @@ module Lapis
         filename == "config.yml" || filename == "config.yaml"
       end
     end
-
   end
 end

@@ -7,54 +7,79 @@ require "./exceptions"
 module Lapis
   # Enhanced JSON/YAML processing with validation
   class DataProcessor
-    # JSON processing with validation
-    def self.parse_json(json_string : String, schema : JSON::Schema? = nil) : JSON::Any
+    # Type-safe JSON parsing example
+    class PostData
+      include JSON::Serializable
+
+      @[JSON::Field(emit_null: true)]
+      property title : String
+
+      @[JSON::Field(emit_null: true)]
+      property count : Int32
+
+      @[JSON::Field(emit_null: true)]
+      property active : Bool
+
+      @[JSON::Field(emit_null: true)]
+      property tags : Array(String)?
+
+      def initialize(@title : String, @count : Int32, @active : Bool, @tags : Array(String)? = nil)
+      end
+    end
+
+    # Type-safe JSON parsing method
+    def self.parse_json_typed(json_string : String) : PostData
+      Logger.debug("Parsing JSON with type safety", size: json_string.size.to_s)
+
+      begin
+        parsed = PostData.from_json(json_string)
+        Logger.debug("Type-safe JSON parsed successfully")
+        parsed
+      rescue ex : JSON::ParseException
+        Logger.error("Type-safe JSON parsing error", error: ex.message.to_s)
+        raise ValidationError.new("Type-safe JSON parsing error: #{ex.message}", "json", json_string[0..100])
+      rescue ex
+        Logger.error("Unexpected type-safe JSON error", error: ex.message.to_s)
+        raise ValidationError.new("Unexpected type-safe JSON error: #{ex.message}")
+      end
+    end
+
+    # JSON processing
+    def self.parse_json(json_string : String) : JSON::Any
       Logger.debug("Parsing JSON", size: json_string.size.to_s)
-      
+
       begin
         parsed = JSON.parse(json_string)
-        
-        # Validate against schema if provided
-        if schema
-          validate_json_schema(parsed, schema)
-        end
-        
         Logger.debug("JSON parsed successfully")
         parsed
       rescue ex : JSON::ParseException
-        Logger.error("JSON parsing error", error: ex.message, line: ex.line_number.to_s)
+        Logger.error("JSON parsing error", error: ex.message.to_s)
         raise ValidationError.new("JSON parsing error: #{ex.message}", "json", json_string[0..100])
       rescue ex
-        Logger.error("Unexpected JSON error", error: ex.message)
+        Logger.error("Unexpected JSON error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected JSON error: #{ex.message}")
       end
     end
 
-    # YAML processing with validation
-    def self.parse_yaml(yaml_string : String, schema : YAML::Schema? = nil) : YAML::Any
+    # YAML processing
+    def self.parse_yaml(yaml_string : String) : YAML::Any
       Logger.debug("Parsing YAML", size: yaml_string.size.to_s)
-      
+
       begin
         parsed = YAML.parse(yaml_string)
-        
-        # Validate against schema if provided
-        if schema
-          validate_yaml_schema(parsed, schema)
-        end
-        
         Logger.debug("YAML parsed successfully")
         parsed
       rescue ex : YAML::ParseException
-        Logger.error("YAML parsing error", error: ex.message, line: ex.line_number.to_s)
+        Logger.error("YAML parsing error", error: ex.message.to_s)
         raise ValidationError.new("YAML parsing error: #{ex.message}", "yaml", yaml_string[0..100])
       rescue ex
-        Logger.error("Unexpected YAML error", error: ex.message)
+        Logger.error("Unexpected YAML error", error: ex.message.to_s)
         raise ValidationError.new("Unexpected YAML error: #{ex.message}")
       end
     end
 
     # Safe JSON parsing with default value
-    def self.parse_json_safe(json_string : String, default : JSON::Any = JSON::Any.new(nil)) : JSON::Any
+    def self.parse_json_safe(json_string : String, default : JSON::Any? = nil) : JSON::Any?
       parse_json(json_string)
     rescue
       Logger.warn("JSON parsing failed, using default value")
@@ -62,51 +87,17 @@ module Lapis
     end
 
     # Safe YAML parsing with default value
-    def self.parse_yaml_safe(yaml_string : String, default : YAML::Any = YAML::Any.new(nil)) : YAML::Any
+    def self.parse_yaml_safe(yaml_string : String, default : YAML::Any? = nil) : YAML::Any?
       parse_yaml(yaml_string)
     rescue
       Logger.warn("YAML parsing failed, using default value")
       default
     end
 
-    # Validate JSON against a schema
-    def self.validate_json_schema(data : JSON::Any, schema : JSON::Schema)
-      Logger.debug("Validating JSON against schema")
-      
-      # Basic validation - can be extended with more sophisticated schema validation
-      case schema
-      when JSON::Schema::Object
-        validate_json_object(data, schema)
-      when JSON::Schema::Array
-        validate_json_array(data, schema)
-      when JSON::Schema::String
-        validate_json_string(data, schema)
-      when JSON::Schema::Number
-        validate_json_number(data, schema)
-      when JSON::Schema::Boolean
-        validate_json_boolean(data, schema)
-      else
-        Logger.warn("Unknown JSON schema type")
-      end
-    end
-
-    # Validate YAML against a schema
-    def self.validate_yaml_schema(data : YAML::Any, schema : YAML::Schema)
-      Logger.debug("Validating YAML against schema")
-      
-      # Basic validation - can be extended with more sophisticated schema validation
-      case schema
-      when YAML::Schema::Core
-        validate_yaml_core(data, schema)
-      else
-        Logger.warn("Unknown YAML schema type")
-      end
-    end
-
     # Convert JSON to YAML
     def self.json_to_yaml(json_data : JSON::Any) : String
       Logger.debug("Converting JSON to YAML")
-      
+
       begin
         yaml_data = convert_json_to_yaml(json_data)
         Logger.debug("JSON to YAML conversion successful")
@@ -120,7 +111,7 @@ module Lapis
     # Convert YAML to JSON
     def self.yaml_to_json(yaml_data : YAML::Any) : String
       Logger.debug("Converting YAML to JSON")
-      
+
       begin
         json_data = convert_yaml_to_json(yaml_data)
         Logger.debug("YAML to JSON conversion successful")
@@ -134,7 +125,7 @@ module Lapis
     # Pretty print JSON
     def self.pretty_json(data : JSON::Any) : String
       Logger.debug("Pretty printing JSON")
-      
+
       begin
         pretty = data.to_pretty_json
         Logger.debug("JSON pretty printing successful")
@@ -148,7 +139,7 @@ module Lapis
     # Pretty print YAML
     def self.pretty_yaml(data : YAML::Any) : String
       Logger.debug("Pretty printing YAML")
-      
+
       begin
         pretty = data.to_yaml
         Logger.debug("YAML pretty printing successful")
@@ -162,9 +153,9 @@ module Lapis
     # Extract specific fields from JSON/YAML
     def self.extract_fields(data : JSON::Any | YAML::Any, fields : Array(String)) : Hash(String, JSON::Any | YAML::Any)
       Logger.debug("Extracting fields", fields: fields.join(", "))
-      
+
       result = {} of String => (JSON::Any | YAML::Any)
-      
+
       fields.each do |field|
         if data.is_a?(JSON::Any)
           if json_data = data[field]?
@@ -176,7 +167,7 @@ module Lapis
           end
         end
       end
-      
+
       Logger.debug("Fields extracted", count: result.size.to_s)
       result
     end
@@ -184,52 +175,17 @@ module Lapis
     # Merge multiple JSON/YAML objects
     def self.merge_data(data_objects : Array(JSON::Any | YAML::Any)) : JSON::Any | YAML::Any
       Logger.debug("Merging data objects", count: data_objects.size.to_s)
-      
+
       return JSON::Any.new(nil) if data_objects.empty?
-      
+
       result = data_objects[0]
-      
+
       data_objects[1..].each do |data|
         result = merge_single_data(result, data)
       end
-      
+
       Logger.debug("Data merge completed")
       result
-    end
-
-    private def self.validate_json_object(data : JSON::Any, schema : JSON::Schema::Object)
-      unless data.as_h?
-        raise ValidationError.new("Expected JSON object, got #{data.raw.class}")
-      end
-    end
-
-    private def self.validate_json_array(data : JSON::Any, schema : JSON::Schema::Array)
-      unless data.as_a?
-        raise ValidationError.new("Expected JSON array, got #{data.raw.class}")
-      end
-    end
-
-    private def self.validate_json_string(data : JSON::Any, schema : JSON::Schema::String)
-      unless data.as_s?
-        raise ValidationError.new("Expected JSON string, got #{data.raw.class}")
-      end
-    end
-
-    private def self.validate_json_number(data : JSON::Any, schema : JSON::Schema::Number)
-      unless data.as_f? || data.as_i?
-        raise ValidationError.new("Expected JSON number, got #{data.raw.class}")
-      end
-    end
-
-    private def self.validate_json_boolean(data : JSON::Any, schema : JSON::Schema::Boolean)
-      unless data.as_bool?
-        raise ValidationError.new("Expected JSON boolean, got #{data.raw.class}")
-      end
-    end
-
-    private def self.validate_yaml_core(data : YAML::Any, schema : YAML::Schema::Core)
-      # Basic YAML core validation
-      Logger.debug("Validating YAML core schema")
     end
 
     private def self.convert_json_to_yaml(json_data : JSON::Any) : String
@@ -247,9 +203,9 @@ module Lapis
     private def self.convert_json_any_to_yaml_any(json_data : JSON::Any) : YAML::Any
       case json_data.raw
       when Hash
-        hash = {} of String => YAML::Any
+        hash = {} of YAML::Any => YAML::Any
         json_data.as_h.each do |k, v|
-          hash[k] = convert_json_any_to_yaml_any(v)
+          hash[YAML::Any.new(k)] = convert_json_any_to_yaml_any(v)
         end
         YAML::Any.new(hash)
       when Array
@@ -259,7 +215,27 @@ module Lapis
         end
         YAML::Any.new(array)
       else
-        YAML::Any.new(json_data.raw)
+        # Convert primitive types explicitly for type safety
+        case json_data.raw
+        when String
+          YAML::Any.new(json_data.raw.as(String))
+        when Int64
+          YAML::Any.new(json_data.raw.as(Int64))
+        when Float64
+          YAML::Any.new(json_data.raw.as(Float64))
+        when Bool
+          YAML::Any.new(json_data.raw.as(Bool))
+        when Nil
+          YAML::Any.new(nil)
+        when Array(JSON::Any)
+          # This should not happen as arrays are handled above
+          YAML::Any.new(json_data.raw.to_s)
+        when Hash(String, JSON::Any)
+          # This should not happen as hashes are handled above
+          YAML::Any.new(json_data.raw.to_s)
+        else
+          YAML::Any.new(json_data.raw.to_s)
+        end
       end
     end
 
@@ -268,7 +244,7 @@ module Lapis
       when Hash
         hash = {} of String => JSON::Any
         yaml_data.as_h.each do |k, v|
-          hash[k] = convert_yaml_any_to_json_any(v)
+          hash[k.as_s] = convert_yaml_any_to_json_any(v)
         end
         JSON::Any.new(hash)
       when Array
@@ -278,7 +254,21 @@ module Lapis
         end
         JSON::Any.new(array)
       else
-        JSON::Any.new(yaml_data.raw)
+        # Convert primitive types explicitly for type safety
+        case yaml_data.raw
+        when String
+          JSON::Any.new(yaml_data.raw.as(String))
+        when Int64
+          JSON::Any.new(yaml_data.raw.as(Int64))
+        when Float64
+          JSON::Any.new(yaml_data.raw.as(Float64))
+        when Bool
+          JSON::Any.new(yaml_data.raw.as(Bool))
+        when Nil
+          JSON::Any.new(nil)
+        else
+          JSON::Any.new(yaml_data.raw.to_s)
+        end
       end
     end
 

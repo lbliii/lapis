@@ -1,13 +1,13 @@
 ---
 title: "Site and Page Methods in Lapis"
 date: "2025-09-28"
-description: "Complete guide to Hugo-compatible site and page methods in Lapis"
-tags: ["templates", "methods", "hugo", "documentation"]
+description: "Complete guide to site and page methods in Lapis"
+tags: ["templates", "methods", "documentation"]
 ---
 
 # Site and Page Methods in Lapis
 
-Lapis provides Hugo-compatible **site and page methods** that give you powerful access to your content, metadata, and site structure. These methods follow Hugo's naming conventions while adding Crystal's performance benefits.
+Lapis provides **site and page methods** that give you powerful access to your content, metadata, and site structure. These methods follow established conventions while adding Crystal's performance benefits.
 
 ## Site Methods
 
@@ -24,7 +24,7 @@ Access global site information and content collections:
 <!-- Site configuration -->
 <p>Built with {{ site.generator }}</p>
 <p>Version: {{ site.version }}</p>
-<p>Environment: {{ site.hugo.environment }}</p>
+<p>Environment: {{ site.generator_info.environment }}</p>
 ```
 
 ### Content Collections
@@ -419,4 +419,4 @@ Access current page information and relationships:
 {{ end }}
 ```
 
-Site and page methods provide the foundation for powerful, data-driven templates in Lapis. They offer the same flexibility as Hugo while providing better performance and more intuitive syntax options.
+Site and page methods provide the foundation for powerful, data-driven templates in Lapis. They offer flexibility while providing better performance and more intuitive syntax options.

@@ -1,6 +1,6 @@
 # Community SEO Plugin Example
 # This would be published as a separate shard: lapis-seo-advanced
-# 
+#
 # Installation: Add to shard.yml:
 # dependencies:
 #   lapis-seo-advanced:
@@ -20,7 +20,7 @@ module LapisSEOAdvanced
     def initialize(config : Hash(String, YAML::Any))
       super("seo-advanced", "1.0.0", config)
       @config = AdvancedSEOConfig.from_yaml(config)
-      
+
       # Initialize AI client if configured
       if @config.openai_api_key
         @ai_client = AIClient.new(@config.openai_api_key)
@@ -29,17 +29,17 @@ module LapisSEOAdvanced
 
     def on_after_content_load(generator : Lapis::Generator, content : Array(Lapis::Content)) : Nil
       log_info("Running advanced SEO analysis on #{content.size} pages")
-      
+
       # AI-powered SEO analysis
       if @ai_client
         content.each do |page|
           analyze_page_with_ai(page)
         end
       end
-      
+
       # Generate SEO recommendations
       generate_seo_recommendations(content)
-      
+
       # Check for duplicate content
       detect_duplicate_content(content)
     end
@@ -47,23 +47,23 @@ module LapisSEOAdvanced
     def on_after_build(generator : Lapis::Generator) : Nil
       # Submit sitemap to search engines
       submit_sitemap_to_search_engines(generator) if @config.auto_submit_sitemap
-      
+
       # Generate SEO performance report
       generate_performance_report(generator)
-      
+
       # Check for SEO issues
       run_seo_audit(generator)
     end
 
     private def analyze_page_with_ai(page : Lapis::Content)
       return unless @ai_client
-      
+
       log_debug("Running AI SEO analysis", page: page.title)
-      
+
       # Use AI to analyze content for SEO
       prompt = build_seo_analysis_prompt(page)
       response = @ai_client.analyze_content(prompt)
-      
+
       # Store AI recommendations
       page.frontmatter["seo_ai_score"] = response.score
       page.frontmatter["seo_ai_recommendations"] = response.recommendations
@@ -72,45 +72,45 @@ module LapisSEOAdvanced
 
     private def generate_seo_recommendations(content : Array(Lapis::Content))
       recommendations = [] of String
-      
+
       content.each do |page|
         # Check for missing meta descriptions
         unless page.frontmatter["description"]?
           recommendations << "Page '#{page.title}' is missing a meta description"
         end
-        
+
         # Check for missing alt text on images
         if page.content.includes?("<img") && !page.content.includes?("alt=")
           recommendations << "Page '#{page.title}' has images without alt text"
         end
-        
+
         # Check for heading structure
         if !page.content.includes?("<h1>")
           recommendations << "Page '#{page.title}' is missing an H1 heading"
         end
       end
-      
+
       # Write recommendations to file
       write_recommendations(recommendations)
     end
 
     private def detect_duplicate_content(content : Array(Lapis::Content))
       log_info("Detecting duplicate content")
-      
+
       # Simple duplicate detection based on content similarity
       content_hashes = Hash(String, Array(Lapis::Content)).new
-      
+
       content.each do |page|
         # Create a hash of the content (excluding frontmatter)
         content_hash = Digest::MD5.hexdigest(page.content)
         content_hashes[content_hash] ||= [] of Lapis::Content
         content_hashes[content_hash] << page
       end
-      
+
       # Report duplicates
-      content_hashes.each do |hash, pages|
+      content_hashes.each do |_, pages|
         if pages.size > 1
-          log_warn("Duplicate content detected", 
+          log_warn("Duplicate content detected",
             pages: pages.map(&.title).join(", "))
         end
       end
@@ -118,12 +118,12 @@ module LapisSEOAdvanced
 
     private def submit_sitemap_to_search_engines(generator : Lapis::Generator)
       sitemap_url = "#{generator.config.baseurl}/sitemap.xml"
-      
+
       # Submit to Google
       if @config.google_search_console_key
         submit_to_google(sitemap_url)
       end
-      
+
       # Submit to Bing
       if @config.bing_webmaster_key
         submit_to_bing(sitemap_url)
@@ -132,36 +132,36 @@ module LapisSEOAdvanced
 
     private def generate_performance_report(generator : Lapis::Generator)
       log_info("Generating SEO performance report")
-      
+
       # Analyze site performance metrics
       report = build_performance_report(generator)
-      
+
       # Write report
       report_path = File.join(generator.config.output_dir, "seo-performance-report.html")
       File.write(report_path, report)
-      
+
       log_info("Performance report generated", path: report_path)
     end
 
     private def run_seo_audit(generator : Lapis::Generator)
       log_info("Running comprehensive SEO audit")
-      
+
       # Check various SEO factors
       audit_results = {
         "missing_meta_descriptions" => check_missing_meta_descriptions(generator),
-        "missing_alt_text" => check_missing_alt_text(generator),
-        "broken_internal_links" => check_broken_internal_links(generator),
-        "slow_loading_pages" => check_page_load_speed(generator),
-        "mobile_friendly" => check_mobile_friendliness(generator)
+        "missing_alt_text"          => check_missing_alt_text(generator),
+        "broken_internal_links"     => check_broken_internal_links(generator),
+        "slow_loading_pages"        => check_page_load_speed(generator),
+        "mobile_friendly"           => check_mobile_friendliness(generator),
       }
-      
+
       # Generate audit report
       audit_report = build_audit_report(audit_results)
-      
+
       # Write audit report
       audit_path = File.join(generator.config.output_dir, "seo-audit-report.html")
       File.write(audit_path, audit_report)
-      
+
       log_info("SEO audit completed", issues: audit_results.values.sum)
     end
 
@@ -169,10 +169,10 @@ module LapisSEOAdvanced
     private def build_seo_analysis_prompt(page : Lapis::Content) : String
       <<-PROMPT
       Analyze this web page content for SEO optimization:
-      
+
       Title: #{page.title}
       Content: #{page.content[0..1000]}...
-      
+
       Please provide:
       1. SEO score (1-100)
       2. Top 5 recommendations for improvement
@@ -183,9 +183,9 @@ module LapisSEOAdvanced
 
     private def write_recommendations(recommendations : Array(String))
       return if recommendations.empty?
-      
+
       log_info("SEO recommendations generated", count: recommendations.size.to_s)
-      
+
       # Write to recommendations file
       recommendations_path = File.join("seo-recommendations.txt")
       File.write(recommendations_path, recommendations.join("\n"))
@@ -274,15 +274,15 @@ module LapisSEOAdvanced
 
     def analyze_content(prompt : String) : AIAnalysisResult
       # Make API call to OpenAI or similar service
-      response = @client.post("/v1/chat/completions", 
+      response = @client.post("/v1/chat/completions",
         headers: {"Content-Type" => "application/json"},
         body: {
-          model: "gpt-3.5-turbo",
+          model:    "gpt-3.5-turbo",
           messages: [
-            {"role" => "user", "content" => prompt}
-          ]
+            {"role" => "user", "content" => prompt},
+          ],
         }.to_json)
-      
+
       # Parse response and return structured result
       AIAnalysisResult.new(
         score: 85,
@@ -312,9 +312,9 @@ module LapisSEOAdvanced
     property auto_submit_sitemap : Bool = false
     property enable_ai_analysis : Bool = false
     property audit_thresholds : Hash(String, Int32) = {
-      "max_loading_time" => 3000,
+      "max_loading_time"   => 3000,
       "min_content_length" => 300,
-      "max_image_size" => 500_000
+      "max_image_size"     => 500_000,
     }
 
     def initialize

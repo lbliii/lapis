@@ -33,7 +33,19 @@ module Lapis
         end
         
         # Wait for process completion with timeout
-        status = process.wait(timeout)
+        done_channel = Channel(Process::Status).new
+        spawn do
+          status = process.wait
+          done_channel.send(status)
+        end
+        
+        status = select
+        when result = done_channel.receive
+          result
+        when timeout(timeout)
+          process.terminate
+          raise ProcessError.new("Command '#{command}' timed out after #{timeout.total_seconds}s")
+        end
         
         # Read output
         output = process.output.try(&.gets_to_end) || ""
@@ -55,13 +67,6 @@ module Lapis
           output_size: output.size.to_s)
         
         result
-      rescue ex : Process::TimeoutError
-        Logger.error("Command timed out", command: command, timeout: timeout.total_seconds.to_s)
-        process.try(&.kill)
-        raise ProcessError.new("Command '#{command}' timed out after #{timeout.total_seconds}s")
-      rescue ex : Process::Error
-        Logger.error("Process error", command: command, error: ex.message)
-        raise ProcessError.new("Failed to execute command '#{command}': #{ex.message}")
       rescue ex
         Logger.error("Unexpected process error", command: command, error: ex.message)
         raise ProcessError.new("Unexpected error executing '#{command}': #{ex.message}")
@@ -107,7 +112,20 @@ module Lapis
       timeout = timeout || @process_timeout
       
       begin
-        status = process.wait(timeout)
+        done_channel = Channel(Process::Status).new
+        spawn do
+          status = process.wait
+          done_channel.send(status)
+        end
+        
+        status = select
+        when result = done_channel.receive
+          result
+        when timeout(timeout)
+          process.terminate
+          @processes.delete(process_id)
+          raise ProcessError.new("Process '#{process_id}' timed out")
+        end
         
         # Read output
         output = process.output.try(&.gets_to_end) || ""
@@ -130,11 +148,6 @@ module Lapis
           exit_code: status.exit_code.to_s)
         
         result
-      rescue ex : Process::TimeoutError
-        Logger.error("Async process timed out", process_id: process_id)
-        process.kill
-        @processes.delete(process_id)
-        raise ProcessError.new("Process '#{process_id}' timed out")
       rescue ex
         Logger.error("Error waiting for async process", process_id: process_id, error: ex.message)
         @processes.delete(process_id)
@@ -150,7 +163,7 @@ module Lapis
       Logger.warn("Killing process", process_id: process_id)
       
       begin
-        process.kill
+        process.terminate
         @processes.delete(process_id)
         Logger.info("Process killed", process_id: process_id)
         true
@@ -171,7 +184,7 @@ module Lapis
       
       @processes.each do |process_id, process|
         begin
-          process.kill
+          process.terminate
           Logger.debug("Killed process during cleanup", process_id: process_id)
         rescue ex
           Logger.warn("Failed to kill process during cleanup", 

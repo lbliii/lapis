@@ -95,4 +95,14 @@ module Lapis
       super(message, context)
     end
   end
+
+  # Process execution errors
+  class ProcessError < LapisError
+    def initialize(message : String, command : String? = nil, exit_code : Int32? = nil)
+      context = {} of String => String
+      context["command"] = command if command
+      context["exit_code"] = exit_code.to_s if exit_code
+      super(message, context)
+    end
+  end
 end

@@ -3,6 +3,8 @@ require "./page_kinds"
 module Lapis
   # Represents a media type for output formats
   struct MediaType
+    include YAML::Serializable
+    
     property name : String
     property type : String
     property subtype : String
@@ -70,6 +72,8 @@ module Lapis
 
   # Defines how content is output in different formats
   struct OutputFormat
+    include YAML::Serializable
+    
     property name : String
     property media_type : MediaType
     property base_name : String
@@ -146,6 +150,8 @@ module Lapis
 
   # Manages output format configuration and resolution
   class OutputFormatManager
+    include YAML::Serializable
+    
     property formats : Hash(String, OutputFormat)
     property outputs_by_kind : Hash(PageKind, Array(String))
 

@@ -1,7 +1,7 @@
 require "./function_processor"
 
 module Lapis
-  # Hugo-style partials system for reusable template components
+  # Partials system for reusable template components
   # Usage: {{ partial "head" . }} or {{ partial "header" . }}
   module Partials
 
@@ -51,7 +51,7 @@ module Lapis
       # Process nested partials first
       result = process_partials(content, context, theme_dir)
 
-      # Use the Hugo-compatible function processor for advanced template syntax
+      # Use the advanced function processor for advanced template syntax
       function_processor = FunctionProcessor.new(context)
       result = function_processor.process(result)
 
@@ -134,7 +134,7 @@ module Lapis
       HTML
     end
 
-    # Automatic CSS discovery - Hugo-style asset pipeline
+    # Automatic CSS discovery - advanced asset pipeline
     def self.generate_auto_css(context : TemplateContext) : String
       css_files = [] of String
 

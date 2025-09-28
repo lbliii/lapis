@@ -3,7 +3,7 @@ require "./page_operations"
 require "./site"
 
 module Lapis
-  # Enhanced Page object - Hugo-compatible page methods
+  # Enhanced Page object - advanced page methods
   class Page
     getter content : Content
     getter site : Site
@@ -13,7 +13,7 @@ module Lapis
       @operations = PageOperations.new(@content, @site.pages)
     end
 
-    # BASIC PAGE PROPERTIES (Hugo-compatible)
+    # BASIC PAGE PROPERTIES
 
     def title : String
       @content.title
@@ -52,7 +52,7 @@ module Lapis
       @content.url
     end
 
-    # METADATA (Hugo-compatible)
+    # METADATA
 
     def date : Time?
       @content.date
@@ -94,7 +94,7 @@ module Lapis
       end
     end
 
-    # TAXONOMIES (Hugo-compatible)
+    # TAXONOMIES
 
     def tags : Array(String)
       @operations.tags
@@ -112,7 +112,7 @@ module Lapis
       params[key]?
     end
 
-    # CONTENT METRICS (Hugo-compatible)
+    # CONTENT METRICS
 
     def word_count : Int32
       @operations.word_count
@@ -146,7 +146,7 @@ module Lapis
       end
     end
 
-    # PAGE RELATIONSHIPS (Hugo-compatible)
+    # PAGE RELATIONSHIPS
 
     def next : Content?
       @operations.next_in_section
@@ -187,7 +187,7 @@ module Lapis
       @operations.related
     end
 
-    # PAGE HIERARCHY (Hugo-compatible)
+    # PAGE HIERARCHY
 
     def section : String
       @operations.section
@@ -216,7 +216,7 @@ module Lapis
       section.starts_with?(other.section + "/")
     end
 
-    # PAGE KIND (Hugo-compatible)
+    # PAGE KIND
 
     def kind : String
       @content.kind.to_s.downcase
@@ -242,7 +242,7 @@ module Lapis
       @content.frontmatter["layout"]?.try(&.as_s) || "single"
     end
 
-    # FILE INFORMATION (Hugo-compatible)
+    # FILE INFORMATION
 
     def file : Hash(String, String)
       {
@@ -258,7 +258,7 @@ module Lapis
       @content.file_path
     end
 
-    # LANGUAGE AND INTERNATIONALIZATION (Hugo-compatible)
+    # LANGUAGE AND INTERNATIONALIZATION
 
     def lang : String
       @content.frontmatter["lang"]?.try(&.as_s) || @site.language_code
@@ -272,7 +272,7 @@ module Lapis
       }
     end
 
-    # CONTENT FORMATS (Hugo-compatible)
+    # CONTENT FORMATS
 
     def markup : String
       case File.extname(@content.file_path).downcase
@@ -311,7 +311,7 @@ module Lapis
       table_of_contents
     end
 
-    # OUTPUT FORMATS (Hugo-compatible)
+    # OUTPUT FORMATS
 
     def output_formats : Array(String)
       ["html", "json", "rss"] # Default formats

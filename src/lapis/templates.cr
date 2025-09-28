@@ -52,13 +52,13 @@ module Lapis
 
     def get_output_path(content : Content, output_format : OutputFormat? = nil) : String
       # Determine the output format
-      format = output_format || @config.output_formats.default_format_for_kind(content.kind)
+      format = output_format || @config.output_formats.formats_for_kind(content.kind).first?
       
       # Generate the URL path
-      url_path = generate_url_path(content)
+      url_path = content.url
       
       # Determine the file extension
-      extension = format.extension
+      extension = format ? format.extension : "html"
       
       # Build the output path
       if url_path.ends_with?("/")
@@ -169,7 +169,7 @@ module Lapis
       nil
     end
 
-    # Hugo-style template lookup order based on page kind and output format
+    # Template lookup order based on page kind and output format
     private def find_layout_by_page_kind_and_format(content : Content, output_format : OutputFormat?) : String?
       candidates = [] of String
       format_suffix = output_format ? ".#{output_format.name}" : ""
@@ -282,10 +282,10 @@ module Lapis
     end
 
     private def process_template(template : String, context : TemplateContext) : String
-      # Process partials first (Hugo-style)
+      # Process partials first
       result = Partials.process_partials(template, context, @config.theme_dir)
 
-      # Use the new Hugo-compatible function processor
+      # Use the advanced function processor
       function_processor = FunctionProcessor.new(context)
       result = function_processor.process(result)
 
@@ -489,7 +489,7 @@ module Lapis
       @content.description || @content.excerpt
     end
 
-    # Page operations (Hugo-compatible methods)
+    # Page operations (advanced methods)
     def page
       @page_ops
     end

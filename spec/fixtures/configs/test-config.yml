@@ -1,0 +1,51 @@
+title: Test Site
+port: 3000
+output_dir: public
+debug: false
+baseurl: https://example.com
+author: Test Author
+description: A test site for Lapis
+language_code: en
+timezone: UTC
+
+# Build configuration
+build:
+  incremental: true
+  parallel: true
+  cache_dir: .lapis_cache
+  clean_output: true
+
+# Logging configuration
+logging:
+  level: info
+  file: null
+  debug: false
+
+# Server configuration
+server:
+  host: 127.0.0.1
+  port: 3000
+  live_reload: true
+
+# Asset configuration
+assets:
+  minify: true
+  compress: true
+  cache_busting: true
+
+# Template configuration
+templates:
+  default_layout: default
+  auto_escape: true
+  strict_variables: false
+
+# Content configuration
+content:
+  markdown:
+    smart: true
+    safe: false
+  frontmatter:
+    delimiters: ["---", "---"]
+  permalinks:
+    posts: /:year/:month/:day/:slug/
+    pages: /:slug/

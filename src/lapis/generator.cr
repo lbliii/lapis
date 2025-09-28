@@ -11,6 +11,7 @@ require "./exceptions"
 require "./incremental_builder"
 require "./parallel_processor"
 require "./plugin_system"
+require "./asset_pipeline"
 require "./memory_manager"
 require "./performance_benchmark"
 
@@ -21,6 +22,7 @@ module Lapis
     property config : Config
     property template_engine : TemplateEngine
     property asset_processor : AssetProcessor
+    property asset_pipeline : AssetPipeline
     property incremental_builder : IncrementalBuilder
     property parallel_processor : ParallelProcessor
     property plugin_manager : PluginManager
@@ -28,12 +30,14 @@ module Lapis
     def initialize(@config : Config)
       @template_engine = TemplateEngine.new(@config)
       @asset_processor = AssetProcessor.new(@config)
+      @asset_pipeline = AssetPipeline.new(@config)
       @incremental_builder = IncrementalBuilder.new(@config.build_config.cache_dir)
       @parallel_processor = ParallelProcessor.new(@config.build_config)
       @plugin_manager = PluginManager.new(@config)
     end
 
     def build
+      puts "DEBUG: Starting build method"
       Logger.build_operation("Starting site build")
       
       # Emit before build event
@@ -54,11 +58,24 @@ module Lapis
             @plugin_manager.emit_event(PluginEvent::AfterContentLoad, self, content: all_content)
 
             Logger.build_operation("Generating pages")
-            # Temporarily use regular build
-            generate_content_pages(all_content)
+            puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental}"
+            puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel}"
+            if @config.build_config.incremental
+              puts "DEBUG: Using incremental build strategy"
+              generate_content_pages_incremental_v2(all_content)
+            else
+              puts "DEBUG: Using regular build strategy"
+              generate_content_pages(all_content)
+            end
 
             Logger.build_operation("Processing assets with optimization")
-            @asset_processor.process_all_assets
+            if @config.build_config.parallel
+              # Use advanced asset pipeline
+              @asset_pipeline.process_all_assets
+            else
+              # Use legacy asset processor
+              @asset_processor.process_all_assets
+            end
 
             Logger.build_operation("Generating index and archive pages")
             generate_index_page(all_content)
@@ -100,31 +117,19 @@ module Lapis
     private def load_all_content : Array(Content)
       content = [] of Content
 
-      # Load pages from content directory
-      if Dir.exists?(@config.content_dir)
-        Dir.glob(File.join(@config.content_dir, "*.md")).each do |file_path|
-          next if File.basename(file_path) == "index.md"
-          begin
-            page_content = Content.load(file_path, @config.content_dir)
-            page_content.process_content(@config)
-            content << page_content
-          rescue ex
-            puts "Warning: Could not load #{file_path}: #{ex.message}"
-          end
-        end
-      end
-
-      # Load posts (but skip _index.md files as they are section pages)
-      if Dir.exists?(@config.posts_dir)
-        Dir.glob(File.join(@config.posts_dir, "*.md")).each do |file_path|
-          next if File.basename(file_path) == "_index.md"  # Skip section pages
-          begin
-            post_content = Content.load(file_path, @config.content_dir)
-            post_content.process_content(@config)
-            content << post_content unless post_content.draft
-          rescue ex
-            puts "Warning: Could not load #{file_path}: #{ex.message}"
-          end
+      # Load all content files from the entire content directory tree
+      # Skip index.md (homepage) and _index.md (section pages - handled separately)
+      search_pattern = File.join(@config.content_dir, "**", "*.md")
+      Dir.glob(search_pattern).each do |file_path|
+        filename = File.basename(file_path)
+        next if filename == "index.md" || filename == "_index.md"
+        
+        begin
+          page_content = Content.load(file_path, @config.content_dir)
+          page_content.process_content(@config)
+          content << page_content unless page_content.draft
+        rescue ex
+          puts "Warning: Could not load #{file_path}: #{ex.message}"
         end
       end
 
@@ -193,7 +198,7 @@ module Lapis
         puts "  Generated: /"
       else
         # Generate default index page
-        posts = all_content.select(&.is_post?).first(5)
+        posts = all_content.select(&.is_post_layout?).first(5)
         html = generate_default_index(posts)
         write_file_atomically(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: / (default)"
@@ -208,7 +213,7 @@ module Lapis
     end
 
     private def generate_archive_pages(all_content : Array(Content))
-      posts = all_content.select(&.is_post?)
+      posts = all_content.select(&.is_post_layout?)
 
       # Generate paginated posts archive
       if posts.size > 0
@@ -502,7 +507,7 @@ module Lapis
     end
 
     private def generate_feeds(all_content : Array(Content))
-      posts = all_content.select(&.is_post?)
+      posts = all_content.select(&.is_post_layout?)
       return if posts.empty?
 
       feed_generator = FeedGenerator.new(@config)
@@ -541,7 +546,7 @@ module Lapis
     end
 
     private def generate_recent_posts_html(all_content : Array(Content), count : Int32) : String
-      recent_posts = all_content.select(&.is_post?).first(count)
+      recent_posts = all_content.select(&.is_post_layout?).first(count)
 
       if recent_posts.empty?
         return %(<div class="recent-posts-empty">No posts available yet.</div>)
@@ -576,26 +581,36 @@ module Lapis
     end
 
     private def write_file_atomically(path : String, content : String)
-      Logger.file_operation("writing", path)
+      Logger.debug("Writing file atomically", path: path, size: content.size)
       
       temp_path = "#{path}.tmp"
       
-      File.open(temp_path, "w") do |file|
-        file.set_encoding("UTF-8")
-        file.print(content)
-        file.flush
+      begin
+        # Ensure directory exists
+        dir = File.dirname(path)
+        Dir.mkdir_p(dir) unless Dir.exists?(dir)
+        
+        File.open(temp_path, "w") do |file|
+          file.set_encoding("UTF-8")
+          file.print(content)
+          file.flush
+        end
+        
+        File.rename(temp_path, path)
+        Logger.debug("File written successfully", path: path)
+      rescue ex : IO::Error
+        Logger.error("Failed to write file atomically", 
+          file: path, 
+          temp_file: temp_path,
+          error: ex.message,
+          error_class: ex.class.name)
+        File.delete(temp_path) if temp_path && File.exists?(temp_path)
+        raise FileSystemError.new("Error writing file #{path}: #{ex.message}", path, "write")
       end
-      
-      File.rename(temp_path, path)
-    rescue ex : IO::Error
-      Logger.error("Failed to write file atomically", file: path, error: ex.message)
-      File.delete(temp_path) if temp_path && File.exists?(temp_path)
-      raise FileSystemError.new("Error writing file #{path}: #{ex.message}", path, "write")
     end
-  end
 
-  # Incremental build methods
-  def generate_content_pages_incremental_v2(all_content : Array(Content))
+    # Incremental build methods
+    private def generate_content_pages_incremental_v2(all_content : Array(Content))
     Logger.info("Using incremental build strategy")
     
     # Separate content into changed and unchanged
@@ -619,21 +634,48 @@ module Lapis
     
     # Process changed content
     if @config.build_config.parallel && changed_content.size > 1
+      Logger.info("Processing changed content in parallel", 
+        count: changed_content.size.to_s,
+        strategy: "parallel")
+      start_time = Time.monotonic
       generate_content_parallel(changed_content)
+      elapsed = Time.monotonic - start_time
+      Logger.info("Parallel processing completed", 
+        count: changed_content.size.to_s,
+        duration_ms: elapsed.total_milliseconds.to_i.to_s)
     else
-      changed_content.each { |content| generate_single_page(content) }
+      Logger.info("Processing changed content sequentially", 
+        count: changed_content.size.to_s,
+        strategy: "sequential")
+      start_time = Time.monotonic
+      changed_content.each_with_index do |content, index|
+        Logger.debug("Processing page #{index + 1}/#{changed_content.size}", 
+          file: content.file_path,
+          title: content.title)
+        generate_single_page(content)
+      end
+      elapsed = Time.monotonic - start_time
+      Logger.info("Sequential processing completed", 
+        count: changed_content.size.to_s,
+        duration_ms: elapsed.total_milliseconds.to_i.to_s)
     end
     
     # Restore unchanged content from cache
+    Logger.info("Restoring unchanged content from cache", count: unchanged_content.size.to_s)
     unchanged_content.each do |content|
       restore_cached_page(content)
     end
     
     # Update timestamps for all content
+    Logger.debug("Updating file timestamps", count: all_content.size.to_s)
     all_content.each { |content| @incremental_builder.update_timestamp(content.file_path) }
   end
 
   private def generate_content_parallel(content_list : Array(Content))
+    Logger.debug("Starting parallel content processing", 
+      count: content_list.size.to_s,
+      files: content_list.map(&.file_path))
+    
     file_paths = content_list.map(&.file_path)
     
     processor = ->(file_path : String) do
@@ -714,6 +756,11 @@ module Lapis
   end
 
   private def generate_single_page(content : Content)
+    Logger.debug("Starting page generation", 
+      file: content.file_path,
+      title: content.title,
+      kind: content.kind.to_s)
+    
     output_path = @template_engine.get_output_path(content)
     
     begin
@@ -743,4 +790,5 @@ module Lapis
       raise BuildError.new("Failed to generate page #{content.file_path}: #{ex.message}")
     end
   end
+end
 end

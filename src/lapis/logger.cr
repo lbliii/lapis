@@ -25,10 +25,10 @@ module Lapis
       elsif ENV["LAPIS_LOG_LEVEL"]?
         case ENV["LAPIS_LOG_LEVEL"].downcase
         when "debug" then Log::Severity::Debug
-        when "info" then Log::Severity::Info
-        when "warn" then Log::Severity::Warn
+        when "info"  then Log::Severity::Info
+        when "warn"  then Log::Severity::Warn
         when "error" then Log::Severity::Error
-        else Log::Severity::Info
+        else              Log::Severity::Info
         end
       else
         Log::Severity::Info
@@ -57,20 +57,22 @@ module Lapis
     end
 
     # Performance logging
-    def self.time_operation(operation : String, **context, &block)
+    def self.time_operation(operation : String, **context, &)
       start_time = Time.monotonic
       Log.debug { "Starting #{operation}" }
-      
-      result = yield
-      
-      duration = Time.monotonic - start_time
-      Log.info { "Completed #{operation} in #{format_duration(duration)}" }
-      
-      result
-    rescue ex
-      duration = Time.monotonic - start_time
-      Log.error { "Failed #{operation} after #{format_duration(duration)}: #{ex.message}" }
-      raise ex
+
+      begin
+        result = yield
+
+        duration = Time.monotonic - start_time
+        Log.info { "Completed #{operation} in #{format_duration(duration)}" }
+
+        result
+      rescue ex
+        duration = Time.monotonic - start_time
+        Log.error { "Failed #{operation} after #{format_duration(duration)}: #{ex.message}" }
+        raise ex
+      end
     end
 
     # File operation logging

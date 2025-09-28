@@ -8,8 +8,7 @@ module Lapis
       event_type: String,
       timestamp: Time,
       file_size: Int64?,
-      file_hash: String?
-    )
+      file_hash: String?)
 
     property change_channel : Channel(ChangeEvent)
     property shutdown_channel : Channel(Nil)
@@ -29,7 +28,7 @@ module Lapis
         file_size: file_size,
         file_hash: file_hash
       )
-      
+
       begin
         @change_channel.send(event)
         Log.debug { "File change event sent: #{event_type} #{path}" }
@@ -84,7 +83,7 @@ module Lapis
 
       @watching = true
       Log.info { "Starting channel-based file watcher" }
-      
+
       spawn do
         watch_loop
       end
@@ -105,10 +104,10 @@ module Lapis
 
     private def watch_loop
       initialize_file_timestamps
-      
+
       Log.info { "File watcher monitoring directories:" }
       config = @config.live_reload_config
-      
+
       if config.watch_content && Dir.exists?(@config.content_dir)
         Log.info { "  - content: #{@config.content_dir}" }
       end
@@ -139,7 +138,7 @@ module Lapis
       @file_hashes.clear
 
       config = @config.live_reload_config
-      
+
       if config.watch_content && Dir.exists?(@config.content_dir)
         scan_directory(@config.content_dir, "content")
       end
@@ -167,7 +166,7 @@ module Lapis
 
     private def check_for_changes
       config = @config.live_reload_config
-      
+
       if config.watch_content && Dir.exists?(@config.content_dir)
         check_directory(@config.content_dir, "content")
       end
@@ -187,14 +186,14 @@ module Lapis
         begin
           current_time = File.info(file_path).modification_time
           current_hash = calculate_file_hash(file_path)
-          
+
           if !@file_timestamps[file_path]? || @file_timestamps[file_path] != current_time
             # File changed
             event_type = @file_timestamps[file_path]? ? "modified" : "created"
             file_size = File.info(file_path).size
-            
+
             @change_channel.send_change(file_path, event_type, file_size, current_hash)
-            
+
             @file_timestamps[file_path] = current_time
             @file_hashes[file_path] = current_hash
           end
@@ -215,7 +214,7 @@ module Lapis
 
     private def should_ignore_file?(file_path : String) : Bool
       config = @config.live_reload_config
-      
+
       config.ignore_patterns.any? do |pattern|
         if pattern.includes?("*")
           File.match?(pattern, file_path)

@@ -227,10 +227,4 @@ module Lapis
     end
   end
 
-  # Extension to the Content class to process shortcodes
-  class Content
-    def process_shortcodes(processor : ShortcodeProcessor)
-      @content = processor.process(@content)
-    end
-  end
 end

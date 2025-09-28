@@ -6,6 +6,7 @@ require "./page_kinds"
 require "./logger"
 require "./exceptions"
 require "./data_processor"
+require "./shortcodes"
 
 module Lapis
   class Content < BaseContent
@@ -142,12 +143,13 @@ module Lapis
       raise "Error writing content file #{path}: #{ex.message}"
     end
 
-    def is_post? : Bool
-      @file_path.includes?("/posts/")
+    def is_page? : Bool
+      true  # All content is now treated as pages
     end
 
-    def is_page? : Bool
-      !is_post?
+    # Check if this content should be treated as a "post" (for feeds, archives, etc.)
+    def is_post_layout? : Bool
+      @layout == "post"
     end
 
     # Page kind helpers
@@ -234,15 +236,22 @@ module Lapis
     private def parse_date(date_value : YAML::Any?) : Time?
       return nil unless date_value
 
-      date_str = date_value.as_s
-      begin
-        Time.parse(date_str, Lapis::DATE_FORMAT_SHORT, Time::Location::UTC)
-      rescue Time::Format::Error
+      # Handle both string and Time objects from YAML
+      if date_value.raw.is_a?(Time)
+        return date_value.raw.as(Time)
+      elsif date_value.raw.is_a?(String)
+        date_str = date_value.raw.as(String)
         begin
-          Time.parse(date_str, Lapis::DATE_FORMAT, Time::Location::UTC)
+          Time.parse(date_str, Lapis::DATE_FORMAT_SHORT, Time::Location::UTC)
         rescue Time::Format::Error
-          nil
+          begin
+            Time.parse(date_str, Lapis::DATE_FORMAT, Time::Location::UTC)
+          rescue Time::Format::Error
+            nil
+          end
         end
+      else
+        nil
       end
     end
 
@@ -263,7 +272,7 @@ module Lapis
         return @permalink.not_nil!
       end
 
-      if is_post? && @date
+      if is_post_layout? && @date
         date = @date.not_nil!
         year = date.year.to_s
         month = date.month.to_s.rjust(2, '0')
@@ -271,13 +280,27 @@ module Lapis
         slug = File.basename(@file_path, ".md")
         "/#{year}/#{month}/#{day}/#{slug}/"
       else
-        slug = File.basename(@file_path, ".md")
-        if slug == "index"
-          "/"
+        # For section pages (_index.md), use the section name instead of filename
+        if @kind.section? || @kind.list?
+          if @section.empty?
+            "/"
+          else
+            "/#{@section}/"
+          end
         else
-          "/#{slug}/"
+          slug = File.basename(@file_path, ".md")
+          if slug == "index"
+            "/"
+          else
+            "/#{slug}/"
+          end
         end
       end
+    end
+
+    # Process shortcodes in content
+    def process_shortcodes(processor : ShortcodeProcessor)
+      @content = processor.process(@content)
     end
   end
 end

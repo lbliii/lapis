@@ -2,11 +2,25 @@ require "json"
 
 module Lapis
   class WebSocketHandler
-    alias ReloadMessage = NamedTuple(
-      type: String,
-      files: Array(String)?,
-      timestamp: String
-    )
+    # Structured WebSocket message with JSON serialization
+    class WebSocketMessage
+      include JSON::Serializable
+
+      @[JSON::Field(emit_null: true)]
+      property type : String
+
+      @[JSON::Field(emit_null: true)]
+      property files : Array(String)?
+
+      @[JSON::Field(emit_null: true)]
+      property timestamp : String
+
+      def initialize(@type : String, @files : Array(String)? = nil, @timestamp : String = Time.utc.to_s)
+      end
+    end
+
+    # Legacy alias for backward compatibility
+    alias ReloadMessage = WebSocketMessage
 
     property connections : Array(HTTP::WebSocket) = [] of HTTP::WebSocket
     property path : String
@@ -32,7 +46,7 @@ module Lapis
     def broadcast_reload(file_path : String)
       return if @connections.empty?
 
-      message = ReloadMessage.new(
+      message = WebSocketMessage.new(
         type: determine_reload_type(file_path),
         files: [file_path],
         timestamp: Time.utc.to_s
@@ -44,7 +58,7 @@ module Lapis
     def broadcast_full_reload
       return if @connections.empty?
 
-      message = ReloadMessage.new(
+      message = WebSocketMessage.new(
         type: "full_reload",
         files: nil,
         timestamp: Time.utc.to_s
@@ -56,7 +70,7 @@ module Lapis
     def broadcast_css_reload(files : Array(String))
       return if @connections.empty?
 
-      message = ReloadMessage.new(
+      message = WebSocketMessage.new(
         type: "css_reload",
         files: files,
         timestamp: Time.utc.to_s
@@ -68,7 +82,7 @@ module Lapis
     def broadcast_js_reload(files : Array(String))
       return if @connections.empty?
 
-      message = ReloadMessage.new(
+      message = WebSocketMessage.new(
         type: "js_reload",
         files: files,
         timestamp: Time.utc.to_s

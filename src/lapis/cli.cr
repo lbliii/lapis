@@ -92,11 +92,19 @@ module Lapis
     end
 
     private def build_site
+      Logger.info("Starting CLI build process")
       config = Config.load
+      Logger.debug("Config loaded", 
+        incremental: config.build_config.incremental,
+        parallel: config.build_config.parallel,
+        cache_dir: config.build_config.cache_dir)
+      
       generator = Generator.new(config)
+      Logger.info("Generator created, calling build_with_analytics")
 
       # Use analytics-enabled build
       generator.build_with_analytics
+      Logger.info("Build completed successfully")
 
       puts "Site built successfully in '#{config.output_dir}'"
     end
