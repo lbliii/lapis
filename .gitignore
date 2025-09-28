@@ -1,5 +1,5 @@
 # Crystal
-# shard.lock  # Commented out to allow CI builds
+shard.lock
 lib/
 bin/
 *.o
