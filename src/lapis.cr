@@ -3,9 +3,9 @@ require "./lapis/*"
 module Lapis
   VERSION = "0.4.0"
   # Build metadata constants following Crystal patterns
-  BUILD_DATE = {{ `date -u +"%Y-%m-%d"`.stringify }}
+  BUILD_DATE   = {{ `date -u +"%Y-%m-%d"`.stringify }}
   BUILD_COMMIT = {{ `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`.stringify }}
-  DESCRIPTION = "Lapis #{VERSION} [#{BUILD_COMMIT}] (#{BUILD_DATE})"
+  DESCRIPTION  = "Lapis #{VERSION} [#{BUILD_COMMIT}] (#{BUILD_DATE})"
 
   # Standard date formats used throughout the application
   DATE_FORMAT       = "%Y-%m-%d %H:%M:%S UTC"

@@ -259,12 +259,10 @@ module Lapis
     end
 
     def validate_base_url : Bool
-      begin
-        uri = URI.parse(@config.baseurl)
-        !uri.opaque? && !uri.scheme.nil?
-      rescue
-        false
-      end
+      uri = URI.parse(@config.baseurl)
+      !uri.opaque? && !uri.scheme.nil?
+    rescue
+      false
     end
 
     # SITE-WIDE OPERATIONS

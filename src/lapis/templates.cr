@@ -815,7 +815,7 @@ module Lapis
         "port"     => uri.port,
         "path"     => uri.path,
         "query"    => uri.query,
-        "fragment" => uri.fragment
+        "fragment" => uri.fragment,
       }
     end
 

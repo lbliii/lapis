@@ -293,7 +293,6 @@ module Lapis
     # Advanced iteration methods leveraging Iterable
     def paginated_content(page_size : Int32, page : Int32) : Array(Content)
       return [] of Content if page_size <= 0 || page <= 0
-      
       begin
         each_slice(page_size).to_a[page - 1]? || [] of Content
       rescue ex
@@ -303,17 +302,14 @@ module Lapis
     end
 
     def group_by_date : Hash(String, Array(Content))
-      begin
-        chunk(&.date.to_s).to_h
-      rescue ex
-        Logger.warn("Error in group_by_date", error: ex.message)
-        {} of String => Array(Content)
-      end
+      chunk(&.date.to_s).to_h
+    rescue ex
+      Logger.warn("Error in group_by_date", error: ex.message)
+      {} of String => Array(Content)
     end
 
     def content_previews(window_size : Int32 = 3) : Array(Array(Content))
       return [] of Array(Content) if window_size <= 0
-      
       begin
         each_cons(window_size).to_a
       rescue ex
@@ -323,17 +319,14 @@ module Lapis
     end
 
     def group_by_section_changes : Array(Array(Content))
-      begin
-        slice_when { |a, b| a.section != b.section }.to_a
-      rescue ex
-        Logger.warn("Error in group_by_section_changes", error: ex.message)
-        [] of Array(Content)
-      end
+      slice_when { |a, b| a.section != b.section }.to_a
+    rescue ex
+      Logger.warn("Error in group_by_section_changes", error: ex.message)
+      [] of Array(Content)
     end
 
     def recent_with_index(count : Int32 = 5) : Array({Content, Int32})
       return [] of {Content, Int32} if count <= 0
-      
       begin
         each_with_index.first(count).to_a
       rescue ex
