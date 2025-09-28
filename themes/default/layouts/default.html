@@ -1,46 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title }} - {{ site.title }}</title>
-  <meta name="description" content="{{ description }}">
-  <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-  <header class="site-header">
-    <nav class="site-nav">
-      <a href="/" class="site-title">{{ site.title }}</a>
-      <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="/posts/">Posts</a>
-        <a href="/about/">About</a>
-      </div>
-    </nav>
-  </header>
+{{ extends "baseof" }}
 
-  <main class="main-content">
-    <article class="content">
-      <header class="content-header">
-        <h1>{{ title }}</h1>
-        {{ if date }}
-        <div class="meta">
-          <time datetime="{{ date }}">{{ date_formatted }}</time>
-          {{ if tags }}
-          <div class="tags">{{ tags }}</div>
-          {{ endif }}
-        </div>
+{{ block "main" }}
+<main class="main-content">
+  <article class="content">
+    <header class="content-header">
+      <h1>{{ title }}</h1>
+      {{ if date }}
+      <div class="meta">
+        <time datetime="{{ date }}">{{ date_formatted }}</time>
+        {{ if tags }}
+        <div class="tags">{{ tags }}</div>
         {{ endif }}
-      </header>
-
-      <div class="content-body">
-        {{ content }}
       </div>
-    </article>
-  </main>
+      {{ endif }}
+    </header>
 
-  <footer class="site-footer">
-    <p>&copy; {{ site.title }} - Built with <a href="https://github.com/lapis-lang/lapis">Lapis</a></p>
-  </footer>
-</body>
-</html>
+    <div class="content-body">
+      {{ content }}
+    </div>
+  </article>
+</main>
+{{ endblock }}

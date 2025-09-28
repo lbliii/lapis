@@ -1,23 +1,102 @@
 require "ecr"
+require "./base_content"
+require "./theme_helpers"
+require "./partials"
 
 module Lapis
   class TemplateEngine
+    include ThemeHelpers
+
     property config : Config
     property layouts_dir : String
+    property theme_layouts_dir : String
 
     def initialize(@config : Config)
       @layouts_dir = @config.layouts_dir
+      @theme_layouts_dir = File.join(@config.theme_dir, "layouts")
     end
 
     def render(content : Content, layout : String? = nil) : String
       layout_name = layout || content.layout
-      layout_path = File.join(@layouts_dir, "#{layout_name}.html")
+      context = TemplateContext.new(@config, content)
+      
+      render_with_inheritance(layout_name, context)
+    end
 
-      if File.exists?(layout_path)
-        render_layout(layout_path, content)
+    def render_archive_page(title : String, posts : Array(Content), pagination_html : String = "", layout : String = "archive") : String
+      # Create a virtual content object for archive pages
+      archive_content = ArchiveContent.new(title, posts, pagination_html)
+      context = TemplateContext.new(@config, archive_content)
+      
+      render_with_inheritance(layout, context)
+    end
+
+    private def render_with_inheritance(layout_name : String, context : TemplateContext) : String
+      layout_path = find_layout(layout_name)
+      
+      if layout_path
+        layout_content = File.read(layout_path)
+        
+        # Check if this layout extends another layout
+        if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
+          parent_layout = extends_match[1]
+          render_with_parent(layout_content, parent_layout, context)
+        else
+          # No inheritance, render directly
+          process_template(layout_content, context)
+        end
       else
-        render_default_layout(content)
+        render_default_layout(context)
       end
+    end
+
+    private def render_with_parent(child_content : String, parent_layout : String, context : TemplateContext) : String
+      parent_path = find_layout(parent_layout)
+      return render_default_layout(context) unless parent_path
+      
+      parent_content = File.read(parent_path)
+      
+      # Extract blocks from child template
+      blocks = extract_blocks(child_content)
+      
+      # Replace block placeholders in parent with child blocks
+      result = parent_content
+      blocks.each do |block_name, block_content|
+        result = result.gsub(/\{\{\s*block\s+"#{block_name}"\s*\}\}.*?\{\{\s*endblock\s*\}\}/m, block_content)
+      end
+      
+      # Process any remaining default blocks
+      result = result.gsub(/\{\{\s*block\s+"([^"]+)"\s*\}\}(.*?)\{\{\s*endblock\s*\}\}/m) do |match|
+        block_name = $1
+        default_content = $2
+        blocks[block_name]? || default_content
+      end
+      
+      process_template(result, context)
+    end
+
+    private def extract_blocks(template : String) : Hash(String, String)
+      blocks = Hash(String, String).new
+      
+      template.scan(/\{\{\s*block\s+"([^"]+)"\s*\}\}(.*?)\{\{\s*endblock\s*\}\}/m) do |match|
+        block_name = match[1]
+        block_content = match[2]
+        blocks[block_name] = block_content
+      end
+      
+      blocks
+    end
+
+    private def find_layout(layout_name : String) : String?
+      # Check local layouts first
+      local_path = File.join(@layouts_dir, "#{layout_name}.html")
+      return local_path if File.exists?(local_path)
+      
+      # Check theme layouts
+      theme_path = File.join(@theme_layouts_dir, "#{layout_name}.html")
+      return theme_path if File.exists?(theme_path)
+      
+      nil
     end
 
     def render_layout(layout_path : String, content : Content) : String
@@ -26,16 +105,15 @@ module Lapis
       process_template(layout_content, context)
     end
 
-    def render_default_layout(content : Content) : String
-      context = TemplateContext.new(@config, content)
+    def render_default_layout(context : TemplateContext) : String
       process_template(default_layout_template, context)
     end
 
     private def process_template(template : String, context : TemplateContext) : String
-      # Simple template processing - replace variables
-      result = template
+      # Process partials first (Hugo-style)
+      result = Partials.process_partials(template, context, @config.theme_dir)
 
-      # Replace basic variables
+      # Process basic variables
       result = result.gsub("{{ title }}", context.content.title)
       result = result.gsub("{{ content }}", context.content.content)
       result = result.gsub("{{ site.title }}", context.site_title)
@@ -43,10 +121,16 @@ module Lapis
       result = result.gsub("{{ site.author }}", context.site_author)
       result = result.gsub("{{ site.baseurl }}", context.site_baseurl)
 
+      # Legacy CSS includes support (will be deprecated)
+      result = result.gsub("{{ css_includes }}", context.css_includes)
+
+      # Auto CSS discovery (preferred method)
+      result = result.gsub("{{ auto_css }}", Partials.generate_auto_css(context))
+
       # Date formatting
       if date = context.content.date
-        result = result.gsub("{{ date }}", date.to_s("%Y-%m-%d"))
-        result = result.gsub("{{ date_formatted }}", date.to_s("%B %d, %Y"))
+        result = result.gsub("{{ date }}", date.to_s(Lapis::DATE_FORMAT_SHORT))
+        result = result.gsub("{{ date_formatted }}", date.to_s(Lapis::DATE_FORMAT_HUMAN))
       else
         result = result.gsub("{{ date }}", "")
         result = result.gsub("{{ date_formatted }}", "")
@@ -64,6 +148,29 @@ module Lapis
 
       # Description
       result = result.gsub("{{ description }}", context.content.description || context.content.excerpt)
+
+      # Process conditional blocks
+      result = process_conditionals(result, context)
+
+      result
+    end
+
+    private def process_conditionals(template : String, context : TemplateContext) : String
+      result = template
+
+      # Process {{ if date }} blocks
+      if context.content.date
+        result = result.gsub(/\{\{\s*if\s+date\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) { $1 }
+      else
+        result = result.gsub(/\{\{\s*if\s+date\s*\}\}.*?\{\{\s*endif\s*\}\}/m, "")
+      end
+
+      # Process {{ if tags }} blocks
+      if !context.content.tags.empty?
+        result = result.gsub(/\{\{\s*if\s+tags\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) { $1 }
+      else
+        result = result.gsub(/\{\{\s*if\s+tags\s*\}\}.*?\{\{\s*endif\s*\}\}/m, "")
+      end
 
       result
     end
@@ -195,10 +302,12 @@ module Lapis
   end
 
   class TemplateContext
-    getter config : Config
-    getter content : Content
+    include ThemeHelpers
 
-    def initialize(@config : Config, @content : Content)
+    getter config : Config
+    getter content : BaseContent
+
+    def initialize(@config : Config, @content : BaseContent)
     end
 
     def site_title : String
@@ -215,6 +324,75 @@ module Lapis
 
     def site_baseurl : String
       @config.baseurl
+    end
+
+    # Get CSS includes with proper theme cascade
+    def css_includes(page_name : String? = nil) : String
+      build_css_includes(page_name).join("\n  ")
+    end
+
+    # Legacy support for existing templates
+    def site
+      self
+    end
+
+    def title
+      @content.title
+    end
+
+    def description
+      @content.description || @content.excerpt
+    end
+  end
+
+  class ArchiveContent < BaseContent
+    property title : String
+    property posts : Array(Content)
+    property pagination_html : String
+
+    def initialize(@title : String, @posts : Array(Content), @pagination_html : String = "")
+    end
+
+    def content : String
+      posts_html = @posts.map do |post|
+        date_str = post.date ? post.date.not_nil!.to_s(Lapis::DATE_FORMAT_HUMAN) : ""
+        tags_html = post.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
+
+        <<-HTML
+        <article class="post-item">
+          <h3><a href="#{post.url}">#{post.title}</a></h3>
+          <div class="meta">#{date_str} #{tags_html}</div>
+          <p>#{post.excerpt}</p>
+          <a href="#{post.url}" class="read-more">Read more →</a>
+        </article>
+        HTML
+      end.join("\n")
+
+      posts_html + @pagination_html
+    end
+
+    def url : String
+      "/posts/"
+    end
+
+    def date : Time?
+      @posts.first?.try(&.date)
+    end
+
+    def tags : Array(String)
+      [] of String
+    end
+
+    def categories : Array(String)
+      [] of String
+    end
+
+    def description : String?
+      "Archive of all posts"
+    end
+
+    def excerpt(length : Int32 = 200) : String
+      "Archive of all posts (#{@posts.size} posts)"
     end
   end
 

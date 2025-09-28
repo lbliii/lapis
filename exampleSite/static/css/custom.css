@@ -1,0 +1,152 @@
+/* Site-specific customizations that override theme defaults */
+/* This file inherits from themes/default/static/css/style.css */
+
+/* Customize brand colors */
+:root {
+  --primary-color: #4a90e2;    /* Override theme's primary color */
+  --secondary-color: #357abd;  /* Override theme's secondary color */
+  --accent-color: #6c5ce7;     /* Override theme's accent color */
+}
+
+/* Example site specific enhancements */
+.home-content {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.home-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.home-header h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: var(--primary-color);
+}
+
+.home-description {
+  font-size: 1.2rem;
+  color: var(--text-light);
+  margin-bottom: 2rem;
+}
+
+.home-body {
+  margin-top: 2rem;
+}
+
+/* Enhanced recent posts styling */
+.recent-posts {
+  margin: 3rem 0;
+}
+
+.recent-post {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  background: var(--bg-secondary);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.recent-post:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.recent-post h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.recent-post h3 a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.recent-post h3 a:hover {
+  color: var(--secondary-color);
+}
+
+.post-meta {
+  color: var(--text-light);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.post-meta time {
+  font-weight: 500;
+}
+
+.read-more {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 1rem;
+  transition: color 0.2s;
+}
+
+.read-more:hover {
+  color: var(--secondary-color);
+}
+
+.all-posts-link {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.all-posts-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid var(--primary-color);
+  border-radius: 6px;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.all-posts-link a:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Archive page styling */
+.archive-header h1 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.post-item {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 2rem;
+  margin-bottom: 2rem;
+}
+
+.post-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.post-item h3 a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.post-item h3 a:hover {
+  color: var(--secondary-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .home-header h1 {
+    font-size: 2.5rem;
+  }
+
+  .recent-post {
+    padding: 1.5rem;
+  }
+}

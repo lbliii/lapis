@@ -1,21 +1,38 @@
 # Lapis
 
-A fast static site generator built in Crystal, inspired by Hugo and Sphinx.
+A lightning-fast static site generator built in Crystal with intelligent optimization and modern developer experience.
 
 [![Crystal](https://img.shields.io/badge/crystal-1.0+-blue.svg)](https://crystal-lang.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.2.0-brightgreen.svg)](https://github.com/lapis-lang/lapis/releases)
 
 ## ⚡ Features
 
-- **Lightning Fast**: Built with Crystal for maximum performance
-- **Simple to Use**: Hugo-inspired CLI with sensible defaults
-- **Powerful**: Sphinx-inspired documentation features
-- **Live Reload**: Development server with automatic rebuilding
-- **Markdown**: Full support with YAML frontmatter
-- **Themes**: Beautiful responsive themes with dark mode
-- **Tags & Categories**: Organize content effectively
-- **Cross-References**: Automatic linking between pages
-- **Mobile Friendly**: Responsive design out of the box
+### 🚀 **Performance & Optimization**
+- **Lightning Fast**: Crystal-powered builds in milliseconds
+- **Smart Asset Processing**: Automatic image optimization with WebP conversion
+- **Responsive Images**: Auto-generated srcsets for all screen sizes
+- **Build Analytics**: Detailed performance insights and optimization hints
+- **Incremental Processing**: Only rebuild what's changed
+
+### 🎨 **Modern Developer Experience**
+- **Smart Templates**: Pre-built templates for blogs, docs, and portfolios
+- **Shortcodes**: Powerful content widgets (alerts, galleries, buttons)
+- **Live Reload**: Instant browser updates during development
+- **Performance Profiling**: Built-in build time analysis
+
+### 📝 **Content Management**
+- **Enhanced Markdown**: Full support with YAML frontmatter
+- **RSS/Atom/JSON Feeds**: Automatic feed generation
+- **Pagination**: Smart archive pagination with navigation
+- **SEO Optimization**: Automated sitemaps and meta tags
+- **Cross-References**: Intelligent content linking
+
+### 🔧 **Developer Tools**
+- **Interactive CLI**: Template galleries and guided setup
+- **Hot Reload**: Instant updates without browser refresh
+- **Asset Pipeline**: Automated CSS/JS optimization
+- **Dark Mode**: Built-in theme switching
 
 ## 🚀 Quick Start
 
@@ -33,28 +50,46 @@ crystal build src/lapis.cr --release -o bin/lapis
 ### Create Your First Site
 
 ```bash
-# Create a new site
+# Quick start with default template
 ./bin/lapis init my-blog
 
-# Enter the directory
-cd my-blog
+# Or choose from professional templates
+./bin/lapis init --template list
+./bin/lapis init --template blog my-awesome-blog
 
-# Start the development server
+# Enter the directory and start developing
+cd my-blog
 ../bin/lapis serve
 ```
 
 Visit `http://localhost:3000` to see your site!
 
-### Add Content
+### Template Gallery
 
 ```bash
-# Create a new page
-lapis new page "About"
+# List available templates
+lapis init --template list
 
-# Create a new blog post
+# Available templates:
+# blog        Personal Blog - Clean, responsive blog template
+# docs        Documentation Site - Technical docs with sidebar navigation
+# portfolio   Portfolio Site - Showcase your work professionally
+# minimal     Minimal Site - Ultra-clean template focusing on content
+```
+
+### Enhanced Content Creation
+
+```bash
+# Create content with intelligent defaults
+lapis new page "About"
 lapis new post "My First Post"
 
-# Build the static site
+# Use powerful shortcodes in your content
+{% image "hero.jpg" "Beautiful landscape" %}
+{% alert "info" %}This is an info alert{% endalert %}
+{% button "https://example.com" "Call to Action" "primary" %}
+
+# Build with performance analytics
 lapis build
 ```
 
@@ -188,22 +223,82 @@ Add custom CSS in `static/css/custom.css` and reference it in your layouts.
 ## 🔧 CLI Commands
 
 ```bash
-# Create a new site
+# Create sites with templates
 lapis init <site-name>
+lapis init --template <template> <site-name>
+lapis init --template list
 
-# Build the static site
-lapis build
+# Build with analytics
+lapis build                    # Shows performance report
 
-# Start development server with live reload
-lapis serve
+# Development server
+lapis serve                    # Live reload + file watching
 
-# Create new content
-lapis new page <title>
-lapis new post <title>
+# Smart content creation
+lapis new page <title>         # Creates optimized pages
+lapis new post <title>         # Creates blog posts with metadata
 
-# Show help
+# Get help
 lapis help
 ```
+
+## 🎨 **New in v0.2.0**
+
+### **Smart Asset Processing**
+- Automatic image optimization and WebP conversion
+- Responsive image generation with multiple sizes
+- Asset fingerprinting for cache busting
+- CSS/JS minification and optimization
+
+### **Powerful Shortcodes**
+Transform your content with built-in widgets:
+
+```markdown
+<!-- Responsive images -->
+{% image "screenshot.png" "App screenshot" %}
+
+<!-- Alert boxes -->
+{% alert "warning" %}Important notice!{% endalert %}
+
+<!-- Interactive elements -->
+{% button "https://example.com" "Get Started" "primary" %}
+
+<!-- Content galleries -->
+{% gallery "portfolio/projects" %}
+
+<!-- Code blocks with copy -->
+{% highlight "crystal" %}
+puts "Hello, Lapis!"
+{% endhighlight %}
+```
+
+### **Performance Analytics**
+Get detailed insights into your build performance:
+
+```
+📊 Build Analytics Report
+═══════════════════════════════════════
+⏱️  Total Build Time: 1.23s
+📝 Content Generated: 15 pages, 8 posts
+🎨 Assets Processed: 24 images, 3 CSS files
+💾 Total Output Size: 2.4MB
+
+⚡ Performance Breakdown:
+     Content Processing    456ms (37%)
+     Asset Processing      321ms (26%)
+     Feed Generation       89ms  (7%)
+
+💡 Performance Insights:
+     🚀 Excellent build performance! Under 2 seconds.
+     📚 Consider implementing incremental builds for larger sites.
+```
+
+### **Professional Templates**
+Choose from curated templates designed for different use cases:
+- **Blog**: Personal writing with social features
+- **Documentation**: Technical docs with navigation
+- **Portfolio**: Creative showcase with galleries
+- **Minimal**: Clean, content-focused design
 
 ## 🏗️ Development
 
@@ -232,12 +327,24 @@ shards run ameba
 crystal tool format
 ```
 
-## 📚 Examples
+## 📚 Example Site
 
-Check out the `examples/` directory for complete example sites:
+Explore the comprehensive example site in `exampleSite/`:
 
-- `examples/blog/` - A complete blog setup with multiple posts
-- See the live examples at [lapis-examples.com](https://lapis-examples.com)
+```bash
+# View the example site
+cd exampleSite
+../bin/lapis serve
+```
+
+The example site showcases:
+- All shortcode features with live examples
+- Performance optimization in action
+- Professional blog template
+- SEO and analytics configuration
+- Best practices and patterns
+
+See `exampleSite/README.md` for detailed documentation.
 
 ## 🤝 Contributing
 

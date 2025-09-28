@@ -27,10 +27,33 @@ module Lapis
     end
 
     private def init_site
+      # Check for template flag
+      if @args[1]? == "--template" || @args[1]? == "-t"
+        if @args[2]? == "list"
+          TemplateManager.list_templates
+          return
+        end
+
+        template_name = @args[2]?
+        site_name = @args[3]?
+
+        unless template_name && site_name
+          puts "Error: Template name and site name required"
+          puts "Usage: lapis init --template <template-name> <site-name>"
+          puts "       lapis init --template list"
+          exit(1)
+        end
+
+        TemplateManager.create_from_template(template_name, site_name)
+        return
+      end
+
       site_name = @args[1]?
       unless site_name
         puts "Error: Site name required"
         puts "Usage: lapis init <site-name>"
+        puts "       lapis init --template <template-name> <site-name>"
+        puts "       lapis init --template list"
         exit(1)
       end
 
@@ -45,6 +68,8 @@ module Lapis
           puts "Next steps:"
           puts "  cd #{site_name}"
           puts "  lapis serve"
+          puts ""
+          puts "💡 Tip: Try 'lapis init --template list' to see available templates"
         end
       rescue File::AlreadyExistsError
         puts "Error: Directory '#{site_name}' already exists"
@@ -53,10 +78,12 @@ module Lapis
     end
 
     private def build_site
-      puts "Building site..."
       config = Config.load
       generator = Generator.new(config)
-      generator.build
+
+      # Use analytics-enabled build
+      generator.build_with_analytics
+
       puts "Site built successfully in '#{config.output_dir}'"
     end
 
@@ -156,7 +183,7 @@ module Lapis
       post_content = <<-MD
       ---
       title: "Welcome to Lapis"
-      date: "#{Time.utc.to_s("%Y-%m-%d %H:%M:%S UTC")}"
+      date: "#{Time.utc.to_s(Lapis::DATE_FORMAT)}"
       tags: ["welcome", "lapis"]
       layout: "post"
       ---
