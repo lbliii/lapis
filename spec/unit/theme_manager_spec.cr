@@ -36,7 +36,7 @@ describe Lapis::ThemeManager do
 
         theme_manager.theme_paths.should_not be_empty
         theme_manager.theme_paths.first.should eq(File.expand_path("custom/my-theme", temp_dir))
-        
+
         # Should be able to resolve files from custom theme directory
         resolved_path = theme_manager.resolve_file("baseof.html", "layout")
         resolved_path.should_not be_nil
@@ -61,7 +61,7 @@ describe Lapis::ThemeManager do
 
         # Custom theme should be first in paths
         theme_manager.theme_paths.first.should eq(File.expand_path("custom/test-theme", temp_dir))
-        
+
         # Should resolve to custom theme file
         resolved_path = theme_manager.resolve_file("baseof.html", "layout")
         resolved_path.should_not be_nil
@@ -81,7 +81,7 @@ describe Lapis::ThemeManager do
 
         theme_manager.theme_paths.should_not be_empty
         theme_manager.theme_paths.first.should eq(File.expand_path("../themes/parent-theme", temp_dir))
-        
+
         # Should be able to resolve files
         resolved_path = theme_manager.resolve_file("baseof.html", "layout")
         resolved_path.should_not be_nil

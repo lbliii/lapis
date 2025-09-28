@@ -366,43 +366,43 @@ module Lapis
     private def call_method(object, method : String)
       case {object, method}
       # Site methods
-      when {Site, "Title"}        then object.as(Site).title
-      when {Site, "BaseURL"}      then object.as(Site).base_url
-      when {Site, "Pages"}        then object.as(Site).all_pages
-      when {Site, "RegularPages"} then object.as(Site).regular_pages
-      when {Site, "Params"}       then object.as(Site).params
-      when {Site, "Data"}         then object.as(Site).data
-      when {Site, "Menus"}        then object.as(Site).menus
-      when {Site, "Author"}       then object.as(Site).author
-      when {Site, "Copyright"}    then object.as(Site).copyright
-      when {Site, "Hugo"}         then object.as(Site).generator_info
-      when {Site, "title"}        then object.as(Site).title
-      when {Site, "base_url"}     then object.as(Site).base_url
-      when {Site, "theme"}        then object.as(Site).theme
-      when {Site, "theme_dir"}    then object.as(Site).theme_dir
-      when {Site, "layouts_dir"}  then object.as(Site).layouts_dir
-      when {Site, "static_dir"}   then object.as(Site).static_dir
-      when {Site, "output_dir"}   then object.as(Site).output_dir
-      when {Site, "content_dir"}  then object.as(Site).content_dir
-      when {Site, "debug"}        then object.as(Site).debug
-      when {Site, "build_config"} then object.as(Site).build_config
+      when {Site, "Title"}              then object.as(Site).title
+      when {Site, "BaseURL"}            then object.as(Site).base_url
+      when {Site, "Pages"}              then object.as(Site).all_pages
+      when {Site, "RegularPages"}       then object.as(Site).regular_pages
+      when {Site, "Params"}             then object.as(Site).params
+      when {Site, "Data"}               then object.as(Site).data
+      when {Site, "Menus"}              then object.as(Site).menus
+      when {Site, "Author"}             then object.as(Site).author
+      when {Site, "Copyright"}          then object.as(Site).copyright
+      when {Site, "Hugo"}               then object.as(Site).generator_info
+      when {Site, "title"}              then object.as(Site).title
+      when {Site, "base_url"}           then object.as(Site).base_url
+      when {Site, "theme"}              then object.as(Site).theme
+      when {Site, "theme_dir"}          then object.as(Site).theme_dir
+      when {Site, "layouts_dir"}        then object.as(Site).layouts_dir
+      when {Site, "static_dir"}         then object.as(Site).static_dir
+      when {Site, "output_dir"}         then object.as(Site).output_dir
+      when {Site, "content_dir"}        then object.as(Site).content_dir
+      when {Site, "debug"}              then object.as(Site).debug
+      when {Site, "build_config"}       then object.as(Site).build_config
       when {Site, "live_reload_config"} then object.as(Site).live_reload_config
-      when {Site, "bundling_config"} then object.as(Site).bundling_config
+      when {Site, "bundling_config"}    then object.as(Site).bundling_config
         # BuildConfig methods
-      when {BuildConfig, "enabled"} then object.as(BuildConfig).incremental
+      when {BuildConfig, "enabled"}     then object.as(BuildConfig).incremental
       when {BuildConfig, "incremental"} then object.as(BuildConfig).incremental
-      when {BuildConfig, "parallel"} then object.as(BuildConfig).parallel
-      when {BuildConfig, "cache_dir"} then object.as(BuildConfig).cache_dir
+      when {BuildConfig, "parallel"}    then object.as(BuildConfig).parallel
+      when {BuildConfig, "cache_dir"}   then object.as(BuildConfig).cache_dir
       when {BuildConfig, "max_workers"} then object.as(BuildConfig).max_workers
         # LiveReloadConfig methods
-      when {LiveReloadConfig, "enabled"} then object.as(LiveReloadConfig).enabled
+      when {LiveReloadConfig, "enabled"}        then object.as(LiveReloadConfig).enabled
       when {LiveReloadConfig, "websocket_path"} then object.as(LiveReloadConfig).websocket_path
-      when {LiveReloadConfig, "debounce_ms"} then object.as(LiveReloadConfig).debounce_ms
+      when {LiveReloadConfig, "debounce_ms"}    then object.as(LiveReloadConfig).debounce_ms
         # BundlingConfig methods
-      when {BundlingConfig, "enabled"} then object.as(BundlingConfig).enabled
-      when {BundlingConfig, "minify"} then object.as(BundlingConfig).minify
+      when {BundlingConfig, "enabled"}     then object.as(BundlingConfig).enabled
+      when {BundlingConfig, "minify"}      then object.as(BundlingConfig).minify
       when {BundlingConfig, "source_maps"} then object.as(BundlingConfig).source_maps
-      when {BundlingConfig, "autoprefix"} then object.as(BundlingConfig).autoprefix
+      when {BundlingConfig, "autoprefix"}  then object.as(BundlingConfig).autoprefix
         # Page methods
       when {Page, "Title"}       then object.as(Page).title
       when {Page, "Content"}     then object.as(Page).content_html
@@ -425,17 +425,17 @@ module Lapis
       when {Page, "Layout"}      then object.as(Page).layout
       when {Page, "Params"}      then object.as(Page).params
         # Page methods (lowercase)
-      when {Page, "title"}       then object.as(Page).title
-      when {Page, "content"}     then object.as(Page).content_html
-      when {Page, "summary"}     then object.as(Page).summary
-      when {Page, "url"}         then object.as(Page).url
-      when {Page, "permalink"}   then object.as(Page).permalink
-      when {Page, "date"}        then object.as(Page).date
-      when {Page, "tags"}        then object.as(Page).tags
-      when {Page, "categories"}  then object.as(Page).categories
-      when {Page, "kind"}        then object.as(Page).kind
-      when {Page, "layout"}      then object.as(Page).layout
-      when {Page, "file_path"}   then object.as(Page).file_path
+      when {Page, "title"}      then object.as(Page).title
+      when {Page, "content"}    then object.as(Page).content_html
+      when {Page, "summary"}    then object.as(Page).summary
+      when {Page, "url"}        then object.as(Page).url
+      when {Page, "permalink"}  then object.as(Page).permalink
+      when {Page, "date"}       then object.as(Page).date
+      when {Page, "tags"}       then object.as(Page).tags
+      when {Page, "categories"} then object.as(Page).categories
+      when {Page, "kind"}       then object.as(Page).kind
+      when {Page, "layout"}     then object.as(Page).layout
+      when {Page, "file_path"}  then object.as(Page).file_path
         # Content methods (for arrays of Content)
       when {Content, "Title"}   then object.as(Content).title
       when {Content, "URL"}     then object.as(Content).url

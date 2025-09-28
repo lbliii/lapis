@@ -293,9 +293,9 @@ module Lapis
       Logger.debug("Using themed index generation")
       # Create a temporary content object for the home page
       frontmatter = {
-        "title" => YAML::Any.new(@config.title),
+        "title"  => YAML::Any.new(@config.title),
         "layout" => YAML::Any.new("home"),
-        "type" => YAML::Any.new("page")
+        "type"   => YAML::Any.new("page"),
       } of String => YAML::Any
 
       content_body = generate_posts_list_html(recent_posts)
@@ -445,7 +445,7 @@ module Lapis
             <h3 style="margin: 0; color: #4CAF50;">🔧 Lapis Debug</h3>
             <button onclick="toggleDebug()" style="background: #333; color: #fff; border: 1px solid #555; padding: 2px 6px; cursor: pointer;">×</button>
           </div>
-          
+
           <div class="debug-section">
             <h4 style="color: #FF9800; margin: 5px 0;">Theme Info</h4>
             <div><strong>Current Theme:</strong> #{@config.theme}</div>
@@ -515,7 +515,7 @@ module Lapis
         // Auto-show debug panel in development mode or with ?debug=true
         function shouldShowDebug() {
           const urlParams = new URLSearchParams(window.location.search);
-          return window.location.hostname === 'localhost' || 
+          return window.location.hostname === 'localhost' ||
                  window.location.hostname === '127.0.0.1' ||
                  urlParams.get('debug') === 'true' ||
                  urlParams.get('lapis-debug') === 'true';

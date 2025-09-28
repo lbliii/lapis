@@ -15,12 +15,12 @@ module Lapis
     def initialize(@current_theme : String, project_root : String = ".", theme_dir : String? = nil)
       @project_root = project_root
       @global_themes_dir = File.expand_path("~/.lapis/themes")
-      
+
       # Use custom theme_dir if provided
       if theme_dir
         @custom_theme_dir = theme_dir
       end
-      
+
       build_theme_paths
       resolve_theme_locations
       Logger.info("Theme manager initialized", theme: @current_theme, paths: @theme_paths.size)
@@ -75,8 +75,8 @@ module Lapis
     # Check if current theme is properly configured and available
     def theme_available? : Bool
       layout_file = resolve_file("baseof.html", "layout") ||
-                   resolve_file("default.html", "layout") ||
-                   resolve_file("index.html", "layout")
+                    resolve_file("default.html", "layout") ||
+                    resolve_file("index.html", "layout")
       !layout_file.nil?
     end
 
@@ -112,7 +112,7 @@ module Lapis
         next unless Dir.exists?(shard_path)
 
         # Check if this shard is a Lapis theme
-        if is_lapis_theme_shard?(shard_path)
+        if lapis_theme_shard?(shard_path)
           theme = ShardTheme.new(shard_path, shard_name)
           if theme.valid_shard? && theme.valid?
             shard_themes << theme
@@ -151,7 +151,7 @@ module Lapis
         Dir.each_child(@global_themes_dir) do |theme_name|
           theme_path = File.join(@global_themes_dir, theme_name)
           if Dir.exists?(theme_path) && Dir.exists?(File.join(theme_path, "layouts"))
-            themes[theme_name] ||= "global"  # Don't override local/shard themes
+            themes[theme_name] ||= "global" # Don't override local/shard themes
           end
         end
       end
@@ -284,12 +284,12 @@ module Lapis
     # Validate a theme's structure and requirements
     def validate_theme(theme_path : String) : Hash(String, String | Bool)
       result = {
-        "valid" => false,
-        "has_layouts" => false,
-        "has_baseof" => false,
+        "valid"              => false,
+        "has_layouts"        => false,
+        "has_baseof"         => false,
         "has_default_layout" => false,
-        "has_theme_config" => false,
-        "error" => ""
+        "has_theme_config"   => false,
+        "error"              => "",
       } of String => String | Bool
 
       begin
@@ -313,9 +313,9 @@ module Lapis
         result["has_baseof"] = File.exists?(baseof_html_default) || File.exists?(baseof_html_root)
 
         default_layout = File.join(layouts_dir, "_default", "single.html") ||
-                        File.join(layouts_dir, "index.html")
+                         File.join(layouts_dir, "index.html")
         result["has_default_layout"] = File.exists?(File.join(layouts_dir, "_default", "single.html")) ||
-                                      File.exists?(File.join(layouts_dir, "index.html"))
+                                       File.exists?(File.join(layouts_dir, "index.html"))
 
         # Check for theme configuration
         theme_config = File.join(theme_path, "theme.yml")
@@ -323,7 +323,7 @@ module Lapis
 
         # Theme is valid if it has layouts and at least one layout file
         result["valid"] = result["has_layouts"].as(Bool) &&
-                         (result["has_baseof"].as(Bool) || result["has_default_layout"].as(Bool))
+                          (result["has_baseof"].as(Bool) || result["has_default_layout"].as(Bool))
       rescue ex
         result["error"] = "Validation error: #{ex.message}"
       end
@@ -379,7 +379,6 @@ module Lapis
           result["error"] = "Shard not identified as a Lapis theme"
           return result
         end
-
       rescue ex
         result["valid"] = false
         result["error"] = "Invalid shard.yml: #{ex.message}"
@@ -389,7 +388,7 @@ module Lapis
     end
 
     # Check if a directory contains a valid Lapis theme shard
-    private def is_lapis_theme_shard?(shard_path : String) : Bool
+    private def lapis_theme_shard?(shard_path : String) : Bool
       shard_yml = File.join(shard_path, "shard.yml")
       return false unless File.exists?(shard_yml)
 
@@ -428,24 +427,22 @@ module Lapis
     end
 
     private def collect_assets_from_dir(dir : String, prefix : String, assets : Hash(String, String))
-      begin
-        Dir.each_child(dir) do |child|
-          child_path = File.join(dir, child)
-          relative_path = prefix.empty? ? child : File.join(prefix, child)
+      Dir.each_child(dir) do |child|
+        child_path = File.join(dir, child)
+        relative_path = prefix.empty? ? child : File.join(prefix, child)
 
-          if Dir.exists?(child_path)
-            collect_assets_from_dir(child_path, relative_path, assets)
-          else
-            assets[relative_path] = child_path
-          end
+        if Dir.exists?(child_path)
+          collect_assets_from_dir(child_path, relative_path, assets)
+        else
+          assets[relative_path] = child_path
         end
-      rescue ex : File::NotFoundError
-        Logger.debug("Asset directory not found", dir: dir)
-      rescue ex : File::AccessDeniedError
-        Logger.warn("Access denied to asset directory", dir: dir, error: ex.message)
-      rescue ex
-        Logger.error("Error collecting assets from directory", dir: dir, error: ex.message)
       end
+    rescue ex : File::NotFoundError
+      Logger.debug("Asset directory not found", dir: dir)
+    rescue ex : File::AccessDeniedError
+      Logger.warn("Access denied to asset directory", dir: dir, error: ex.message)
+    rescue ex
+      Logger.error("Error collecting assets from directory", dir: dir, error: ex.message)
     end
   end
 

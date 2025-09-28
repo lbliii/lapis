@@ -10,7 +10,7 @@ describe "Debug Partial Integration" do
         themes_dir = File.join(temp_dir, "themes", "default")
         layouts_dir = File.join(themes_dir, "layouts")
         partials_dir = File.join(layouts_dir, "partials")
-        
+
         Dir.mkdir_p(content_dir)
         Dir.mkdir_p(output_dir)
         Dir.mkdir_p(partials_dir)
@@ -136,7 +136,7 @@ describe "Debug Partial Integration" do
         custom_themes_dir = File.join(temp_dir, "custom", "themes", "my-theme")
         layouts_dir = File.join(custom_themes_dir, "layouts")
         partials_dir = File.join(layouts_dir, "partials")
-        
+
         Dir.mkdir_p(content_dir)
         Dir.mkdir_p(output_dir)
         Dir.mkdir_p(partials_dir)
@@ -240,7 +240,7 @@ describe "Debug Partial Integration" do
         # Create test site structure without theme
         content_dir = File.join(temp_dir, "content")
         output_dir = File.join(temp_dir, "public")
-        
+
         Dir.mkdir_p(content_dir)
         Dir.mkdir_p(output_dir)
 
@@ -302,7 +302,7 @@ describe "Debug Partial Integration" do
         themes_dir = File.join(temp_dir, "themes", "default")
         layouts_dir = File.join(themes_dir, "layouts")
         partials_dir = File.join(layouts_dir, "partials")
-        
+
         Dir.mkdir_p(content_dir)
         Dir.mkdir_p(output_dir)
         Dir.mkdir_p(partials_dir)

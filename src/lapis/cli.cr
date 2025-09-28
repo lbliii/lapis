@@ -534,12 +534,12 @@ module Lapis
 
     private def save_server_info(port : Int32, host : String)
       server_info = {
-        "pid" => Process.pid,
-        "port" => port,
-        "host" => host,
-        "started_at" => Time.utc.to_s,
+        "pid"         => Process.pid,
+        "port"        => port,
+        "host"        => host,
+        "started_at"  => Time.utc.to_s,
         "project_dir" => Dir.current,
-        "config_file" => File.exists?("config.yml") ? File.expand_path("config.yml") : nil
+        "config_file" => File.exists?("config.yml") ? File.expand_path("config.yml") : nil,
       }
 
       servers_dir = File.expand_path("~/.lapis/servers")
@@ -636,12 +636,12 @@ module Lapis
 
           if process_running?(pid)
             servers << {
-              :pid => pid,
-              :port => port,
-              :host => info["host"].as_s,
+              :pid         => pid,
+              :port        => port,
+              :host        => info["host"].as_s,
               :project_dir => info["project_dir"]?.try(&.as_s),
               :config_file => info["config_file"]?.try(&.as_s),
-              :responding => port_responding?(port)
+              :responding  => port_responding?(port),
             }
           else
             # Clean up stale server info
@@ -663,14 +663,12 @@ module Lapis
     end
 
     private def port_responding?(port : Int32) : Bool
-      begin
-        # Simple check to see if port responds to HTTP
-        socket = TCPSocket.new("localhost", port)
-        socket.close
-        true
-      rescue
-        false
-      end
+      # Simple check to see if port responds to HTTP
+      socket = TCPSocket.new("localhost", port)
+      socket.close
+      true
+    rescue
+      false
     end
 
     private def show_help
