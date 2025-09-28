@@ -167,15 +167,19 @@ module Lapis
     end
 
     # Format bytes for display
+    KB = 1024_i64
+    MB = KB * 1024
+    GB = MB * 1024
+
     def format_bytes(bytes : Int64) : String
-      if bytes < 1024
+      if bytes < KB
         "#{bytes} B"
-      elsif bytes < 1024 * 1024
-        "#{bytes / 1024} KB"
-      elsif bytes < 1024 * 1024 * 1024
-        "#{bytes / (1024 * 1024)} MB"
+      elsif bytes < MB
+        "#{(bytes.to_f / KB).round(2)} KB"
+      elsif bytes < GB
+        "#{(bytes.to_f / MB).round(2)} MB"
       else
-        "#{bytes / (1024 * 1024 * 1024)} GB"
+        "#{(bytes.to_f / GB).round(2)} GB"
       end
     end
 
