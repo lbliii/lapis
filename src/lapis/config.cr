@@ -1,4 +1,5 @@
 require "yaml"
+require "./output_formats"
 
 module Lapis
   class Config
@@ -17,14 +18,27 @@ module Lapis
     @[YAML::Field(key: "markdown")]
     property markdown_config : MarkdownConfig?
 
+    # Output format manager for multi-format rendering (initialized lazily)
+    @[YAML::Field(ignore: true)]
+    @output_formats : OutputFormatManager?
+
     def initialize(@title = "Lapis Site", @baseurl = "http://localhost:3000", @description = "A site built with Lapis", @author = "Site Author", @theme = "default", @output_dir = "public", @permalink = "/:year/:month/:day/:title/", @port = 3000, @host = "localhost", @markdown_config = nil)
+    end
+
+    def output_formats : OutputFormatManager
+      @output_formats ||= OutputFormatManager.new
     end
 
     def self.load(path : String = "config.yml") : Config
       if File.exists?(path)
         content = File.read(path)
+        yaml_data = YAML.parse(content).as_h
         config = from_yaml(content)
         config.validate
+
+        # Load output formats from YAML data
+        config.output_formats.load_from_config(yaml_data.transform_keys(&.to_s))
+
         config
       else
         puts "Warning: No config.yml found, using defaults"

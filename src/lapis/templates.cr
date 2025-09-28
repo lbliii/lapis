@@ -16,11 +16,48 @@ module Lapis
       @theme_layouts_dir = File.join(@config.theme_dir, "layouts")
     end
 
-    def render(content : Content, layout : String? = nil) : String
-      layout_name = layout || content.layout
-      context = TemplateContext.new(@config, content)
-      
-      render_with_inheritance(layout_name, context)
+    def render(content : Content, layout : String? = nil, output_format : OutputFormat? = nil) : String
+      context = TemplateContext.new(@config, content, output_format)
+
+      # Use page kind-aware template resolution
+      if layout
+        # Explicit layout specified, use traditional resolution
+        render_with_inheritance(layout, context)
+      else
+        # Use page kind and format-aware resolution
+        layout_path = find_layout_by_page_kind_and_format(content, output_format)
+        if layout_path
+          layout_content = File.read(layout_path)
+
+          # Check if this layout extends another layout
+          if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
+            parent_layout = extends_match[1]
+            render_with_parent(layout_content, parent_layout, context)
+          else
+            # No inheritance, render directly
+            process_template(layout_content, context)
+          end
+        else
+          render_default_layout(context)
+        end
+      end
+    end
+
+    # Render content in all configured output formats
+    def render_all_formats(content : Content) : Hash(String, String)
+      results = Hash(String, String).new
+      formats = @config.output_formats.formats_for_kind(content.kind)
+
+      formats.each do |format|
+        begin
+          rendered = render(content, nil, format)
+          results[format.name] = rendered
+        rescue ex
+          puts "Warning: Failed to render '#{content.file_path}' in #{format.name} format (#{format.extension}): #{ex.message}"
+        end
+      end
+
+      results
     end
 
     def render_archive_page(title : String, posts : Array(Content), pagination_html : String = "", layout : String = "archive") : String
@@ -87,16 +124,124 @@ module Lapis
       blocks
     end
 
-    private def find_layout(layout_name : String) : String?
+    private def find_layout(layout_name : String, content : Content? = nil) : String?
+      # If content is provided, use page kind-aware template resolution
+      if content
+        return find_layout_by_page_kind(content)
+      end
+
+      # Fallback to simple layout resolution
       # Check local layouts first
       local_path = File.join(@layouts_dir, "#{layout_name}.html")
       return local_path if File.exists?(local_path)
-      
+
       # Check theme layouts
       theme_path = File.join(@theme_layouts_dir, "#{layout_name}.html")
       return theme_path if File.exists?(theme_path)
-      
+
       nil
+    end
+
+    # Hugo-style template lookup order based on page kind and output format
+    private def find_layout_by_page_kind_and_format(content : Content, output_format : OutputFormat?) : String?
+      candidates = [] of String
+      format_suffix = output_format ? ".#{output_format.name}" : ""
+      extension = output_format ? output_format.extension : "html"
+
+      case content.kind
+      when .single?
+        # For single pages: section/single.format.ext -> section/single.ext -> _default/single.format.ext -> _default/single.ext
+        unless content.section.empty?
+          candidates << File.join(@layouts_dir, content.section, "single#{format_suffix}.#{extension}")
+          candidates << File.join(@theme_layouts_dir, content.section, "single#{format_suffix}.#{extension}")
+          candidates << File.join(@layouts_dir, content.section, "single.#{extension}")
+          candidates << File.join(@theme_layouts_dir, content.section, "single.#{extension}")
+        end
+        candidates << File.join(@layouts_dir, "_default", "single#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "single#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "single.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "single.#{extension}")
+
+        # Fallback to explicit layout if specified
+        if content.layout != "default"
+          candidates << File.join(@layouts_dir, "#{content.layout}#{format_suffix}.#{extension}")
+          candidates << File.join(@theme_layouts_dir, "#{content.layout}#{format_suffix}.#{extension}")
+          candidates << File.join(@layouts_dir, "#{content.layout}.#{extension}")
+          candidates << File.join(@theme_layouts_dir, "#{content.layout}.#{extension}")
+        end
+
+      when .list?, .section?
+        # For list/section pages: section/list.format.ext -> _default/list.format.ext
+        unless content.section.empty?
+          candidates << File.join(@layouts_dir, content.section, "list#{format_suffix}.#{extension}")
+          candidates << File.join(@theme_layouts_dir, content.section, "list#{format_suffix}.#{extension}")
+          candidates << File.join(@layouts_dir, content.section, "list.#{extension}")
+          candidates << File.join(@theme_layouts_dir, content.section, "list.#{extension}")
+        end
+        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+
+      when .home?
+        # For home page: index.format.ext -> _default/home.format.ext -> _default/list.format.ext
+        candidates << File.join(@layouts_dir, "index#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "index#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "index.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "index.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "home#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "home#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "home.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "home.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+
+      when .taxonomy?
+        # For taxonomy pages: taxonomy.format.ext -> _default/taxonomy.format.ext -> _default/list.format.ext
+        candidates << File.join(@layouts_dir, "taxonomy#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "taxonomy#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "taxonomy.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "taxonomy.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "taxonomy#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "taxonomy#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "taxonomy.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "taxonomy.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+
+      when .term?
+        # For term pages: term.format.ext -> _default/term.format.ext -> _default/list.format.ext
+        candidates << File.join(@layouts_dir, "term#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "term#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "term.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "term.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "term#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "term#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "term.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "term.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
+        candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
+        candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
+      end
+
+      # Find first existing template
+      candidates.each do |path|
+        if File.exists?(path)
+          return path
+        end
+      end
+
+      nil
+    end
+
+    # Backward compatibility method
+    private def find_layout_by_page_kind(content : Content) : String?
+      find_layout_by_page_kind_and_format(content, nil)
     end
 
     def render_layout(layout_path : String, content : Content) : String
@@ -121,6 +266,13 @@ module Lapis
       result = result.gsub("{{ site.author }}", context.site_author)
       result = result.gsub("{{ site.baseurl }}", context.site_baseurl)
 
+      # Page kind and section information
+      if context.content.is_a?(Content) && (content = context.content.as(Content))
+        result = result.gsub("{{ page.kind }}", content.kind.to_s)
+        result = result.gsub("{{ page.section }}", content.section)
+        result = result.gsub("{{ section }}", content.section)
+      end
+
       # Legacy CSS includes support (will be deprecated)
       result = result.gsub("{{ css_includes }}", context.css_includes)
 
@@ -137,11 +289,21 @@ module Lapis
       end
 
       # Tags and categories
-      tags_html = context.content.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
-      result = result.gsub("{{ tags }}", tags_html)
+      if context.output_format && context.output_format.not_nil!.name == "json"
+        # For JSON format, output proper JSON arrays
+        tags_json = context.content.tags.map { |tag| %("#{tag}") }.join(", ")
+        result = result.gsub("{{ tags }}", "[#{tags_json}]")
 
-      categories_html = context.content.categories.map { |cat| %(<span class="category">#{cat}</span>) }.join(" ")
-      result = result.gsub("{{ categories }}", categories_html)
+        categories_json = context.content.categories.map { |cat| %("#{cat}") }.join(", ")
+        result = result.gsub("{{ categories }}", "[#{categories_json}]")
+      else
+        # For HTML format, output HTML spans
+        tags_html = context.content.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
+        result = result.gsub("{{ tags }}", tags_html)
+
+        categories_html = context.content.categories.map { |cat| %(<span class="category">#{cat}</span>) }.join(" ")
+        result = result.gsub("{{ categories }}", categories_html)
+      end
 
       # URL
       result = result.gsub("{{ url }}", context.content.url)
@@ -170,6 +332,13 @@ module Lapis
         result = result.gsub(/\{\{\s*if\s+tags\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) { $1 }
       else
         result = result.gsub(/\{\{\s*if\s+tags\s*\}\}.*?\{\{\s*endif\s*\}\}/m, "")
+      end
+
+      # Process {{ if description }} blocks
+      if context.content.description && !context.content.description.not_nil!.empty?
+        result = result.gsub(/\{\{\s*if\s+description\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m) { $1 }
+      else
+        result = result.gsub(/\{\{\s*if\s+description\s*\}\}.*?\{\{\s*endif\s*\}\}/m, "")
       end
 
       result
@@ -306,8 +475,9 @@ module Lapis
 
     getter config : Config
     getter content : BaseContent
+    getter output_format : OutputFormat?
 
-    def initialize(@config : Config, @content : BaseContent)
+    def initialize(@config : Config, @content : BaseContent, @output_format : OutputFormat? = nil)
     end
 
     def site_title : String

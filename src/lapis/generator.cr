@@ -26,6 +26,9 @@ module Lapis
 
       puts "Generating index and archive pages..."
       generate_index_page(all_content)
+      puts "  About to generate section pages..."
+      generate_section_pages(all_content)
+      puts "  Section pages completed."
       generate_archive_pages(all_content)
 
       puts "Generating feeds and sitemap..."
@@ -53,7 +56,7 @@ module Lapis
         Dir.glob(File.join(@config.content_dir, "*.md")).each do |file_path|
           next if File.basename(file_path) == "index.md"
           begin
-            page_content = Content.load(file_path)
+            page_content = Content.load(file_path, @config.content_dir)
             page_content.process_content(@config)
             content << page_content
           rescue ex
@@ -62,11 +65,12 @@ module Lapis
         end
       end
 
-      # Load posts
+      # Load posts (but skip _index.md files as they are section pages)
       if Dir.exists?(@config.posts_dir)
         Dir.glob(File.join(@config.posts_dir, "*.md")).each do |file_path|
+          next if File.basename(file_path) == "_index.md"  # Skip section pages
           begin
-            post_content = Content.load(file_path)
+            post_content = Content.load(file_path, @config.content_dir)
             post_content.process_content(@config)
             content << post_content unless post_content.draft
           rescue ex
@@ -80,14 +84,29 @@ module Lapis
 
     private def generate_content_pages(all_content : Array(Content))
       all_content.each do |content|
-        output_path = generate_output_path(content)
-        output_dir = File.dirname(output_path)
+        # Generate content in all configured formats
+        format_outputs = @template_engine.render_all_formats(content)
+
+        # Create output directory for this content
+        url_path = content.url.chomp("/")
+        output_dir = if url_path.empty?
+                       @config.output_dir
+                     else
+                       File.join(@config.output_dir, url_path.lstrip("/"))
+                     end
         Dir.mkdir_p(output_dir)
 
-        html = @template_engine.render(content)
-        File.write(output_path, html)
+        # Write each format to appropriate file
+        format_outputs.each do |format_name, rendered_content|
+          format = @config.output_formats.get_format(format_name)
+          next unless format
 
-        puts "  Generated: #{content.url}"
+          filename = format.filename
+          output_path = File.join(output_dir, filename)
+          File.write(output_path, rendered_content)
+        end
+
+        puts "  Generated: #{content.url} (#{format_outputs.keys.join(", ")})"
       end
     end
 
@@ -95,7 +114,7 @@ module Lapis
       index_path = File.join(@config.content_dir, "index.md")
 
       if File.exists?(index_path)
-        index_content = Content.load(index_path)
+        index_content = Content.load(index_path, @config.content_dir)
         index_content.process_content(@config)
 
         # Process recent_posts shortcodes in the raw content before markdown processing
@@ -117,6 +136,50 @@ module Lapis
         html = generate_default_index(posts)
         File.write(File.join(@config.output_dir, "index.html"), html)
         puts "  Generated: / (default)"
+      end
+    end
+
+    private def generate_section_pages(all_content : Array(Content))
+      # Find and generate _index.md section pages
+      search_pattern = File.join(@config.content_dir, "**", "_index.md")
+      puts "  Generating section pages..."
+      Dir.glob(search_pattern).each do |index_path|
+        begin
+          section_content = Content.load(index_path, @config.content_dir)
+          section_content.process_content(@config)
+
+          # Generate all configured output formats for section pages
+          format_outputs = @template_engine.render_all_formats(section_content)
+
+          # Determine output directory based on section
+          rel_path = Path[index_path].relative_to(Path[@config.content_dir]).to_s
+          dir_parts = Path[rel_path].parts[0..-2] # Remove _index.md filename
+
+          if dir_parts.empty?
+            # Root _index.md becomes the home page
+            output_dir = @config.output_dir
+          else
+            # Section _index.md goes to /section/ directory
+            output_dir = File.join(@config.output_dir, dir_parts.join("/"))
+          end
+
+          Dir.mkdir_p(output_dir)
+
+          # Write each format to appropriate file
+          format_outputs.each do |format_name, rendered_content|
+            format = @config.output_formats.get_format(format_name)
+            next unless format
+
+            filename = format.filename
+            output_path = File.join(output_dir, filename)
+            File.write(output_path, rendered_content)
+          end
+
+          section_url = dir_parts.empty? ? "/" : "/#{dir_parts.join("/")}/"
+          puts "  Generated: #{section_url} (#{format_outputs.keys.join(", ")}) [section]"
+        rescue ex
+          puts "Warning: Could not generate section page #{index_path}: #{ex.message}"
+        end
       end
     end
 
