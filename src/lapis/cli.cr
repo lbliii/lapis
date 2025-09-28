@@ -94,11 +94,11 @@ module Lapis
     private def build_site
       Logger.info("Starting CLI build process")
       config = Config.load
-      Logger.debug("Config loaded", 
+      Logger.debug("Config loaded",
         incremental: config.build_config.incremental,
         parallel: config.build_config.parallel,
         cache_dir: config.build_config.cache_dir)
-      
+
       generator = Generator.new(config)
       Logger.info("Generator created, calling build_with_analytics")
 

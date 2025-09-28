@@ -222,10 +222,10 @@ module Lapis
     # Process a single asset file
     def process_single_asset(file_path : String) : String
       Logger.debug("Processing single asset", file: file_path)
-      
+
       # Determine asset type
       extension = File.extname(file_path).downcase
-      
+
       case extension
       when ".css"
         process_css_file(file_path)
@@ -260,14 +260,14 @@ module Lapis
     private def copy_asset_file(file_path : String) : String
       relative_path = file_path[@config.static_dir.size + 1..]
       output_path = File.join(@config.output_dir, "assets", relative_path)
-      
+
       # Create output directory
       output_dir = File.dirname(output_path)
       Dir.mkdir_p(output_dir)
-      
+
       # Copy file
       File.copy(file_path, output_path)
-      
+
       Logger.debug("Copied asset", source: file_path, output: output_path)
       output_path
     end

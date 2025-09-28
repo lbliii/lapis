@@ -163,11 +163,11 @@ module Lapis
 
     def generator_info : Hash(String, String)
       {
-        "version" => "lapis-0.4.0",
-        "generator" => "Lapis Static Site Generator",
+        "version"     => "lapis-0.4.0",
+        "generator"   => "Lapis Static Site Generator",
         "environment" => ENV["LAPIS_ENV"]? || "production",
         "commit_hash" => "",
-        "build_date" => build_date.to_s("%Y-%m-%d %H:%M:%S %Z")
+        "build_date"  => build_date.to_s("%Y-%m-%d %H:%M:%S %Z"),
       }
     end
 
@@ -203,11 +203,11 @@ module Lapis
 
     # SITE-WIDE OPERATIONS
 
-    def is_server : Bool
+    def server? : Bool
       ENV["LAPIS_SERVER"]? == "true"
     end
 
-    def is_multihost : Bool
+    def multihost? : Bool
       false # Not implemented yet
     end
 
@@ -341,11 +341,11 @@ module Lapis
 
     private def get_page_field(page : Content, field : String) : String
       case field
-      when "title" then page.title
+      when "title"   then page.title
       when "section" then page.section
-      when "kind" then page.kind.to_s
-      when "url" then page.url
-      when "date" then page.date.try(&.to_s("%Y-%m-%d")) || ""
+      when "kind"    then page.kind.to_s
+      when "url"     then page.url
+      when "date"    then page.date.try(&.to_s("%Y-%m-%d")) || ""
       else
         # Check frontmatter
         page.frontmatter[field]?.try(&.as_s) || ""

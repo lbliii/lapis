@@ -69,16 +69,16 @@ module Lapis
     end
 
     def emit_event(event : PluginEvent, generator : Generator, **kwargs)
-      Logger.debug("Emitting plugin event", 
+      Logger.debug("Emitting plugin event",
         event: event.to_s,
         plugin_count: @plugins.size)
-      
+
       @plugins.each do |plugin|
         begin
-          Logger.debug("Processing plugin event", 
+          Logger.debug("Processing plugin event",
             plugin: plugin.name,
             event: event.to_s)
-          
+
           case event
           when .before_build?
             plugin.on_before_build(generator)
@@ -105,7 +105,7 @@ module Lapis
             plugin.on_after_asset_process(generator, asset_path, output_path) if asset_path && output_path
           end
         rescue ex
-          Logger.error("Plugin event failed", 
+          Logger.error("Plugin event failed",
             plugin: plugin.name,
             event: event.to_s,
             error: ex.message,
@@ -122,7 +122,7 @@ module Lapis
     def plugin_enabled?(name : String) : Bool
       plugin = get_plugin(name)
       return false unless plugin
-      
+
       # Check if plugin is enabled in config
       config_key = "plugins.#{name}.enabled"
       plugin.config[config_key]?.try(&.as_bool?) || true
@@ -131,31 +131,29 @@ module Lapis
     def plugin_config(name : String) : Hash(String, YAML::Any)
       plugin = get_plugin(name)
       return {} of String => YAML::Any unless plugin
-      
+
       plugin.config
     end
 
     private def load_plugins
       return unless Dir.exists?(@plugin_dir)
-      
+
       # Load plugins from directory
       Dir.glob(File.join(@plugin_dir, "*.cr")).each do |plugin_file|
         load_plugin_from_file(plugin_file)
       end
-      
+
       # Load plugins from config
       load_plugins_from_config
     end
 
     private def load_plugin_from_file(plugin_file : String)
-      begin
-        # This would require dynamic loading in a real implementation
-        # For now, we'll just log that we found a plugin file
-        plugin_name = File.basename(plugin_file, ".cr")
-        Logger.debug("Found plugin file", file: plugin_file, name: plugin_name)
-      rescue ex
-        Logger.error("Failed to load plugin", file: plugin_file, error: ex.message)
-      end
+      # This would require dynamic loading in a real implementation
+      # For now, we'll just log that we found a plugin file
+      plugin_name = File.basename(plugin_file, ".cr")
+      Logger.debug("Found plugin file", file: plugin_file, name: plugin_name)
+    rescue ex
+      Logger.error("Failed to load plugin", file: plugin_file, error: ex.message)
     end
 
     private def load_plugins_from_config
@@ -168,12 +166,12 @@ module Lapis
       if seo_config = @config.plugins["seo"]?
         register_plugin(SEOPlugin.new(convert_yaml_hash(seo_config.as_h)))
       end
-      
+
       # Analytics Plugin
       if analytics_config = @config.plugins["analytics"]?
         register_plugin(AnalyticsPlugin.new(convert_yaml_hash(analytics_config.as_h)))
       end
-      
+
       # Sitemap Plugin
       if sitemap_config = @config.plugins["sitemap"]?
         register_plugin(SitemapPlugin.new(convert_yaml_hash(sitemap_config.as_h)))
@@ -233,7 +231,7 @@ module Lapis
       unless content.frontmatter["description"]?
         content.frontmatter["description"] = YAML::Any.new(content.excerpt || content.content[0..150] + "...")
       end
-      
+
       unless content.frontmatter["keywords"]?
         # Extract keywords from content
         keywords = extract_keywords(content.content)
@@ -245,12 +243,12 @@ module Lapis
       # Simple keyword extraction
       words = content.downcase.gsub(/[^a-z\s]/, " ").split(/\s+/)
       word_freq = Hash(String, Int32).new(0)
-      
+
       words.each do |word|
         next if word.size < 3
         word_freq[word] += 1
       end
-      
+
       # Return top 10 most frequent words
       word_freq.to_a.sort_by { |_, freq| -freq }[0..9].map(&.[0])
     end

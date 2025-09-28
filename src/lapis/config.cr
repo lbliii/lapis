@@ -221,15 +221,15 @@ module Lapis
           # Load output formats from YAML data
           config.output_formats.load_from_config(yaml_data.transform_keys(&.to_s))
 
-          Logger.info("Configuration loaded successfully", 
+          Logger.info("Configuration loaded successfully",
             path: path,
             incremental: config.build_config.incremental,
             parallel: config.build_config.parallel,
             cache_dir: config.build_config.cache_dir,
             theme: config.theme)
-          
+
           # Debug: Show raw config values
-          Logger.debug("Raw config values", 
+          Logger.debug("Raw config values",
             build_incremental: config.build_config.incremental,
             build_parallel: config.build_config.parallel,
             build_max_workers: config.build_config.max_workers)

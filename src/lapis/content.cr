@@ -41,7 +41,7 @@ module Lapis
       @author = @frontmatter["author"]?.try(&.as_s)
       @toc = @frontmatter["toc"]?.try(&.as_bool) || true
       @raw_content = @body
-      @content = @body  # Will be processed later with config
+      @content = @body # Will be processed later with config
 
       # Detect page kind and section
       @kind = PageKindDetector.detect(@file_path, content_dir)
@@ -52,7 +52,7 @@ module Lapis
 
     def self.load(file_path : String, content_dir : String = "content") : Content
       Logger.file_operation("loading content", file_path)
-      
+
       File.open(file_path, "r") do |file|
         file.set_encoding("UTF-8")
         content = file.gets_to_end
@@ -130,50 +130,50 @@ module Lapis
 
     private def self.write_file_atomically(path : String, content : String)
       temp_path = "#{path}.tmp"
-      
+
       File.open(temp_path, "w") do |file|
         file.set_encoding("UTF-8")
         file.print(content)
         file.flush
       end
-      
+
       File.rename(temp_path, path)
     rescue ex : IO::Error
       File.delete(temp_path) if temp_path && File.exists?(temp_path)
       raise "Error writing content file #{path}: #{ex.message}"
     end
 
-    def is_page? : Bool
-      true  # All content is now treated as pages
+    def page? : Bool
+      true # All content is now treated as pages
     end
 
     # Check if this content should be treated as a "post" (for feeds, archives, etc.)
-    def is_post_layout? : Bool
+    def post_layout? : Bool
       @layout == "post"
     end
 
     # Page kind helpers
-    def is_single? : Bool
+    def single? : Bool
       @kind.single?
     end
 
-    def is_list? : Bool
+    def list? : Bool
       @kind.list? || @kind.section? || @kind.taxonomy? || @kind.home?
     end
 
-    def is_section? : Bool
+    def section? : Bool
       @kind.section?
     end
 
-    def is_taxonomy? : Bool
+    def taxonomy? : Bool
       @kind.taxonomy?
     end
 
-    def is_term? : Bool
+    def term? : Bool
       @kind.term?
     end
 
-    def is_home? : Bool
+    def home? : Bool
       @kind.home?
     end
 
@@ -215,9 +215,9 @@ module Lapis
     private def humanize_filename(text : String) : String
       # Convert filename-like strings to human readable format
       text.gsub(/[-_]/, " ")
-          .split(" ")
-          .map(&.capitalize)
-          .join(" ")
+        .split(" ")
+        .map(&.capitalize)
+        .join(" ")
     end
 
     private def process_markdown(markdown : String, config : Config) : String

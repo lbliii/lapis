@@ -14,31 +14,31 @@ module Lapis
     end
 
     # Execute a command and return the result
-    def execute(command : String, args : Array(String) = [] of String, 
+    def execute(command : String, args : Array(String) = [] of String,
                 input : String? = nil, timeout : Time::Span? = nil) : ProcessResult
       Logger.debug("Executing command", command: command, args: args.join(" "))
-      
+
       timeout = timeout || @process_timeout
-      
+
       begin
-        process = Process.new(command, args, 
+        process = Process.new(command, args,
           input: input ? Process::Redirect::Pipe : Process::Redirect::Close,
           output: Process::Redirect::Pipe,
           error: Process::Redirect::Pipe)
-        
+
         # Send input if provided
         if input && process.input
           process.input.not_nil!.print(input)
           process.input.not_nil!.close
         end
-        
+
         # Wait for process completion with timeout
         done_channel = Channel(Process::Status).new
         spawn do
           status = process.wait
           done_channel.send(status)
         end
-        
+
         status = select
         when result = done_channel.receive
           result
@@ -46,11 +46,11 @@ module Lapis
           process.terminate
           raise ProcessError.new("Command '#{command}' timed out after #{timeout.total_seconds}s")
         end
-        
+
         # Read output
         output = process.output.try(&.gets_to_end) || ""
         error_output = process.error.try(&.gets_to_end) || ""
-        
+
         result = ProcessResult.new(
           command: command,
           args: args,
@@ -59,13 +59,13 @@ module Lapis
           error: error_output,
           success: status.success?
         )
-        
+
         Logger.info("Command executed",
           command: command,
           success: result.success.to_s,
           exit_code: status.exit_code.to_s,
           output_size: output.size.to_s)
-        
+
         result
       rescue ex
         Logger.error("Unexpected process error", command: command, error: ex.message)
@@ -74,31 +74,31 @@ module Lapis
     end
 
     # Execute a command asynchronously
-    def execute_async(command : String, args : Array(String) = [] of String, 
+    def execute_async(command : String, args : Array(String) = [] of String,
                       input : String? = nil) : String
       process_id = "#{command}_#{Time.utc.to_unix}"
-      
-      Logger.debug("Executing command asynchronously", 
-        command: command, 
+
+      Logger.debug("Executing command asynchronously",
+        command: command,
         process_id: process_id)
-      
+
       process = Process.new(command, args,
         input: input ? Process::Redirect::Pipe : Process::Redirect::Close,
         output: Process::Redirect::Pipe,
         error: Process::Redirect::Pipe)
-      
+
       @processes[process_id] = process
-      
+
       # Send input if provided
       if input && process.input
         process.input.not_nil!.print(input)
         process.input.not_nil!.close
       end
-      
-      Logger.info("Command started asynchronously", 
-        command: command, 
+
+      Logger.info("Command started asynchronously",
+        command: command,
         process_id: process_id)
-      
+
       process_id
     end
 
@@ -106,18 +106,18 @@ module Lapis
     def wait_for_process(process_id : String, timeout : Time::Span? = nil) : ProcessResult?
       process = @processes[process_id]?
       return nil unless process
-      
+
       Logger.debug("Waiting for process", process_id: process_id)
-      
+
       timeout = timeout || @process_timeout
-      
+
       begin
         done_channel = Channel(Process::Status).new
         spawn do
           status = process.wait
           done_channel.send(status)
         end
-        
+
         status = select
         when result = done_channel.receive
           result
@@ -126,11 +126,11 @@ module Lapis
           @processes.delete(process_id)
           raise ProcessError.new("Process '#{process_id}' timed out")
         end
-        
+
         # Read output
         output = process.output.try(&.gets_to_end) || ""
         error_output = process.error.try(&.gets_to_end) || ""
-        
+
         result = ProcessResult.new(
           command: process_id.split("_")[0],
           args: [] of String,
@@ -139,14 +139,14 @@ module Lapis
           error: error_output,
           success: status.success?
         )
-        
+
         @processes.delete(process_id)
-        
+
         Logger.info("Async process completed",
           process_id: process_id,
           success: result.success.to_s,
           exit_code: status.exit_code.to_s)
-        
+
         result
       rescue ex
         Logger.error("Error waiting for async process", process_id: process_id, error: ex.message)
@@ -159,9 +159,9 @@ module Lapis
     def kill_process(process_id : String) : Bool
       process = @processes[process_id]?
       return false unless process
-      
+
       Logger.warn("Killing process", process_id: process_id)
-      
+
       begin
         process.terminate
         @processes.delete(process_id)
@@ -181,18 +181,18 @@ module Lapis
     # Clean up all processes
     def cleanup
       Logger.info("Cleaning up processes", count: @processes.size.to_s)
-      
+
       @processes.each do |process_id, process|
         begin
           process.terminate
           Logger.debug("Killed process during cleanup", process_id: process_id)
         rescue ex
-          Logger.warn("Failed to kill process during cleanup", 
-            process_id: process_id, 
+          Logger.warn("Failed to kill process during cleanup",
+            process_id: process_id,
             error: ex.message)
         end
       end
-      
+
       @processes.clear
       Logger.info("Process cleanup completed")
     end
@@ -200,7 +200,7 @@ module Lapis
     # Execute a shell command
     def shell_execute(command : String, timeout : Time::Span? = nil) : ProcessResult
       Logger.debug("Executing shell command", command: command)
-      
+
       execute("sh", ["-c", command], timeout: timeout)
     end
 
@@ -230,7 +230,7 @@ module Lapis
     property error : String
     property success : Bool
 
-    def initialize(@command : String, @args : Array(String), @status : Process::Status, 
+    def initialize(@command : String, @args : Array(String), @status : Process::Status,
                    @output : String, @error : String, @success : Bool)
     end
 

@@ -109,7 +109,7 @@ module Lapis
       @collections["all"] = Collection.new("all", @site_content)
 
       # Sections collection - all section pages
-      sections = @site_content.select { |c| c.kind.section? }
+      sections = @site_content.select(&.kind.section?)
       @collections["sections"] = Collection.new("sections", sections)
     end
 
@@ -141,22 +141,22 @@ module Lapis
         kind_name = kind.as_s
         filtered_content = filtered_content.select do |c|
           case kind_name
-          when "single" then c.kind.single?
-          when "list" then c.kind.list?
-          when "section" then c.kind.section?
+          when "single"   then c.kind.single?
+          when "list"     then c.kind.list?
+          when "section"  then c.kind.section?
           when "taxonomy" then c.kind.taxonomy?
-          when "term" then c.kind.term?
-          when "home" then c.kind.home?
-          else false
+          when "term"     then c.kind.term?
+          when "home"     then c.kind.home?
+          else                 false
           end
         end
       end
 
       if tags = config["tags"]?
         required_tags = case tags
-                        when Array then tags.map(&.as_s)
+                        when Array  then tags.map(&.as_s)
                         when String then [tags.as_s]
-                        else [] of String
+                        else             [] of String
                         end
 
         filtered_content = filtered_content.select do |c|
@@ -177,12 +177,12 @@ module Lapis
 
     private def get_property_value(content : Content, property : String)
       case property
-      when "title" then content.title
-      when "date" then content.date
-      when "section" then content.section
-      when "kind" then content.kind.to_s.downcase
-      when "url" then content.url
-      when "tags" then extract_tags(content)
+      when "title"      then content.title
+      when "date"       then content.date
+      when "section"    then content.section
+      when "kind"       then content.kind.to_s.downcase
+      when "url"        then content.url
+      when "tags"       then extract_tags(content)
       when "categories" then extract_categories(content)
       else
         # Check frontmatter
@@ -206,9 +206,9 @@ module Lapis
     private def extract_tags(content : Content) : Array(String)
       if tags = content.frontmatter["tags"]?
         case tags
-        when Array then tags.map(&.as_s)
+        when Array  then tags.map(&.as_s)
         when String then tags.as_s.split(",").map(&.strip)
-        else [] of String
+        else             [] of String
         end
       else
         [] of String
@@ -218,9 +218,9 @@ module Lapis
     private def extract_categories(content : Content) : Array(String)
       if categories = content.frontmatter["categories"]?
         case categories
-        when Array then categories.map(&.as_s)
+        when Array  then categories.map(&.as_s)
         when String then categories.as_s.split(",").map(&.strip)
-        else [] of String
+        else             [] of String
         end
       else
         [] of String

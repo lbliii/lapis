@@ -53,13 +53,13 @@ module Lapis
     def get_output_path(content : Content, output_format : OutputFormat? = nil) : String
       # Determine the output format
       format = output_format || @config.output_formats.formats_for_kind(content.kind).first?
-      
+
       # Generate the URL path
       url_path = content.url
-      
+
       # Determine the file extension
       extension = format ? format.extension : "html"
-      
+
       # Build the output path
       if url_path.ends_with?("/")
         # Directory-style URL
@@ -91,16 +91,16 @@ module Lapis
       # Create a virtual content object for archive pages
       archive_content = ArchiveContent.new(title, posts, pagination_html)
       context = TemplateContext.new(@config, archive_content)
-      
+
       render_with_inheritance(layout, context)
     end
 
     private def render_with_inheritance(layout_name : String, context : TemplateContext) : String
       layout_path = find_layout(layout_name)
-      
+
       if layout_path
-          layout_content = File.read(layout_path)
-        
+        layout_content = File.read(layout_path)
+
         # Check if this layout extends another layout
         if extends_match = layout_content.match(/\{\{\s*extends\s+"([^"]+)"\s*\}\}/)
           parent_layout = extends_match[1]
@@ -117,37 +117,37 @@ module Lapis
     private def render_with_parent(child_content : String, parent_layout : String, context : TemplateContext) : String
       parent_path = find_layout(parent_layout)
       return render_default_layout(context) unless parent_path
-      
+
       parent_content = File.read(parent_path)
-      
+
       # Extract blocks from child template
       blocks = extract_blocks(child_content)
-      
+
       # Replace block placeholders in parent with child blocks
       result = parent_content
       blocks.each do |block_name, block_content|
         result = result.gsub(/\{\{\s*block\s+"#{block_name}"\s*\}\}.*?\{\{\s*endblock\s*\}\}/m, block_content)
       end
-      
+
       # Process any remaining default blocks
       result = result.gsub(/\{\{\s*block\s+"([^"]+)"\s*\}\}(.*?)\{\{\s*endblock\s*\}\}/m) do |match|
         block_name = $1
         default_content = $2
         blocks[block_name]? || default_content
       end
-      
+
       process_template(result, context)
     end
 
     private def extract_blocks(template : String) : Hash(String, String)
       blocks = Hash(String, String).new
-      
+
       template.scan(/\{\{\s*block\s+"([^"]+)"\s*\}\}(.*?)\{\{\s*endblock\s*\}\}/m) do |match|
         block_name = match[1]
         block_content = match[2]
         blocks[block_name] = block_content
       end
-      
+
       blocks
     end
 
@@ -196,7 +196,6 @@ module Lapis
           candidates << File.join(@layouts_dir, "#{content.layout}.#{extension}")
           candidates << File.join(@theme_layouts_dir, "#{content.layout}.#{extension}")
         end
-
       when .list?, .section?
         # For list/section pages: section/list.format.ext -> _default/list.format.ext
         unless content.section.empty?
@@ -209,7 +208,6 @@ module Lapis
         candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
         candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
         candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
-
       when .home?
         # For home page: index.format.ext -> _default/home.format.ext -> _default/list.format.ext
         candidates << File.join(@layouts_dir, "index#{format_suffix}.#{extension}")
@@ -224,7 +222,6 @@ module Lapis
         candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
         candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
         candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
-
       when .taxonomy?
         # For taxonomy pages: taxonomy.format.ext -> _default/taxonomy.format.ext -> _default/list.format.ext
         candidates << File.join(@layouts_dir, "taxonomy#{format_suffix}.#{extension}")
@@ -239,7 +236,6 @@ module Lapis
         candidates << File.join(@theme_layouts_dir, "_default", "list#{format_suffix}.#{extension}")
         candidates << File.join(@layouts_dir, "_default", "list.#{extension}")
         candidates << File.join(@theme_layouts_dir, "_default", "list.#{extension}")
-
       when .term?
         # For term pages: term.format.ext -> _default/term.format.ext -> _default/list.format.ext
         candidates << File.join(@layouts_dir, "term#{format_suffix}.#{extension}")
@@ -272,7 +268,7 @@ module Lapis
     end
 
     def render_layout(layout_path : String, content : Content) : String
-          layout_content = File.read(layout_path)
+      layout_content = File.read(layout_path)
       context = TemplateContext.new(@config, content)
       process_template(layout_content, context)
     end

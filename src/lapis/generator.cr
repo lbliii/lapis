@@ -39,69 +39,68 @@ module Lapis
     def build
       puts "DEBUG: Starting build method"
       Logger.build_operation("Starting site build")
-      
+
       # Emit before build event
       @plugin_manager.emit_event(PluginEvent::BeforeBuild, self)
-      
+
       # Profile the entire build process
       # Lapis.benchmark.benchmark_build_phase("full_build") do
-        # Monitor memory usage during build
-        # Lapis.memory_manager.profile_build_operation("site_build") do
-          begin
-            clean_output_directory
-            create_output_directory
+      # Monitor memory usage during build
+      # Lapis.memory_manager.profile_build_operation("site_build") do
+      begin
+        clean_output_directory
+        create_output_directory
 
-            Logger.build_operation("Loading content")
-            all_content = load_all_content
-            
-            # Emit after content load event
-            @plugin_manager.emit_event(PluginEvent::AfterContentLoad, self, content: all_content)
+        Logger.build_operation("Loading content")
+        all_content = load_all_content
 
-            Logger.build_operation("Generating pages")
-            puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental}"
-            puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel}"
-            if @config.build_config.incremental
-              puts "DEBUG: Using incremental build strategy"
-              generate_content_pages_incremental_v2(all_content)
-            else
-              puts "DEBUG: Using regular build strategy"
-              generate_content_pages(all_content)
-            end
+        # Emit after content load event
+        @plugin_manager.emit_event(PluginEvent::AfterContentLoad, self, content: all_content)
 
-            Logger.build_operation("Processing assets with optimization")
-            if @config.build_config.parallel
-              # Use advanced asset pipeline
-              @asset_pipeline.process_all_assets
-            else
-              # Use legacy asset processor
-              @asset_processor.process_all_assets
-            end
+        Logger.build_operation("Generating pages")
+        puts "DEBUG: Incremental build enabled: #{@config.build_config.incremental}"
+        puts "DEBUG: Parallel build enabled: #{@config.build_config.parallel}"
+        if @config.build_config.incremental
+          puts "DEBUG: Using incremental build strategy"
+          generate_content_pages_incremental_v2(all_content)
+        else
+          puts "DEBUG: Using regular build strategy"
+          generate_content_pages(all_content)
+        end
 
-            Logger.build_operation("Generating index and archive pages")
-            generate_index_page(all_content)
-            Logger.debug("About to generate section pages")
-            generate_section_pages(all_content)
-            Logger.debug("Section pages completed")
-            generate_archive_pages(all_content)
+        Logger.build_operation("Processing assets with optimization")
+        if @config.build_config.parallel
+          # Use advanced asset pipeline
+          @asset_pipeline.process_all_assets
+        else
+          # Use legacy asset processor
+          @asset_processor.process_all_assets
+        end
 
-            Logger.build_operation("Generating feeds")
-            generate_feeds(all_content)
+        Logger.build_operation("Generating index and archive pages")
+        generate_index_page(all_content)
+        Logger.debug("About to generate section pages")
+        generate_section_pages(all_content)
+        Logger.debug("Section pages completed")
+        generate_archive_pages(all_content)
 
-            # Save incremental build cache
-            @incremental_builder.save_cache if @config.build_config.incremental
+        Logger.build_operation("Generating feeds")
+        generate_feeds(all_content)
 
-            # Emit after build event
-            @plugin_manager.emit_event(PluginEvent::AfterBuild, self)
+        # Save incremental build cache
+        @incremental_builder.save_cache if @config.build_config.incremental
 
-            Logger.build_operation("Site build completed successfully", pages: all_content.size.to_s)
-            
-          rescue ex : BuildError
-            Logger.error("Build failed", phase: ex.context["phase"]?, error: ex.message)
-            raise ex
-          rescue ex
-            Logger.error("Unexpected build error", error: ex.message)
-            raise BuildError.new("Unexpected build error: #{ex.message}")
-          end
+        # Emit after build event
+        @plugin_manager.emit_event(PluginEvent::AfterBuild, self)
+
+        Logger.build_operation("Site build completed successfully", pages: all_content.size.to_s)
+      rescue ex : BuildError
+        Logger.error("Build failed", phase: ex.context["phase"]?, error: ex.message)
+        raise ex
+      rescue ex
+        Logger.error("Unexpected build error", error: ex.message)
+        raise BuildError.new("Unexpected build error: #{ex.message}")
+      end
     end
 
     private def clean_output_directory
@@ -123,7 +122,7 @@ module Lapis
       Dir.glob(search_pattern).each do |file_path|
         filename = File.basename(file_path)
         next if filename == "index.md" || filename == "_index.md"
-        
+
         begin
           page_content = Content.load(file_path, @config.content_dir)
           page_content.process_content(@config)
@@ -582,25 +581,25 @@ module Lapis
 
     private def write_file_atomically(path : String, content : String)
       Logger.debug("Writing file atomically", path: path, size: content.size)
-      
+
       temp_path = "#{path}.tmp"
-      
+
       begin
         # Ensure directory exists
         dir = File.dirname(path)
         Dir.mkdir_p(dir) unless Dir.exists?(dir)
-        
+
         File.open(temp_path, "w") do |file|
           file.set_encoding("UTF-8")
           file.print(content)
           file.flush
         end
-        
+
         File.rename(temp_path, path)
         Logger.debug("File written successfully", path: path)
       rescue ex : IO::Error
-        Logger.error("Failed to write file atomically", 
-          file: path, 
+        Logger.error("Failed to write file atomically",
+          file: path,
           temp_file: temp_path,
           error: ex.message,
           error_class: ex.class.name)
@@ -611,184 +610,183 @@ module Lapis
 
     # Incremental build methods
     private def generate_content_pages_incremental_v2(all_content : Array(Content))
-    Logger.info("Using incremental build strategy")
-    
-    # Separate content into changed and unchanged
-    changed_content = [] of Content
-    unchanged_content = [] of Content
-    
-    all_content.each do |content|
-      if @incremental_builder.needs_rebuild?(content.file_path)
-        changed_content << content
-        Logger.debug("Content needs rebuild", file: content.file_path)
+      Logger.info("Using incremental build strategy")
+
+      # Separate content into changed and unchanged
+      changed_content = [] of Content
+      unchanged_content = [] of Content
+
+      all_content.each do |content|
+        if @incremental_builder.needs_rebuild?(content.file_path)
+          changed_content << content
+          Logger.debug("Content needs rebuild", file: content.file_path)
+        else
+          unchanged_content << content
+          Logger.debug("Content unchanged", file: content.file_path)
+        end
+      end
+
+      Logger.info("Incremental build stats",
+        total: all_content.size.to_s,
+        changed: changed_content.size.to_s,
+        unchanged: unchanged_content.size.to_s)
+
+      # Process changed content
+      if @config.build_config.parallel && changed_content.size > 1
+        Logger.info("Processing changed content in parallel",
+          count: changed_content.size.to_s,
+          strategy: "parallel")
+        start_time = Time.monotonic
+        generate_content_parallel(changed_content)
+        elapsed = Time.monotonic - start_time
+        Logger.info("Parallel processing completed",
+          count: changed_content.size.to_s,
+          duration_ms: elapsed.total_milliseconds.to_i.to_s)
       else
-        unchanged_content << content
-        Logger.debug("Content unchanged", file: content.file_path)
+        Logger.info("Processing changed content sequentially",
+          count: changed_content.size.to_s,
+          strategy: "sequential")
+        start_time = Time.monotonic
+        changed_content.each_with_index do |content, index|
+          Logger.debug("Processing page #{index + 1}/#{changed_content.size}",
+            file: content.file_path,
+            title: content.title)
+          generate_single_page(content)
+        end
+        elapsed = Time.monotonic - start_time
+        Logger.info("Sequential processing completed",
+          count: changed_content.size.to_s,
+          duration_ms: elapsed.total_milliseconds.to_i.to_s)
+      end
+
+      # Restore unchanged content from cache
+      Logger.info("Restoring unchanged content from cache", count: unchanged_content.size.to_s)
+      unchanged_content.each do |content|
+        restore_cached_page(content)
+      end
+
+      # Update timestamps for all content
+      Logger.debug("Updating file timestamps", count: all_content.size.to_s)
+      all_content.each { |content| @incremental_builder.update_timestamp(content.file_path) }
+    end
+
+    private def generate_content_parallel(content_list : Array(Content))
+      Logger.debug("Starting parallel content processing",
+        count: content_list.size.to_s,
+        files: content_list.map(&.file_path))
+
+      file_paths = content_list.map(&.file_path)
+
+      processor = ->(file_path : String) do
+        content = content_list.find { |c| c.file_path == file_path }
+        return "" unless content
+
+        generate_single_page(content)
+        "success"
+      end
+
+      results = @parallel_processor.process_content_parallel(file_paths, processor)
+
+      # Check for failures
+      failed_results = results.select { |r| !r.success }
+      if failed_results.any?
+        Logger.error("Some content generation failed", failed_count: failed_results.size.to_s)
+        failed_results.each { |r| Logger.error("Failed task", task_id: r.task_id, error: r.error) }
       end
     end
-    
-    Logger.info("Incremental build stats", 
-      total: all_content.size.to_s,
-      changed: changed_content.size.to_s,
-      unchanged: unchanged_content.size.to_s)
-    
-    # Process changed content
-    if @config.build_config.parallel && changed_content.size > 1
-      Logger.info("Processing changed content in parallel", 
-        count: changed_content.size.to_s,
-        strategy: "parallel")
-      start_time = Time.monotonic
-      generate_content_parallel(changed_content)
-      elapsed = Time.monotonic - start_time
-      Logger.info("Parallel processing completed", 
-        count: changed_content.size.to_s,
-        duration_ms: elapsed.total_milliseconds.to_i.to_s)
-    else
-      Logger.info("Processing changed content sequentially", 
-        count: changed_content.size.to_s,
-        strategy: "sequential")
-      start_time = Time.monotonic
-      changed_content.each_with_index do |content, index|
-        Logger.debug("Processing page #{index + 1}/#{changed_content.size}", 
-          file: content.file_path,
-          title: content.title)
+
+    private def restore_cached_page(content : Content)
+      cached_result = @incremental_builder.get_cached_result(content.file_path)
+
+      if cached_result
+        Logger.debug("Restoring from cache", file: content.file_path)
+        # Restore the cached output file
+        output_path = @template_engine.get_output_path(content)
+        File.write(output_path, cached_result)
+      else
+        # Cache miss - generate normally
+        Logger.debug("Cache miss, generating", file: content.file_path)
         generate_single_page(content)
       end
-      elapsed = Time.monotonic - start_time
-      Logger.info("Sequential processing completed", 
-        count: changed_content.size.to_s,
-        duration_ms: elapsed.total_milliseconds.to_i.to_s)
     end
-    
-    # Restore unchanged content from cache
-    Logger.info("Restoring unchanged content from cache", count: unchanged_content.size.to_s)
-    unchanged_content.each do |content|
-      restore_cached_page(content)
-    end
-    
-    # Update timestamps for all content
-    Logger.debug("Updating file timestamps", count: all_content.size.to_s)
-    all_content.each { |content| @incremental_builder.update_timestamp(content.file_path) }
-  end
 
-  private def generate_content_parallel(content_list : Array(Content))
-    Logger.debug("Starting parallel content processing", 
-      count: content_list.size.to_s,
-      files: content_list.map(&.file_path))
-    
-    file_paths = content_list.map(&.file_path)
-    
-    processor = ->(file_path : String) do
-      content = content_list.find { |c| c.file_path == file_path }
-      return "" unless content
-      
-      generate_single_page(content)
-      "success"
-    end
-    
-    results = @parallel_processor.process_content_parallel(file_paths, processor)
-    
-    # Check for failures
-    failed_results = results.select { |r| !r.success }
-    if failed_results.any?
-      Logger.error("Some content generation failed", failed_count: failed_results.size.to_s)
-      failed_results.each { |r| Logger.error("Failed task", task_id: r.task_id, error: r.error) }
-    end
-  end
+    private def process_assets_parallel
+      Logger.info("Using parallel asset processing")
 
-  private def restore_cached_page(content : Content)
-    cached_result = @incremental_builder.get_cached_result(content.file_path)
-    
-    if cached_result
-      Logger.debug("Restoring from cache", file: content.file_path)
-      # Restore the cached output file
+      # Get all asset files
+      asset_files = [] of String
+
+      # CSS files
+      css_dir = File.join(@config.static_dir, "css")
+      if Dir.exists?(css_dir)
+        asset_files.concat(Dir.glob(File.join(css_dir, "*.css")))
+      end
+
+      # JS files
+      js_dir = File.join(@config.static_dir, "js")
+      if Dir.exists?(js_dir)
+        asset_files.concat(Dir.glob(File.join(js_dir, "*.js")))
+      end
+
+      # Image files
+      images_dir = File.join(@config.static_dir, "images")
+      if Dir.exists?(images_dir)
+        asset_files.concat(Dir.glob(File.join(images_dir, "*.{jpg,jpeg,png,gif,svg,webp}")))
+      end
+
+      if asset_files.empty?
+        Logger.debug("No assets found for processing")
+        return
+      end
+
+      processor = ->(file_path : String) do
+        @asset_processor.process_single_asset(file_path)
+        "success"
+      end
+
+      results = @parallel_processor.process_assets_parallel(asset_files, processor)
+
+      # Check for failures
+      failed_results = results.select { |r| !r.success }
+      if failed_results.any?
+        Logger.error("Some asset processing failed", failed_count: failed_results.size.to_s)
+        failed_results.each { |r| Logger.error("Failed asset", task_id: r.task_id, error: r.error) }
+      end
+    end
+
+    private def generate_single_page(content : Content)
+      Logger.debug("Starting page generation",
+        file: content.file_path,
+        title: content.title,
+        kind: content.kind.to_s)
+
       output_path = @template_engine.get_output_path(content)
-      File.write(output_path, cached_result)
-    else
-      # Cache miss - generate normally
-      Logger.debug("Cache miss, generating", file: content.file_path)
-      generate_single_page(content)
-    end
-  end
 
-  private def process_assets_parallel
-    Logger.info("Using parallel asset processing")
-    
-    # Get all asset files
-    asset_files = [] of String
-    
-    # CSS files
-    css_dir = File.join(@config.static_dir, "css")
-    if Dir.exists?(css_dir)
-      asset_files.concat(Dir.glob(File.join(css_dir, "*.css")))
-    end
-    
-    # JS files
-    js_dir = File.join(@config.static_dir, "js")
-    if Dir.exists?(js_dir)
-      asset_files.concat(Dir.glob(File.join(js_dir, "*.js")))
-    end
-    
-    # Image files
-    images_dir = File.join(@config.static_dir, "images")
-    if Dir.exists?(images_dir)
-      asset_files.concat(Dir.glob(File.join(images_dir, "*.{jpg,jpeg,png,gif,svg,webp}")))
-    end
-    
-    if asset_files.empty?
-      Logger.debug("No assets found for processing")
-      return
-    end
-    
-    processor = ->(file_path : String) do
-      @asset_processor.process_single_asset(file_path)
-      "success"
-    end
-    
-    results = @parallel_processor.process_assets_parallel(asset_files, processor)
-    
-    # Check for failures
-    failed_results = results.select { |r| !r.success }
-    if failed_results.any?
-      Logger.error("Some asset processing failed", failed_count: failed_results.size.to_s)
-      failed_results.each { |r| Logger.error("Failed asset", task_id: r.task_id, error: r.error) }
-    end
-  end
+      begin
+        # Emit before page render event
+        @plugin_manager.emit_event(PluginEvent::BeforePageRender, self, content: content)
 
-  private def generate_single_page(content : Content)
-    Logger.debug("Starting page generation", 
-      file: content.file_path,
-      title: content.title,
-      kind: content.kind.to_s)
-    
-    output_path = @template_engine.get_output_path(content)
-    
-    begin
-      # Emit before page render event
-      @plugin_manager.emit_event(PluginEvent::BeforePageRender, self, content: content)
-      
-      # Generate the page
-      rendered_content = @template_engine.render(content)
-      
-      # Emit after page render event
-      @plugin_manager.emit_event(PluginEvent::AfterPageRender, self, content: content, rendered: rendered_content)
-      
-      # Write to file
-      write_file_atomically(output_path, rendered_content)
-      
-      # Cache the result for incremental builds
-      @incremental_builder.cache_build_result(content.file_path, rendered_content)
-      
-      Logger.debug("Generated page", 
-        source: content.file_path,
-        output: output_path)
-        
-    rescue ex
-      Logger.error("Failed to generate page", 
-        source: content.file_path,
-        error: ex.message)
-      raise BuildError.new("Failed to generate page #{content.file_path}: #{ex.message}")
+        # Generate the page
+        rendered_content = @template_engine.render(content)
+
+        # Emit after page render event
+        @plugin_manager.emit_event(PluginEvent::AfterPageRender, self, content: content, rendered: rendered_content)
+
+        # Write to file
+        write_file_atomically(output_path, rendered_content)
+
+        # Cache the result for incremental builds
+        @incremental_builder.cache_build_result(content.file_path, rendered_content)
+
+        Logger.debug("Generated page",
+          source: content.file_path,
+          output: output_path)
+      rescue ex
+        Logger.error("Failed to generate page",
+          source: content.file_path,
+          error: ex.message)
+        raise BuildError.new("Failed to generate page #{content.file_path}: #{ex.message}")
+      end
     end
   end
-end
 end

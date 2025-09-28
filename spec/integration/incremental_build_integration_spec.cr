@@ -45,11 +45,11 @@ describe "Incremental Build Integration" do
       Dir.mkdir_p(output_dir)
 
       # First build - should create cache
-      config = Config.load(File.join(test_dir, "lapis.yml"))
+      config = Lapis::Config.load(File.join(test_dir, "lapis.yml"))
       config.root_dir = test_dir
       config.output_dir = output_dir
 
-      generator = Generator.new(config)
+      generator = Lapis::Generator.new(config)
 
       # Mock file operations to avoid actual file writing
       generator.define_singleton_method(:write_file_atomically) { |_, _| }
@@ -120,11 +120,11 @@ describe "Incremental Build Integration" do
       Dir.mkdir_p(output_dir)
 
       # First build
-      config = Config.load(File.join(test_dir, "lapis.yml"))
+      config = Lapis::Config.load(File.join(test_dir, "lapis.yml"))
       config.root_dir = test_dir
       config.output_dir = output_dir
 
-      generator = Generator.new(config)
+      generator = Lapis::Generator.new(config)
 
       # Mock file operations
       generator.define_singleton_method(:write_file_atomically) { |_, _| }
@@ -196,11 +196,11 @@ describe "Incremental Build Integration" do
       output_dir = File.join(test_dir, "public")
       Dir.mkdir_p(output_dir)
 
-      config = Config.load(File.join(test_dir, "lapis.yml"))
+      config = Lapis::Config.load(File.join(test_dir, "lapis.yml"))
       config.root_dir = test_dir
       config.output_dir = output_dir
 
-      generator = Generator.new(config)
+      generator = Lapis::Generator.new(config)
 
       # Mock file operations
       generator.define_singleton_method(:write_file_atomically) { |_, _| }

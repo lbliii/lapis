@@ -88,6 +88,31 @@ describe "Error Handling" do
     end
   end
 
+  describe "Channel errors" do
+    it "handles channel closed errors", tags: [TestTags::FAST, TestTags::UNIT] do
+      channel = Channel(String).new(1)
+      channel.close
+      
+      expect_raises(Channel::ClosedError) do
+        channel.send("test")
+      end
+    end
+
+    it "handles channel timeout errors", tags: [TestTags::FAST, TestTags::UNIT] do
+      channel = Channel(String).new(1)
+      
+      # Test timeout on receive
+      result = select
+      when r = channel.receive
+        r
+      when timeout(10.milliseconds)
+        "timeout"
+      end
+      
+      result.should eq("timeout")
+    end
+  end
+
   describe "Build process errors" do
     it "handles build failures gracefully" do
       test_dir = "test_build_errors"
