@@ -92,7 +92,7 @@ describe "Error Handling" do
     it "handles channel closed errors", tags: [TestTags::FAST, TestTags::UNIT] do
       channel = Channel(String).new(1)
       channel.close
-      
+
       expect_raises(Channel::ClosedError) do
         channel.send("test")
       end
@@ -100,7 +100,7 @@ describe "Error Handling" do
 
     it "handles channel timeout errors", tags: [TestTags::FAST, TestTags::UNIT] do
       channel = Channel(String).new(1)
-      
+
       # Test timeout on receive
       result = select
       when r = channel.receive
@@ -108,7 +108,7 @@ describe "Error Handling" do
       when timeout(10.milliseconds)
         "timeout"
       end
-      
+
       result.should eq("timeout")
     end
   end

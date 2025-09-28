@@ -27,9 +27,9 @@ require "../src/lapis/cli"
 # Define VERSION constant for tests
 module Lapis
   VERSION = "0.4.0"
-  
+
   # Standard date formats used throughout the application
-  DATE_FORMAT = "%Y-%m-%d %H:%M:%S UTC"
+  DATE_FORMAT       = "%Y-%m-%d %H:%M:%S UTC"
   DATE_FORMAT_SHORT = "%Y-%m-%d"
   DATE_FORMAT_HUMAN = "%B %d, %Y"
 end
@@ -49,11 +49,11 @@ end
 # Test helper methods and setup
 def sample_frontmatter
   {
-    "title" => YAML::Any.new("Sample Post"),
-    "date" => YAML::Any.new("2024-01-15"),
-    "tags" => YAML::Any.new(["crystal", "lapis"].map { |s| YAML::Any.new(s) }),
-    "layout" => YAML::Any.new("post"),
-    "description" => YAML::Any.new("A sample post for testing")
+    "title"       => YAML::Any.new("Sample Post"),
+    "date"        => YAML::Any.new("2024-01-15"),
+    "tags"        => YAML::Any.new(["crystal", "lapis"].map { |s| YAML::Any.new(s) }),
+    "layout"      => YAML::Any.new("post"),
+    "description" => YAML::Any.new("A sample post for testing"),
   }
 end
 
@@ -85,7 +85,7 @@ end
 
 def create_temp_content_file(content : String, frontmatter : Hash(String, YAML::Any) = sample_frontmatter)
   temp_file = File.tempfile("test_content", ".md")
-  
+
   # Write frontmatter
   temp_file.print("---\n")
   frontmatter.each do |key, value|
@@ -104,7 +104,7 @@ def create_temp_content_file(content : String, frontmatter : Hash(String, YAML::
   temp_file.print("---\n\n")
   temp_file.print(content)
   temp_file.flush
-  
+
   temp_file.path
 end
 
@@ -118,19 +118,19 @@ def cleanup_test_files
   if Dir.exists?("test_output")
     FileUtils.rm_rf("test_output")
   end
-  
+
   # Clean up test temp directory
   if Dir.exists?("test_temp")
     FileUtils.rm_rf("test_temp")
   end
-  
+
   # Clean up any temp files
   Dir.glob("*.tmp").each do |file|
     File.delete(file) if File.exists?(file)
   end
 end
 
-def with_temp_directory(&block)
+def with_temp_directory(&)
   temp_dir = create_temp_directory
   begin
     yield temp_dir
@@ -139,11 +139,11 @@ def with_temp_directory(&block)
   end
 end
 
-def with_temp_file(content : String, &block)
+def with_temp_file(content : String, &)
   temp_file = File.tempfile("test", ".md")
   temp_file.print(content)
   temp_file.flush
-  
+
   begin
     yield temp_file.path
   ensure
@@ -154,39 +154,39 @@ end
 
 # Test data factories
 class TestDataFactory
-  def self.create_content(title : String = "Test Post", 
-                         date : String = "2024-01-15",
-                         tags : Array(String) = ["test"],
-                         layout : String = "post") : Hash(String, YAML::Any)
+  def self.create_content(title : String = "Test Post",
+                          date : String = "2024-01-15",
+                          tags : Array(String) = ["test"],
+                          layout : String = "post") : Hash(String, YAML::Any)
     {
-      "title" => YAML::Any.new(title),
-      "date" => YAML::Any.new(date),
-      "tags" => YAML::Any.new(tags.map { |s| YAML::Any.new(s) }),
-      "layout" => YAML::Any.new(layout),
-      "description" => YAML::Any.new("Test description")
+      "title"       => YAML::Any.new(title),
+      "date"        => YAML::Any.new(date),
+      "tags"        => YAML::Any.new(tags.map { |s| YAML::Any.new(s) }),
+      "layout"      => YAML::Any.new(layout),
+      "description" => YAML::Any.new("Test description"),
     }
   end
-  
+
   def self.create_config(title : String = "Test Site",
-                        output_dir : String = "test_output",
-                        debug : Bool = false) : Lapis::Config
+                         output_dir : String = "test_output",
+                         debug : Bool = false) : Lapis::Config
     config = Lapis::Config.new
     config.title = title
     config.output_dir = output_dir
     config.debug = debug
     config
   end
-  
+
   def self.create_site_with_content(content_count : Int32 = 3) : Array(Lapis::Content)
     content = [] of Lapis::Content
-    
+
     content_count.times do |i|
       frontmatter = create_content("Post #{i + 1}")
       body = "Content for post #{i + 1}"
-      
+
       content << Lapis::Content.new("content/posts/post-#{i + 1}.md", frontmatter, body)
     end
-    
+
     content
   end
 end
@@ -196,11 +196,11 @@ module LapisMatchers
   def be_valid_content
     be_a(Lapis::Content)
   end
-  
+
   def have_title(expected_title : String)
     have_title(expected_title)
   end
-  
+
   def be_generated_file(file_path : String)
     File.exists?(file_path)
   end
@@ -211,10 +211,10 @@ include LapisMatchers
 
 # Test tags for organization
 module TestTags
-  FAST = "fast"
-  SLOW = "slow"
+  FAST        = "fast"
+  SLOW        = "slow"
   INTEGRATION = "integration"
-  FUNCTIONAL = "functional"
+  FUNCTIONAL  = "functional"
   PERFORMANCE = "performance"
-  UNIT = "unit"
+  UNIT        = "unit"
 end
