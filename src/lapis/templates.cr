@@ -50,6 +50,26 @@ module Lapis
       end
     end
 
+    def get_output_path(content : Content, output_format : OutputFormat? = nil) : String
+      # Determine the output format
+      format = output_format || @config.output_formats.default_format_for_kind(content.kind)
+      
+      # Generate the URL path
+      url_path = generate_url_path(content)
+      
+      # Determine the file extension
+      extension = format.extension
+      
+      # Build the output path
+      if url_path.ends_with?("/")
+        # Directory-style URL
+        File.join(@config.output_dir, url_path, "index.#{extension}")
+      else
+        # File-style URL
+        File.join(@config.output_dir, "#{url_path}.#{extension}")
+      end
+    end
+
     # Render content in all configured output formats
     def render_all_formats(content : Content) : Hash(String, String)
       results = Hash(String, String).new

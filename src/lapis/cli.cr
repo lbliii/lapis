@@ -1,4 +1,7 @@
 require "option_parser"
+require "log"
+require "./logger"
+require "./exceptions"
 
 module Lapis
   class CLI
@@ -8,20 +11,31 @@ module Lapis
     def run
       command = @args[0]? || "help"
 
-      case command
-      when "init"
-        init_site
-      when "build"
-        build_site
-      when "serve"
-        serve_site
-      when "new"
-        new_content
-      when "help", "--help", "-h"
-        show_help
-      else
-        puts "Unknown command: #{command}"
-        show_help
+      begin
+        case command
+        when "init"
+          init_site
+        when "build"
+          build_site
+        when "serve"
+          serve_site
+        when "new"
+          new_content
+        when "help", "--help", "-h"
+          show_help
+        else
+          Logger.error("Unknown command", command: command)
+          puts "Unknown command: #{command}"
+          show_help
+          exit(1)
+        end
+      rescue ex : LapisError
+        Logger.error("Lapis error", error: ex.message, context: ex.context)
+        puts "Error: #{ex.message}"
+        exit(1)
+      rescue ex
+        Logger.fatal("Unexpected error", error: ex.message)
+        puts "Unexpected error: #{ex.message}"
         exit(1)
       end
     end

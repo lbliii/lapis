@@ -1,3 +1,19 @@
+require "file_utils"
+require "log"
+require "./config"
+require "./content"
+require "./templates"
+require "./assets"
+require "./feeds"
+require "./pagination"
+require "./logger"
+require "./exceptions"
+require "./incremental_builder"
+require "./parallel_processor"
+require "./plugin_system"
+require "./memory_manager"
+require "./performance_benchmark"
+
 module Lapis
   class Generator
     include GeneratorAnalytics
@@ -5,37 +21,70 @@ module Lapis
     property config : Config
     property template_engine : TemplateEngine
     property asset_processor : AssetProcessor
+    property incremental_builder : IncrementalBuilder
+    property parallel_processor : ParallelProcessor
+    property plugin_manager : PluginManager
 
     def initialize(@config : Config)
       @template_engine = TemplateEngine.new(@config)
       @asset_processor = AssetProcessor.new(@config)
+      @incremental_builder = IncrementalBuilder.new(@config.build_config.cache_dir)
+      @parallel_processor = ParallelProcessor.new(@config.build_config)
+      @plugin_manager = PluginManager.new(@config)
     end
 
     def build
-      clean_output_directory
-      create_output_directory
+      Logger.build_operation("Starting site build")
+      
+      # Emit before build event
+      @plugin_manager.emit_event(PluginEvent::BeforeBuild, self)
+      
+      # Profile the entire build process
+      # Lapis.benchmark.benchmark_build_phase("full_build") do
+        # Monitor memory usage during build
+        # Lapis.memory_manager.profile_build_operation("site_build") do
+          begin
+            clean_output_directory
+            create_output_directory
 
-      puts "Loading content..."
-      all_content = load_all_content
+            Logger.build_operation("Loading content")
+            all_content = load_all_content
+            
+            # Emit after content load event
+            @plugin_manager.emit_event(PluginEvent::AfterContentLoad, self, content: all_content)
 
-      puts "Generating pages..."
-      generate_content_pages(all_content)
+            Logger.build_operation("Generating pages")
+            # Temporarily use regular build
+            generate_content_pages(all_content)
 
-      puts "Processing assets with optimization..."
-      @asset_processor.process_all_assets
+            Logger.build_operation("Processing assets with optimization")
+            @asset_processor.process_all_assets
 
-      puts "Generating index and archive pages..."
-      generate_index_page(all_content)
-      puts "  About to generate section pages..."
-      generate_section_pages(all_content)
-      puts "  Section pages completed."
-      generate_archive_pages(all_content)
+            Logger.build_operation("Generating index and archive pages")
+            generate_index_page(all_content)
+            Logger.debug("About to generate section pages")
+            generate_section_pages(all_content)
+            Logger.debug("Section pages completed")
+            generate_archive_pages(all_content)
 
-      puts "Generating feeds and sitemap..."
-      generate_feeds(all_content)
-      generate_sitemap(all_content)
+            Logger.build_operation("Generating feeds")
+            generate_feeds(all_content)
 
-      puts "Build completed! Generated #{all_content.size} pages."
+            # Save incremental build cache
+            @incremental_builder.save_cache if @config.build_config.incremental
+
+            # Emit after build event
+            @plugin_manager.emit_event(PluginEvent::AfterBuild, self)
+
+            Logger.build_operation("Site build completed successfully", pages: all_content.size.to_s)
+            
+          rescue ex : BuildError
+            Logger.error("Build failed", phase: ex.context["phase"]?, error: ex.message)
+            raise ex
+          rescue ex
+            Logger.error("Unexpected build error", error: ex.message)
+            raise BuildError.new("Unexpected build error: #{ex.message}")
+          end
     end
 
     private def clean_output_directory
@@ -474,12 +523,13 @@ module Lapis
       puts "  Generated: /feed.json"
     end
 
-    private def generate_sitemap(all_content : Array(Content))
-      sitemap_generator = SitemapGenerator.new(@config)
-      sitemap_content = sitemap_generator.generate(all_content)
-      write_file_atomically(File.join(@config.output_dir, "sitemap.xml"), sitemap_content)
-      puts "  Generated: /sitemap.xml"
-    end
+    # TODO: Implement sitemap generator
+    # private def generate_sitemap(all_content : Array(Content))
+    #   sitemap_generator = SitemapGenerator.new(@config)
+    #   sitemap_content = sitemap_generator.generate(all_content)
+    #   write_file_atomically(File.join(@config.output_dir, "sitemap.xml"), sitemap_content)
+    #   Logger.info("Generated sitemap", file: "/sitemap.xml")
+    # end
 
     private def process_recent_posts_shortcodes(html : String, all_content : Array(Content)) : String
       # Process {% recent_posts N %} shortcodes with actual post data
@@ -526,6 +576,8 @@ module Lapis
     end
 
     private def write_file_atomically(path : String, content : String)
+      Logger.file_operation("writing", path)
+      
       temp_path = "#{path}.tmp"
       
       File.open(temp_path, "w") do |file|
@@ -536,8 +588,159 @@ module Lapis
       
       File.rename(temp_path, path)
     rescue ex : IO::Error
+      Logger.error("Failed to write file atomically", file: path, error: ex.message)
       File.delete(temp_path) if temp_path && File.exists?(temp_path)
-      raise "Error writing file #{path}: #{ex.message}"
+      raise FileSystemError.new("Error writing file #{path}: #{ex.message}", path, "write")
+    end
+  end
+
+  # Incremental build methods
+  def generate_content_pages_incremental_v2(all_content : Array(Content))
+    Logger.info("Using incremental build strategy")
+    
+    # Separate content into changed and unchanged
+    changed_content = [] of Content
+    unchanged_content = [] of Content
+    
+    all_content.each do |content|
+      if @incremental_builder.needs_rebuild?(content.file_path)
+        changed_content << content
+        Logger.debug("Content needs rebuild", file: content.file_path)
+      else
+        unchanged_content << content
+        Logger.debug("Content unchanged", file: content.file_path)
+      end
+    end
+    
+    Logger.info("Incremental build stats", 
+      total: all_content.size.to_s,
+      changed: changed_content.size.to_s,
+      unchanged: unchanged_content.size.to_s)
+    
+    # Process changed content
+    if @config.build_config.parallel && changed_content.size > 1
+      generate_content_parallel(changed_content)
+    else
+      changed_content.each { |content| generate_single_page(content) }
+    end
+    
+    # Restore unchanged content from cache
+    unchanged_content.each do |content|
+      restore_cached_page(content)
+    end
+    
+    # Update timestamps for all content
+    all_content.each { |content| @incremental_builder.update_timestamp(content.file_path) }
+  end
+
+  private def generate_content_parallel(content_list : Array(Content))
+    file_paths = content_list.map(&.file_path)
+    
+    processor = ->(file_path : String) do
+      content = content_list.find { |c| c.file_path == file_path }
+      return "" unless content
+      
+      generate_single_page(content)
+      "success"
+    end
+    
+    results = @parallel_processor.process_content_parallel(file_paths, processor)
+    
+    # Check for failures
+    failed_results = results.select { |r| !r.success }
+    if failed_results.any?
+      Logger.error("Some content generation failed", failed_count: failed_results.size.to_s)
+      failed_results.each { |r| Logger.error("Failed task", task_id: r.task_id, error: r.error) }
+    end
+  end
+
+  private def restore_cached_page(content : Content)
+    cached_result = @incremental_builder.get_cached_result(content.file_path)
+    
+    if cached_result
+      Logger.debug("Restoring from cache", file: content.file_path)
+      # Restore the cached output file
+      output_path = @template_engine.get_output_path(content)
+      File.write(output_path, cached_result)
+    else
+      # Cache miss - generate normally
+      Logger.debug("Cache miss, generating", file: content.file_path)
+      generate_single_page(content)
+    end
+  end
+
+  private def process_assets_parallel
+    Logger.info("Using parallel asset processing")
+    
+    # Get all asset files
+    asset_files = [] of String
+    
+    # CSS files
+    css_dir = File.join(@config.static_dir, "css")
+    if Dir.exists?(css_dir)
+      asset_files.concat(Dir.glob(File.join(css_dir, "*.css")))
+    end
+    
+    # JS files
+    js_dir = File.join(@config.static_dir, "js")
+    if Dir.exists?(js_dir)
+      asset_files.concat(Dir.glob(File.join(js_dir, "*.js")))
+    end
+    
+    # Image files
+    images_dir = File.join(@config.static_dir, "images")
+    if Dir.exists?(images_dir)
+      asset_files.concat(Dir.glob(File.join(images_dir, "*.{jpg,jpeg,png,gif,svg,webp}")))
+    end
+    
+    if asset_files.empty?
+      Logger.debug("No assets found for processing")
+      return
+    end
+    
+    processor = ->(file_path : String) do
+      @asset_processor.process_single_asset(file_path)
+      "success"
+    end
+    
+    results = @parallel_processor.process_assets_parallel(asset_files, processor)
+    
+    # Check for failures
+    failed_results = results.select { |r| !r.success }
+    if failed_results.any?
+      Logger.error("Some asset processing failed", failed_count: failed_results.size.to_s)
+      failed_results.each { |r| Logger.error("Failed asset", task_id: r.task_id, error: r.error) }
+    end
+  end
+
+  private def generate_single_page(content : Content)
+    output_path = @template_engine.get_output_path(content)
+    
+    begin
+      # Emit before page render event
+      @plugin_manager.emit_event(PluginEvent::BeforePageRender, self, content: content)
+      
+      # Generate the page
+      rendered_content = @template_engine.render(content)
+      
+      # Emit after page render event
+      @plugin_manager.emit_event(PluginEvent::AfterPageRender, self, content: content, rendered: rendered_content)
+      
+      # Write to file
+      write_file_atomically(output_path, rendered_content)
+      
+      # Cache the result for incremental builds
+      @incremental_builder.cache_build_result(content.file_path, rendered_content)
+      
+      Logger.debug("Generated page", 
+        source: content.file_path,
+        output: output_path)
+        
+    rescue ex
+      Logger.error("Failed to generate page", 
+        source: content.file_path,
+        error: ex.message)
+      raise BuildError.new("Failed to generate page #{content.file_path}: #{ex.message}")
     end
   end
 end

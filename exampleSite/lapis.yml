@@ -1,0 +1,156 @@
+# Lapis Configuration Example
+# This file demonstrates how to configure Lapis for competitive SSG features
+
+# Basic site information
+title: "My Awesome Site"
+baseurl: "https://example.com"
+description: "A modern static site built with Lapis"
+author: "Site Author"
+theme: "default"
+
+# Build configuration for performance optimization
+build:
+  incremental: true      # Enable incremental builds for faster rebuilds
+  parallel: true         # Enable parallel processing
+  cache_dir: ".lapis-cache"  # Directory for build cache
+  max_workers: 4         # Number of parallel workers (auto-detected if not set)
+  clean_build: false     # Force clean build (clears cache)
+
+# Live reload configuration for development
+live_reload:
+  enabled: true
+  websocket_path: "/ws"
+  debounce_ms: 300
+  ignore_patterns:
+    - "*.tmp"
+    - "*.log"
+    - ".lapis-cache/**"
+  watch_content: true
+  watch_layouts: true
+  watch_static: true
+  watch_config: true
+
+# Plugin configuration for extensibility
+plugins:
+  # SEO Plugin - Automatic SEO optimization
+  seo:
+    enabled: true
+    generate_sitemap: true
+    generate_robots_txt: true
+    auto_meta_tags: true
+    structured_data: true
+    social_cards: true
+    
+  # Analytics Plugin - Multiple analytics providers
+  analytics:
+    enabled: true
+    providers:
+      google_analytics:
+        tracking_id: "GA-XXXXXXXXX"
+        enabled: true
+      plausible:
+        domain: "example.com"
+        enabled: false
+      umami:
+        url: "https://analytics.example.com"
+        website_id: "your-website-id"
+        enabled: false
+        
+  # Sitemap Plugin - Advanced sitemap generation
+  sitemap:
+    enabled: true
+    changefreq: "weekly"
+    priority: 0.8
+    exclude_patterns:
+      - "/admin/**"
+      - "/private/**"
+    include_images: true
+    
+  # Asset optimization plugin
+  assets:
+    enabled: true
+    minify_css: true
+    minify_js: true
+    optimize_images: true
+    generate_webp: true
+    bundle_css: true
+    bundle_js: true
+    
+  # CMS Integration plugins
+  cms:
+    enabled: false
+    provider: "contentful"  # or "strapi", "sanity"
+    config:
+      space_id: "your-space-id"
+      access_token: "your-access-token"
+      preview_token: "your-preview-token"
+      
+  # Internationalization plugin
+  i18n:
+    enabled: false
+    default_language: "en"
+    languages:
+      - code: "en"
+        name: "English"
+        path: "/"
+      - code: "es"
+        name: "Español"
+        path: "/es"
+      - code: "fr"
+        name: "Français"
+        path: "/fr"
+        
+  # Component system plugin
+  components:
+    enabled: true
+    component_dir: "components"
+    auto_register: true
+    
+  # Edge deployment plugin
+  edge:
+    enabled: false
+    provider: "vercel"  # or "netlify", "cloudflare"
+    config:
+      vercel_token: "your-vercel-token"
+      project_id: "your-project-id"
+
+# Output formats - Multi-format rendering
+output_formats:
+  default: "html"
+  formats:
+    html:
+      extension: "html"
+      mime_type: "text/html"
+    json:
+      extension: "json"
+      mime_type: "application/json"
+    rss:
+      extension: "xml"
+      mime_type: "application/rss+xml"
+    atom:
+      extension: "xml"
+      mime_type: "application/atom+xml"
+    llm:
+      extension: "md"
+      mime_type: "text/markdown"
+
+# Markdown configuration
+markdown:
+  extensions:
+    - "tables"
+    - "strikethrough"
+    - "footnotes"
+    - "autolinks"
+  syntax_highlighting: true
+  math_support: false
+
+# Logging configuration
+debug: false
+log_file: "lapis.log"
+log_level: "info"
+
+# Server configuration
+port: 3000
+host: "localhost"
+output_dir: "public"
+permalink: "/:year/:month/:day/:title/"

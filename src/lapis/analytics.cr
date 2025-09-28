@@ -240,7 +240,7 @@ module Lapis
 
       analytics.time_operation("Feed Generation") do
         generate_feeds(all_content)
-        generate_sitemap(all_content)
+        # generate_sitemap(all_content) # TODO: Implement sitemap generator
       end
 
       # Calculate output file sizes

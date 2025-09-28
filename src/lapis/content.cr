@@ -1,7 +1,11 @@
 require "yaml"
 require "markd"
+require "log"
 require "./base_content"
 require "./page_kinds"
+require "./logger"
+require "./exceptions"
+require "./data_processor"
 
 module Lapis
   class Content < BaseContent
@@ -46,6 +50,8 @@ module Lapis
     end
 
     def self.load(file_path : String, content_dir : String = "content") : Content
+      Logger.file_operation("loading content", file_path)
+      
       File.open(file_path, "r") do |file|
         file.set_encoding("UTF-8")
         content = file.gets_to_end
@@ -53,24 +59,38 @@ module Lapis
         new(file_path, frontmatter, body, content_dir)
       end
     rescue ex : File::NotFoundError
-      raise "Content file not found: #{file_path}"
+      Logger.error("Content file not found", file: file_path)
+      raise ContentError.new("Content file not found: #{file_path}", file_path)
     rescue ex : IO::Error
-      raise "Error reading content file #{file_path}: #{ex.message}"
+      Logger.error("Error reading content file", file: file_path, error: ex.message)
+      raise ContentError.new("Error reading content file #{file_path}: #{ex.message}", file_path)
+    rescue ex : YAML::ParseException
+      Logger.error("YAML parsing error in content file", file: file_path, error: ex.message)
+      raise ContentError.new("YAML parsing error in #{file_path}: #{ex.message}", file_path)
+    rescue ex : ValidationError
+      Logger.error("Content validation error", file: file_path, error: ex.message)
+      raise ContentError.new("Content validation error in #{file_path}: #{ex.message}", file_path)
     end
 
     def self.load_all(directory : String) : Array(Content)
+      Logger.info("Loading all content from directory", directory: directory)
       content = [] of Content
 
       if Dir.exists?(directory)
         Dir.glob(File.join(directory, "**", "*.md")).each do |file_path|
           begin
             content << load(file_path, directory)
+          rescue ex : ContentError
+            Logger.warn("Skipping invalid content file", file: file_path, error: ex.message)
           rescue ex
-            puts "Warning: Could not load #{file_path}: #{ex.message}"
+            Logger.warn("Unexpected error loading content", file: file_path, error: ex.message)
           end
         end
+      else
+        Logger.warn("Content directory does not exist", directory: directory)
       end
 
+      Logger.info("Loaded content files", count: content.size.to_s)
       content.sort_by { |c| c.date || Time.unix(0) }.reverse
     end
 

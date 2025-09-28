@@ -218,5 +218,58 @@ module Lapis
       </picture>
       HTML
     end
+
+    # Process a single asset file
+    def process_single_asset(file_path : String) : String
+      Logger.debug("Processing single asset", file: file_path)
+      
+      # Determine asset type
+      extension = File.extname(file_path).downcase
+      
+      case extension
+      when ".css"
+        process_css_file(file_path)
+      when ".js"
+        process_js_file(file_path)
+      when ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp"
+        process_image_file(file_path)
+      else
+        # Copy as-is for other file types
+        copy_asset_file(file_path)
+      end
+    end
+
+    private def process_css_file(file_path : String) : String
+      # For now, just copy CSS files
+      # TODO: Add CSS processing (bundling, minification, autoprefixing)
+      copy_asset_file(file_path)
+    end
+
+    private def process_js_file(file_path : String) : String
+      # For now, just copy JS files
+      # TODO: Add JS processing (bundling, minification, tree-shaking)
+      copy_asset_file(file_path)
+    end
+
+    private def process_image_file(file_path : String) : String
+      # For now, just copy image files
+      # TODO: Add image optimization
+      copy_asset_file(file_path)
+    end
+
+    private def copy_asset_file(file_path : String) : String
+      relative_path = file_path[@config.static_dir.size + 1..]
+      output_path = File.join(@config.output_dir, "assets", relative_path)
+      
+      # Create output directory
+      output_dir = File.dirname(output_path)
+      Dir.mkdir_p(output_dir)
+      
+      # Copy file
+      File.copy(file_path, output_path)
+      
+      Logger.debug("Copied asset", source: file_path, output: output_path)
+      output_path
+    end
   end
 end

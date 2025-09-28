@@ -1,5 +1,8 @@
 require "http/server"
 require "file_utils"
+require "log"
+require "./logger"
+require "./exceptions"
 
 module Lapis
   class Server
@@ -16,6 +19,9 @@ module Lapis
     end
 
     def start
+      Logger.setup(@config)
+      Logger.build_operation("Starting development server")
+      
       build_initial_site
       @live_reload.start
 
@@ -23,50 +29,73 @@ module Lapis
         handle_request(context)
       end
 
-      address = server.bind_tcp(@config.host, @config.port)
-      puts "Lapis development server running at http://#{address}"
-      puts "Live reload enabled with WebSocket support"
-      puts "Press Ctrl+C to stop"
+      begin
+        address = server.bind_tcp(@config.host, @config.port)
+        Logger.info("Development server started", host: @config.host, port: @config.port.to_s)
+        Logger.info("Live reload enabled with WebSocket support")
+        Logger.info("Press Ctrl+C to stop")
 
-      server.listen
+        server.listen
+      rescue ex : Socket::BindError
+        Logger.fatal("Failed to bind server", host: @config.host, port: @config.port.to_s, error: ex.message)
+        raise ServerError.new("Failed to start server on #{@config.host}:#{@config.port}", @config.port, @config.host)
+      rescue ex
+        Logger.fatal("Server error", error: ex.message)
+        raise ServerError.new("Server error: #{ex.message}")
+      end
     end
 
     private def build_initial_site
-      puts "Building initial site..."
+      Logger.build_operation("Building initial site")
       @generator.build
       @last_build_time = Time.utc
-      puts "Initial build complete"
+      Logger.build_operation("Initial build complete")
     end
 
     private def handle_request(context : HTTP::Server::Context)
+      start_time = Time.monotonic
       path = context.request.path
+      method = context.request.method
 
-      # Handle WebSocket upgrade for live reload
-      if @live_reload.handle_websocket_upgrade(context)
-        return
-      end
+      begin
+        # Handle WebSocket upgrade for live reload
+        if @live_reload.handle_websocket_upgrade(context)
+          duration = Time.monotonic - start_time
+          Logger.http_request(method, path, 101, duration) # 101 Switching Protocols
+          return
+        end
 
-      # Legacy live reload endpoint (kept for backward compatibility)
-      if path == "/__lapis_reload__"
-        context.response.content_type = "text/plain"
-        context.response.print "ok"
-        return
-      end
+        # Legacy live reload endpoint (kept for backward compatibility)
+        if path == "/__lapis_reload__"
+          context.response.content_type = "text/plain"
+          context.response.print "ok"
+          duration = Time.monotonic - start_time
+          Logger.http_request(method, path, 200, duration)
+          return
+        end
 
-      # Normalize path
-      if path.ends_with?("/")
-        path += "index.html"
-      elsif !path.includes?(".")
-        path += "/index.html"
-      end
+        # Normalize path
+        if path.ends_with?("/")
+          path += "index.html"
+        elsif !path.includes?(".")
+          path += "/index.html"
+        end
 
-      # Remove leading slash for file path
-      file_path = File.join(@config.output_dir, path.lstrip("/"))
+        # Remove leading slash for file path
+        file_path = File.join(@config.output_dir, path.lstrip("/"))
 
-      if File.exists?(file_path) && File.file?(file_path)
-        serve_file(context, file_path)
-      else
-        serve_404(context)
+        if File.exists?(file_path) && File.file?(file_path)
+          serve_file(context, file_path)
+        else
+          serve_404(context)
+        end
+
+        duration = Time.monotonic - start_time
+        Logger.http_request(method, path, context.response.status_code, duration)
+      rescue ex
+        duration = Time.monotonic - start_time
+        Logger.error("Request handling error", method: method, path: path, error: ex.message, duration: duration.total_milliseconds.to_s)
+        serve_500(context)
       end
     end
 
@@ -74,6 +103,8 @@ module Lapis
       context.response.content_type = mime_type(file_path)
 
       begin
+        Logger.file_operation("serving", file_path)
+        
         File.open(file_path, "r") do |file|
           file.set_encoding("UTF-8")
           
@@ -88,10 +119,11 @@ module Lapis
           end
         end
       rescue ex : File::NotFoundError
+        Logger.warn("File not found", file: file_path)
         serve_404(context)
       rescue ex : IO::Error
-        puts "Error serving file #{file_path}: #{ex.message}"
-        serve_404(context)
+        Logger.error("IO error serving file", file: file_path, error: ex.message)
+        serve_500(context)
       end
     end
 
@@ -99,6 +131,12 @@ module Lapis
       context.response.status_code = 404
       context.response.content_type = "text/html"
       context.response.print(not_found_page)
+    end
+
+    private def serve_500(context : HTTP::Server::Context)
+      context.response.status_code = 500
+      context.response.content_type = "text/html"
+      context.response.print(internal_error_page)
     end
 
     private def mime_type(file_path : String) : String
@@ -287,6 +325,56 @@ module Lapis
       <body>
         <h1>404</h1>
         <p>The page you're looking for could not be found.</p>
+        <p><a href="/">Go back to homepage</a></p>
+      </body>
+      </html>
+      HTML
+    end
+
+    private def internal_error_page : String
+      <<-HTML
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>500 - Internal Server Error</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 100px auto;
+            padding: 20px;
+            text-align: center;
+            color: #333;
+          }
+
+          h1 {
+            font-size: 4em;
+            color: #e74c3c;
+            margin-bottom: 20px;
+          }
+
+          p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+          }
+
+          a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+          }
+
+          a:hover {
+            text-decoration: underline;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>500</h1>
+        <p>An internal server error occurred.</p>
         <p><a href="/">Go back to homepage</a></p>
       </body>
       </html>

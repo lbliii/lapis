@@ -17,6 +17,24 @@ module Lapis
     def initialize
     end
   end
+  class BuildConfig
+    include YAML::Serializable
+
+    property incremental : Bool = true
+    property parallel : Bool = true
+    property cache_dir : String = ".lapis-cache"
+    property max_workers : Int32 = 4
+    property clean_build : Bool = false
+
+    def initialize(@incremental = true, @parallel = true, @cache_dir = ".lapis-cache", @max_workers = 4, @clean_build = false)
+    end
+
+    def max_workers : Int32
+      # Use system CPU count but cap at reasonable limit
+      [@max_workers, System.cpu_count, 8].min
+    end
+  end
+
   class Config
     include YAML::Serializable
 
@@ -29,6 +47,11 @@ module Lapis
     property permalink : String = "/:year/:month/:day/:title/"
     property port : Int32 = 3000
     property host : String = "localhost"
+    property root_dir : String = "."
+
+    # Build configuration
+    @[YAML::Field(key: "build")]
+    property build_config : BuildConfig = BuildConfig.new
 
     # Live reload configuration
     @[YAML::Field(key: "live_reload")]
@@ -36,6 +59,14 @@ module Lapis
 
     @[YAML::Field(key: "markdown")]
     property markdown_config : MarkdownConfig?
+
+    # Logging configuration
+    property debug : Bool = false
+    property log_file : String? = nil
+    property log_level : String = "info"
+
+    # Plugin configuration
+    property plugins : Hash(String, YAML::Any) = {} of String => YAML::Any
 
     # Output format manager for multi-format rendering (initialized lazily)
     @[YAML::Field(ignore: true)]
