@@ -6,7 +6,7 @@ describe "Debug Partial Integration" do
       with_temp_directory do |temp_dir|
         # Create test site structure
         content_dir = File.join(temp_dir, "content")
-        output_dir = File.join(temp_dir, "public")
+        output_dir = File.join(temp_dir, "output")
         themes_dir = File.join(temp_dir, "themes", "default")
         layouts_dir = File.join(themes_dir, "layouts")
         partials_dir = File.join(layouts_dir, "partials")

@@ -15,9 +15,6 @@
           {{ if and (ne .url "/") (not .draft) }}
             <li class="sidebar-item">
               <a href="{{ .url }}" class="sidebar-link {{ if eq .url page.url }}active{{ end }}">
-                <span class="sidebar-icon">
-                  {{ if eq .title "About" }}ℹ️{{ else if eq .title "Features" }}⭐{{ else if eq .title "Documentation" }}📚{{ else if eq .title "Showcase" }}🎨{{ else if eq .title "Performance" }}⚡{{ else }}📄{{ end }}
-                </span>
                 {{ .title }}
               </a>
             </li>

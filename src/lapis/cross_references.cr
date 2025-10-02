@@ -3,6 +3,7 @@ require "./content"
 module Lapis
   class CrossReferenceEngine
     getter site_content : Array(Content)
+    property max_backlinks : Int32 = 100
 
     def initialize(@site_content : Array(Content))
     end
@@ -23,6 +24,7 @@ module Lapis
 
       @site_content.each do |source_content|
         next if source_content == target_content
+        break if backlinks.size >= @max_backlinks
 
         if contains_reference_to?(source_content, target_content)
           backlinks << source_content
@@ -30,6 +32,34 @@ module Lapis
       end
 
       backlinks
+    end
+
+    # Memory-efficient backlink finding with weak references
+    def find_backlinks_weak(target_content : Content) : Array(Content)
+      backlinks = [] of Content
+      target_url = target_content.url
+
+      @site_content.each do |source_content|
+        next if source_content == target_content
+        break if backlinks.size >= @max_backlinks
+
+        # Use URL comparison instead of object reference to avoid circular refs
+        if contains_reference_to_url?(source_content, target_url)
+          backlinks << source_content
+        end
+      end
+
+      backlinks
+    end
+
+    # Check if content references a specific URL (avoids circular references)
+    private def contains_reference_to_url?(source_content : Content, target_url : String) : Bool
+      body = source_content.body
+
+      # Check for various reference patterns
+      body.includes?(target_url) ||
+        body.includes?("[[" + target_url + "]]") ||
+        body.includes?("{{< ref \"" + target_url + "\" >}}")
     end
 
     private def process_wiki_links(body : String) : String

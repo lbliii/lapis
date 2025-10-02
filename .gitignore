@@ -5,7 +5,7 @@ bin/
 *.o
 *.so
 *.a
-
+docs/
 # IDE files
 .vscode/
 .idea/
@@ -30,6 +30,8 @@ Thumbs.db
 /test-site/
 /demo-site/
 /example-output/
+/test_output/
+/public/
 
 # Example site build output
 /exampleSite/public/

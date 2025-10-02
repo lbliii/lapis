@@ -17,9 +17,9 @@ help:
 install:
 	shards install
 
-# Run tests
+# Run tests with enhanced output (excludes performance tests by default)
 test:
-	crystal spec
+	./scripts/test.sh
 
 # Run linter
 lint:
@@ -31,7 +31,7 @@ lint-fix:
 
 # Build the project
 build:
-	crystal build src/lapis.cr --release
+	crystal build src/lapis_cli.cr -o lapis --release
 
 # Clean build artifacts
 clean:

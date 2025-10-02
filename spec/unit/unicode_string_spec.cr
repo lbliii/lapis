@@ -133,7 +133,7 @@ describe "Unicode String Processing" do
       translated.should eq("heXXO wOrXd")
 
       # String squeezing
-      squeezed = Lapis::Functions.call("squeeze", ["hello    world"])
+      squeezed = Lapis::Functions.call("squeeze", ["hello    world", ""])
       squeezed.should eq("helo world")
 
       # Character deletion

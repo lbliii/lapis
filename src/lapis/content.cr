@@ -81,8 +81,9 @@ module Lapis
 
       File.open(file_path, "r") do |file|
         file.set_encoding("UTF-8")
+        # For large files, consider streaming instead of loading entirely
         content = file.gets_to_end
-        frontmatter, body = parse_frontmatter(content)
+        frontmatter, body = parse_frontmatter(content, file_path)
         new(file_path, frontmatter, body, content_dir)
       end
     rescue ex : File::NotFoundError
@@ -152,7 +153,7 @@ module Lapis
       content += "Write your content here...\n"
 
       write_file_atomically(path, content)
-      puts "Created #{path}"
+      Logger.info("Created content file", path: path)
     end
 
     private def self.write_file_atomically(path : String, content : String)
@@ -249,7 +250,7 @@ module Lapis
       end
     end
 
-    private def self.parse_frontmatter(content : String) : Tuple(Hash(String, YAML::Any), String)
+    private def self.parse_frontmatter(content : String, file_path : String? = nil) : Tuple(Hash(String, YAML::Any), String)
       if content.starts_with?("---\n")
         parts = content.split("---\n", 3)
         if parts.size >= 3
@@ -258,7 +259,7 @@ module Lapis
 
           frontmatter = Hash(String, YAML::Any).new
           if !frontmatter_yaml.strip.empty?
-            parsed = YAML.parse(frontmatter_yaml)
+            parsed = DataProcessor.parse_yaml(frontmatter_yaml, file_path)
             if parsed.as_h?
               frontmatter = parsed.as_h.transform_keys(&.to_s)
             end

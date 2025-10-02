@@ -2,6 +2,7 @@ require "file_utils"
 require "log"
 require "./logger"
 require "./exceptions"
+require "./data_processor"
 
 module Lapis
   # Manages theme resolution, loading, and asset handling
@@ -88,7 +89,7 @@ module Lapis
       return {} of String => String unless info_file
 
       begin
-        data = YAML.parse(File.read(info_file)).as_h
+        data = DataProcessor.parse_yaml(File.read(info_file), info_file).as_h
         data.transform_keys(&.to_s).transform_values(&.to_s)
       rescue ex : YAML::ParseException
         Logger.warn("Failed to parse theme.yml", file: info_file, error: ex.message)
@@ -346,7 +347,7 @@ module Lapis
       end
 
       begin
-        shard_config = YAML.parse(File.read(shard_yml)).as_h
+        shard_config = DataProcessor.parse_yaml(File.read(shard_yml), shard_yml).as_h
 
         # Validate shard.yml structure
         unless shard_config["name"]?
@@ -398,7 +399,7 @@ module Lapis
       return false unless Dir.exists?(Path[shard_path].join("layouts").to_s)
 
       begin
-        shard_config = YAML.parse(File.read(shard_yml)).as_h
+        shard_config = DataProcessor.parse_yaml(File.read(shard_yml), shard_yml).as_h
 
         # Check if it's explicitly marked as a Lapis theme
         if targets = shard_config["targets"]?.try(&.as_h)

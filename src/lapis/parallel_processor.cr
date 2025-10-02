@@ -130,8 +130,16 @@ module Lapis
                   duration_ms: duration.total_milliseconds.to_i.to_s)
               end
 
-              # Thread-safe result collection
+              # Thread-safe result collection with memory bounds
               @results_mutex.synchronize do
+                # Limit results to prevent memory exhaustion
+                max_results = 10000
+                if @results.size >= max_results
+                  Logger.warn("Results collection at limit, dropping oldest results",
+                    current_size: @results.size, max: max_results)
+                  # Remove oldest results to make room
+                  @results = @results.last(max_results // 2)
+                end
                 @results << result
               end
             rescue ex
@@ -143,6 +151,14 @@ module Lapis
 
               error_result = Result.new(task.id, false, nil, ex.message, duration)
               @results_mutex.synchronize do
+                # Limit results to prevent memory exhaustion
+                max_results = 10000
+                if @results.size >= max_results
+                  Logger.warn("Results collection at limit, dropping oldest results",
+                    current_size: @results.size, max: max_results)
+                  # Remove oldest results to make room
+                  @results = @results.last(max_results // 2)
+                end
                 @results << error_result
               end
             end

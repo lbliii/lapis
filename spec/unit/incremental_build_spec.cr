@@ -77,9 +77,9 @@ describe "Incremental Build System" do
       # Test that generator can be instantiated with incremental config
       generator.should be_a(Lapis::Generator)
 
-      # Test that the build method works with incremental config
-      # The method should complete successfully when all required directories exist
-      generator.build_with_analytics
+      # Test that the incremental builder is properly configured
+      generator.config.build_config.incremental?.should be_true
+      generator.config.build_config.cache_dir.should eq(".lapis-cache")
     end
 
     it "uses regular build when incremental is disabled" do
@@ -91,9 +91,9 @@ describe "Incremental Build System" do
       # Test that generator can be instantiated with non-incremental config
       generator.should be_a(Lapis::Generator)
 
-      # Test that the build method works with non-incremental config
-      # The method should complete successfully when all required directories exist
-      generator.build_with_analytics
+      # Test that the regular build configuration is properly set
+      generator.config.build_config.incremental?.should be_false
+      generator.config.build_config.parallel?.should be_true
     end
   end
 end

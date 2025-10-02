@@ -59,15 +59,15 @@ module Lapis
     end
 
     def publish_date : Time?
-      @content.frontmatter["publishDate"]?.try { |d| Time.parse(d.as_s, "%Y-%m-%d") } || date
+      @content.frontmatter["publishDate"]?.try { |d| Time.parse(d.as_s, "%Y-%m-%d", Time::Location::UTC) } || date
     end
 
     def lastmod : Time?
-      @content.frontmatter["lastmod"]?.try { |d| Time.parse(d.as_s, "%Y-%m-%d") } || date
+      @content.frontmatter["lastmod"]?.try { |d| Time.parse(d.as_s, "%Y-%m-%d", Time::Location::UTC) } || date
     end
 
     def expiry_date : Time?
-      @content.frontmatter["expiryDate"]?.try { |d| Time.parse(d.as_s, "%Y-%m-%d") }
+      @content.frontmatter["expiryDate"]?.try { |d| Time.parse(d.as_s, "%Y-%m-%d", Time::Location::UTC) }
     end
 
     def draft : Bool
@@ -372,6 +372,99 @@ module Lapis
     def bundle_type : String
       # Page bundle type (leaf, branch) - simplified for now
       "leaf"
+    end
+
+    # Debug property - returns site debug setting
+    def debug : Bool
+      @site.debug
+    end
+
+    # Debug info method for template debugging - returns formatted page information
+    def debug_info : String
+      String.build do |str|
+        str << "# Page Debug Information\n\n"
+
+        # Basic page info
+        str << "## Page Properties\n"
+        str << "- **Title**: #{title}\n"
+        str << "- **URL**: #{url}\n"
+        str << "- **Permalink**: #{permalink}\n"
+        str << "- **Kind**: #{kind}\n"
+        str << "- **Type**: #{type}\n"
+        str << "- **Layout**: #{layout}\n"
+        str << "- **Section**: #{section}\n"
+        str << "- **Weight**: #{weight}\n\n"
+
+        # Content information
+        str << "## Content Information\n"
+        str << "- **Word Count**: #{word_count}\n"
+        str << "- **Reading Time**: #{reading_time} minutes\n"
+        str << "- **Markup**: #{markup}\n"
+        str << "- **Has TOC**: #{@content.toc}\n"
+        str << "- **Description**: #{description}\n\n"
+
+        # Dates
+        str << "## Dates\n"
+        str << "- **Date**: #{date.try(&.to_s("%Y-%m-%d %H:%M:%S")) || "Not set"}\n"
+        str << "- **Publish Date**: #{publish_date.try(&.to_s("%Y-%m-%d %H:%M:%S")) || "Not set"}\n"
+        str << "- **Last Modified**: #{lastmod.try(&.to_s("%Y-%m-%d %H:%M:%S")) || "Not set"}\n"
+        str << "- **Expiry Date**: #{expiry_date.try(&.to_s("%Y-%m-%d %H:%M:%S")) || "Not set"}\n\n"
+
+        # Status flags
+        str << "## Status\n"
+        str << "- **Draft**: #{draft}\n"
+        str << "- **Future**: #{future}\n"
+        str << "- **Expired**: #{expired}\n"
+        str << "- **Published**: #{!draft && !future && !expired}\n\n"
+
+        # Taxonomies
+        if tags.any? || categories.any?
+          str << "## Taxonomies\n"
+          if tags.any?
+            str << "- **Tags**: #{tags.join(", ")}\n"
+          end
+          if categories.any?
+            str << "- **Categories**: #{categories.join(", ")}\n"
+          end
+          str << "\n"
+        end
+
+        # File information
+        str << "## File Information\n"
+        str << "- **File Path**: #{file_path}\n"
+        str << "- **Directory**: #{file["dir"]}\n"
+        str << "- **Filename**: #{file["filename"]}\n"
+        str << "- **Extension**: #{file["extension"]}\n"
+        str << "- **Base Name**: #{file["base_name"]}\n\n"
+
+        # Relationships
+        str << "## Page Relationships\n"
+        if parent_page = parent
+          str << "- **Parent**: #{parent_page.title} (#{parent_page.url})\n"
+        end
+        if children.any?
+          str << "- **Children**: #{children.size} pages\n"
+        end
+        if siblings.any?
+          str << "- **Siblings**: #{siblings.size} pages\n"
+        end
+        if next_page = self.next
+          str << "- **Next**: #{next_page.title} (#{next_page.url})\n"
+        end
+        if prev_page = self.prev
+          str << "- **Previous**: #{prev_page.title} (#{prev_page.url})\n"
+        end
+        str << "\n"
+
+        # Frontmatter (limited to avoid overwhelming output)
+        str << "## Frontmatter (First 10 items)\n"
+        @content.frontmatter.first(10).each do |key, value|
+          str << "- **#{key}**: #{value.raw.inspect}\n"
+        end
+        if @content.frontmatter.size > 10
+          str << "- ... and #{@content.frontmatter.size - 10} more items\n"
+        end
+      end
     end
 
     private def plain_content : String

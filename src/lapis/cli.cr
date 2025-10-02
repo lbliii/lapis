@@ -8,6 +8,7 @@ require "./exceptions"
 require "./theme_manager"
 require "./config"
 require "./pretty_print_utils"
+require "./data_processor"
 
 module Lapis
   class CLI
@@ -72,7 +73,6 @@ module Lapis
 
         unless template_name && site_name
           puts "Error: Template name and site name required".colorize(:red).bold
-          puts ""
           PrettyPrintUtils.format_help_section("Usage:", "lapis init --template <template-name> <site-name>\nlapis init --template list")
           exit(1)
         end
@@ -84,7 +84,6 @@ module Lapis
       site_name = @args[1]?
       unless site_name
         puts "Error: Site name required".colorize(:red).bold
-        puts ""
         PrettyPrintUtils.format_help_section("Usage:", "lapis init <site-name>\nlapis init --template <template-name> <site-name>\nlapis init --template list")
         exit(1)
       end
@@ -95,13 +94,7 @@ module Lapis
         Dir.mkdir(site_name)
         Dir.cd(site_name) do
           create_site_structure
-          puts "Site '#{site_name}' created successfully!"
-          puts ""
-          puts "Next steps:"
-          puts "  cd #{site_name}"
-          puts "  lapis serve"
-          puts ""
-          puts "💡 Tip: Try 'lapis init --template list' to see available templates"
+          puts "Site '#{site_name}' created successfully! Next: cd #{site_name} && lapis serve"
         end
       rescue File::AlreadyExistsError
         puts "Error: Directory '#{site_name}' already exists".colorize(:red).bold
@@ -110,19 +103,19 @@ module Lapis
     end
 
     private def build_site
-      Logger.info("Starting CLI build process")
+      # Logger.info("Starting CLI build process")
       config = Config.load
-      Logger.debug("Config loaded",
-        incremental: config.build_config.incremental?,
-        parallel: config.build_config.parallel?,
-        cache_dir: config.build_config.cache_dir)
+      # Logger.debug("Config loaded",
+      #   incremental: config.build_config.incremental?,
+      #   parallel: config.build_config.parallel?,
+      #   cache_dir: config.build_config.cache_dir)
 
       generator = Generator.new(config)
-      Logger.info("Generator created, calling build_with_analytics")
+      # Logger.info("Generator created, calling build_with_analytics")
 
       # Use analytics-enabled build
       generator.build_with_analytics
-      Logger.info("Build completed successfully")
+      # Logger.info("Build completed successfully")
 
       puts "Site built successfully in '#{config.output_dir}'".colorize(:green).bold
     end
@@ -142,26 +135,14 @@ module Lapis
       # Check for port conflicts
       if port_in_use?(config.port)
         puts "⚠️  Port #{config.port} is already in use!".colorize(:yellow).bold
-        puts ""
-
-        # Show what's using the port
         show_port_usage(config.port)
+        puts "Options: lapis stop | lapis serve --port <port> | Continue anyway? [y/N]: ".colorize(:cyan)
 
-        # Offer solutions
-        puts "Options:".colorize(:cyan)
-        puts "  1. Stop the existing server: lapis stop"
-        puts "  2. Use a different port: lapis serve --port <port>"
-        puts "  3. Start with auto-open: lapis serve --open --port <port>"
-        puts "  4. Kill processes using port #{config.port}"
-        puts ""
-
-        print "Continue anyway? [y/N]: ".colorize(:yellow)
         response = gets.try(&.strip.downcase)
         unless response == "y" || response == "yes"
           puts "Server startup cancelled.".colorize(:yellow)
           exit(0)
         end
-        puts ""
       end
 
       puts "🚀 Starting development server...".colorize(:green).bold
@@ -205,8 +186,7 @@ module Lapis
       title = @args[2]?
 
       unless title
-        puts "Error: Content title required"
-        puts "Usage: lapis new [page|post] <title>"
+        puts "Error: Content title required. Usage: lapis new [page|post] <title>"
         exit(1)
       end
 
@@ -228,41 +208,20 @@ module Lapis
     end
 
     private def server_status
-      puts "🔍 Checking Lapis server status..."
-      puts ""
-
       servers = find_running_servers
       if servers.empty?
-        puts "No Lapis servers are currently running."
-        puts ""
-        puts "💡 Start a server with: lapis serve"
+        puts "No servers running. Start with: lapis serve"
         return
       end
 
-      puts "Running Lapis servers:"
+      puts "Running servers:"
       servers.each do |server_info|
         status_icon = server_info[:responding].as(Bool) ? "🟢" : "🔴"
         port = server_info[:port].as(Int32)
         host = server_info[:host]? || "localhost"
         server_url = "http://#{host}:#{port}"
-
-        puts "  #{status_icon} Port #{port} (PID: #{server_info[:pid]})"
-        puts "     🌐 #{server_url}".colorize(:cyan)
-        puts "     💡 Click the link above to open in browser".colorize(:dim)
-
-        if config_file = server_info[:config_file]
-          puts "     📄 Config: #{config_file}"
-        end
-        if project_dir = server_info[:project_dir]
-          puts "     📁 Project: #{project_dir}"
-        end
-        puts ""
+        puts "  #{status_icon} Port #{port} (PID: #{server_info[:pid]}) - #{server_url}".colorize(:cyan)
       end
-
-      puts "Commands:"
-      puts "  lapis stop           Stop all servers"
-      puts "  lapis stop --port N  Stop server on specific port"
-      puts "  lapis stop --force   Force kill all servers"
     end
 
     private def theme_command
@@ -300,63 +259,23 @@ module Lapis
       config = Config.load
       theme_manager = ThemeManager.new(config.theme, config.root_dir)
 
-      puts "Available themes:"
-      puts ""
-
       available_themes = theme_manager.list_available_themes
 
       if available_themes.empty?
-        puts "  No themes found."
-        puts ""
-        puts "💡 Tip: Install themes from shards with 'lapis theme install <theme-name>'".colorize(:cyan)
+        puts "No themes found. Install with: lapis theme install <theme-name>"
         return
       end
 
-      # Group by source type
-      local_themes = available_themes.select { |_, source| source == "local" }
-      shard_themes = available_themes.select { |_, source| source == "shard" }
-      global_themes = available_themes.select { |_, source| source == "global" }
-
-      unless local_themes.empty?
-        puts "  📁 Local themes (themes/ directory):"
-        local_themes.each { |name, _| puts "    #{name}" }
-        puts ""
-      end
-
-      unless shard_themes.empty?
-        puts "  📦 Shard themes (lib/ directory):"
-        shard_themes.each { |name, _| puts "    #{name}" }
-        puts ""
-      end
-
-      unless global_themes.empty?
-        puts "  🌍 Global themes (~/.lapis/themes/):"
-        global_themes.each { |name, _| puts "    #{name}" }
-        puts ""
-      end
-
-      puts "Current theme: #{config.theme}"
-
-      if theme_manager.theme_available?
-        puts "✅ Current theme is available".colorize(:green)
-      else
-        puts "❌ Current theme is not available".colorize(:red).bold
-      end
+      puts "Available themes:"
+      available_themes.each { |name, source| puts "  #{name} (#{source})" }
+      puts "Current theme: #{config.theme} #{theme_manager.theme_available? ? "✅" : "❌"}"
     end
 
     private def theme_info
       theme_name = @args[2]?
 
       unless theme_name
-        puts "❌ Error: Theme name required".colorize(:red).bold.colorize(:red).bold
-        puts ""
-        puts "Usage: lapis theme info <theme-name>"
-        puts ""
-        puts "Examples:"
-        puts "  lapis theme info my-theme"
-        puts "  lapis theme info default"
-        puts ""
-        puts "💡 Tip: Run 'lapis theme list' to see available themes".colorize(:cyan)
+        puts "Error: Theme name required. Usage: lapis theme info <theme-name>".colorize(:red).bold
         exit(1)
       end
 
@@ -390,35 +309,32 @@ module Lapis
         exit(1)
       end
 
-      puts "Theme: #{theme_name}"
-      puts "Source: #{theme_manager.theme_source(theme_name)}"
-      puts ""
+      puts "Theme: #{theme_name} (Source: #{theme_manager.theme_source(theme_name)})"
 
       # Show theme info if available
       info = theme_manager.theme_info
       unless info.empty?
-        puts "Theme Information:"
-        info.each do |key, value|
-          puts "  #{key.capitalize}: #{value}"
-        end
-        puts ""
+        puts "Info: #{info.map { |k, v| "#{k.capitalize}: #{v}" }.join(", ")}"
       end
 
       # Validate theme
       theme_paths = theme_manager.theme_paths
       if theme_path = theme_paths.first?
         validation = theme_manager.validate_theme(theme_path)
+        valid = validation["valid"]? ? "✅" : "❌"
 
-        puts "Validation:"
-        puts "  Valid: #{validation["valid"]? ? "✅" : "❌"}"
-        puts "  Has layouts: #{validation["has_layouts"]? ? "✅" : "❌"}"
-        puts "  Has base template: #{validation["has_baseof"]? ? "✅" : "❌"}"
-        puts "  Has default layout: #{validation["has_default_layout"]? ? "✅" : "❌"}"
-        puts "  Has theme config: #{validation["has_theme_config"]? ? "✅" : "❌"}"
+        details = [
+          "layouts: #{validation["has_layouts"]? ? "✅" : "❌"}",
+          "baseof: #{validation["has_baseof"]? ? "✅" : "❌"}",
+          "default: #{validation["has_default_layout"]? ? "✅" : "❌"}",
+          "config: #{validation["has_theme_config"]? ? "✅" : "❌"}",
+        ]
+
+        puts "Validation: #{valid} (#{details.join(", ")})"
 
         if error = validation["error"]?.try(&.as(String))
           unless error.empty?
-            puts "  Error: #{error}"
+            puts "Error: #{error}"
           end
         end
       end
@@ -428,47 +344,21 @@ module Lapis
       theme_name = @args[2]?
 
       unless theme_name
-        puts "❌ Error: Theme name required".colorize(:red).bold
-        puts ""
-        puts "Usage: lapis theme install <theme-name>"
-        puts ""
-        puts "Examples:"
-        puts "  lapis theme install awesome-blog-theme"
-        puts "  lapis theme install lapis-theme-minimal"
-        puts ""
-        puts "💡 Tip: Theme names typically start with 'lapis-theme-'".colorize(:cyan)
+        puts "Error: Theme name required. Usage: lapis theme install <theme-name>".colorize(:red).bold
         exit(1)
       end
 
       puts "Installing theme: #{theme_name}"
-      puts ""
-      puts "💡 Theme installation via shards:"
-      puts "1. Add the theme to your shard.yml file:"
-      puts "   dependencies:"
-      puts "     #{theme_name}:"
-      puts "       github: username/#{theme_name}"
-      puts ""
+      puts "1. Add to shard.yml: #{theme_name}: github: username/#{theme_name}"
       puts "2. Run: shards install"
-      puts ""
-      puts "3. Update your config.yml:"
-      puts "   theme: #{theme_name}"
-      puts ""
-      puts "Note: Automated shard installation will be added in a future release."
+      puts "3. Update config.yml: theme: #{theme_name}"
     end
 
     private def validate_theme
       theme_name = @args[2]?
 
       unless theme_name
-        puts "❌ Error: Theme name required".colorize(:red).bold
-        puts ""
-        puts "Usage: lapis theme validate <theme-name>"
-        puts ""
-        puts "Examples:"
-        puts "  lapis theme validate my-theme"
-        puts "  lapis theme validate default"
-        puts ""
-        puts "💡 Tip: Run 'lapis theme list' to see available themes"
+        puts "Error: Theme name required. Usage: lapis theme validate <theme-name>".colorize(:red).bold
         exit(1)
       end
 
@@ -532,12 +422,13 @@ module Lapis
         end
       end
 
-      puts ""
-      puts "Validation details:"
-      puts "  Has layouts directory: #{validation["has_layouts"]? ? "✅" : "❌"}"
-      puts "  Has base template: #{validation["has_baseof"]? ? "✅" : "❌"}"
-      puts "  Has default layout: #{validation["has_default_layout"]? ? "✅" : "❌"}"
-      puts "  Has theme config: #{validation["has_theme_config"]? ? "✅" : "❌"}"
+      details = [
+        "layouts: #{validation["has_layouts"]? ? "✅" : "❌"}",
+        "baseof: #{validation["has_baseof"]? ? "✅" : "❌"}",
+        "default layout: #{validation["has_default_layout"]? ? "✅" : "❌"}",
+        "config: #{validation["has_theme_config"]? ? "✅" : "❌"}",
+      ]
+      puts "Details: #{details.join(", ")}"
     end
 
     private def show_theme_help
@@ -682,7 +573,7 @@ module Lapis
 
         info_file = File.join(servers_dir, file)
         begin
-          info = JSON.parse(File.read(info_file))
+          info = DataProcessor.parse_json(File.read(info_file), info_file)
           pid = info["pid"].as_i
           port = info["port"].as_i
 
@@ -716,18 +607,23 @@ module Lapis
 
     private def port_responding?(port : Int32) : Bool
       # Enhanced port check with timeout and proper Socket error handling
-      socket = TCPSocket.new("localhost", port)
-      socket.close
-      true
-    rescue Socket::ConnectError
-      # Port is not responding - likely not in use
-      false
-    rescue Socket::Error | IO::TimeoutError
-      # Socket errors or timeout - port might be in use or unreachable
-      true
-    rescue
-      # Any other error - assume port is in use
-      true
+      socket = nil
+      begin
+        socket = TCPSocket.new("localhost", port)
+        true
+      rescue Socket::ConnectError
+        # Port is not responding - likely not in use
+        false
+      rescue Socket::Error | IO::TimeoutError
+        # Socket errors or timeout - port might be in use or unreachable
+        true
+      rescue
+        # Any other error - assume port is in use
+        true
+      ensure
+        # Always close socket to prevent resource leaks
+        socket.try(&.close)
+      end
     end
 
     private def socket_health_check(host : String, port : Int32) : Hash(String, Bool | String)
@@ -739,6 +635,7 @@ module Lapis
       } of String => Bool | String
 
       start_time = Time.monotonic
+      socket = nil
 
       begin
         socket = TCPSocket.new(host, port)
@@ -749,8 +646,6 @@ module Lapis
         response_time = Time.monotonic - start_time
         result["reachable"] = true
         result["response_time"] = "#{response_time.total_milliseconds}ms"
-
-        socket.close
       rescue Socket::ConnectError
         result["error"] = "Connection refused"
       rescue Socket::Error
@@ -759,13 +654,16 @@ module Lapis
         result["error"] = "Connection timeout"
       rescue ex
         result["error"] = "Unexpected error: #{ex.message}"
+      ensure
+        # Always close socket to prevent resource leaks
+        socket.try(&.close)
       end
 
       result
     end
 
     private def show_version
-      puts DESCRIPTION
+      puts Lapis::DESCRIPTION
     end
 
     private def open_in_browser(url : String)
@@ -783,7 +681,7 @@ module Lapis
     end
 
     private def show_help
-      puts DESCRIPTION
+      puts Lapis::DESCRIPTION
       puts ""
 
       PrettyPrintUtils.format_help_section("Usage", "lapis [command] [options]")

@@ -1,42 +1,16 @@
 require "./content"
 require "./content_comparison"
+require "./base_processor"
 require "html"
-require "string_pool"
 require "./logger"
 require "./exceptions"
 
 module Lapis
-  class TemplateProcessor
+  class TemplateProcessor < BaseProcessor
     getter context : TemplateContext
 
-    # StringPool for memory-efficient string caching
-    private STRING_POOL = StringPool.new(256)
-
-    # Pre-computed method tuples for efficient template processing
-    private SECTION_NAV_METHODS = Set{:"has_prev?", :"has_next?", :prev, :next}
-    private BREADCRUMB_METHODS  = Set{:title, :url, :active}
-    private MENU_ITEM_METHODS   = Set{:name, :url, :external}
-    private CONTENT_METHODS     = Set{:title, :url, :"date_formatted", :tags, :summary, :"reading_time"}
-    private ARRAY_METHODS       = Set{"first", "last", "size", "empty?", "uniq", "uniq_by", "sample", "shuffle", "rotate", "reverse", "sort_by_length", "partition", "compact", "chunk", "index", "rindex", "array_truncate", "any?", "all?", "none?", "one?"}
-
-    # Compile-time regexes for frequently used patterns
-    private IF_CONDITIONAL_PATTERN      = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
-    private IF_ELSE_CONDITIONAL_PATTERN = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
-    private FOR_LOOP_PATTERN            = /\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m
-    private VARIABLE_PATTERN            = /\{\{\s*([^}]+)\s*\}\}/
-    private METHOD_CALL_PATTERN         = /(\w+)\(([^)]*)\)/
-    private FILTER_PATTERN              = /(\w+)\(([^)]*)\)/
-
     def initialize(@context : TemplateContext)
-    end
-
-    # StringPool helper methods for memory-efficient string operations
-    private def cache_string(str : String) : String
-      STRING_POOL.get(str)
-    end
-
-    private def cache_template_pattern(pattern : String) : String
-      STRING_POOL.get(pattern)
+      super(@context)
     end
 
     def process(template : String) : String
@@ -72,7 +46,7 @@ module Lapis
 
     private def process_conditionals(template : String) : String
       # Handle {{ if condition }}...{{ endif }} blocks
-      result = template.gsub(IF_CONDITIONAL_PATTERN) do |match|
+      result = template.gsub(TemplatePatterns::IF_CONDITIONAL_PATTERN) do |match|
         condition = $1.strip
         content = $2
 
@@ -85,7 +59,7 @@ module Lapis
       end
 
       # Handle {{ if condition }}...{{ else }}...{{ endif }} blocks
-      result = result.gsub(IF_ELSE_CONDITIONAL_PATTERN) do |match|
+      result = result.gsub(TemplatePatterns::IF_ELSE_CONDITIONAL_PATTERN) do |match|
         condition = $1.strip
         if_content = $2
         else_content = $3
@@ -102,7 +76,7 @@ module Lapis
 
     private def process_loops(template : String) : String
       # Handle {{ for item in collection }}...{{ endfor }} blocks
-      template.gsub(FOR_LOOP_PATTERN) do |match|
+      template.gsub(TemplatePatterns::FOR_LOOP_PATTERN) do |match|
         item_var = $1.strip
         collection_expr = $2.strip
         loop_content = $3
@@ -130,7 +104,7 @@ module Lapis
     # SLICE-BASED LOOP PROCESSING FOR ZERO-COPY OPERATIONS
     private def process_loops_slice(template : String) : String
       # Handle {{ for item in collection }}...{{ endfor }} blocks with slice processing
-      template.gsub(FOR_LOOP_PATTERN) do |match|
+      template.gsub(TemplatePatterns::FOR_LOOP_PATTERN) do |match|
         item_var = $1.strip
         collection_expr = $2.strip
         loop_content = $3
@@ -162,7 +136,7 @@ module Lapis
 
     private def process_variables(template : String) : String
       # Process all {{ variable }} expressions
-      template.gsub(VARIABLE_PATTERN) do |match|
+      template.gsub(TemplatePatterns::VARIABLE_PATTERN) do |match|
         expression = $1.strip
 
         # Skip if this looks like a control structure (already processed)
@@ -187,7 +161,8 @@ module Lapis
       end
     end
 
-    private def evaluate_condition(condition : String) : Bool
+    # Override base class method with template-specific logic
+    protected def evaluate_condition(condition : String) : Bool
       # Handle simple existence checks
       if condition.ends_with?("?")
         # Handle method calls like "section_nav.has_prev?"
@@ -230,39 +205,39 @@ module Lapis
       # Use tuple operations for efficient method dispatch
       case {result.class, method}
       when {SectionNavigation.class, "has_prev?"}
-        dispatch_section_nav_method(result, :"has_prev?") if SECTION_NAV_METHODS.includes?(:"has_prev?")
+        dispatch_section_nav_method(result, :"has_prev?") if TemplateMethods::SECTION_NAV_METHODS.includes?(:"has_prev?")
       when {SectionNavigation.class, "has_next?"}
-        dispatch_section_nav_method(result, :"has_next?") if SECTION_NAV_METHODS.includes?(:"has_next?")
+        dispatch_section_nav_method(result, :"has_next?") if TemplateMethods::SECTION_NAV_METHODS.includes?(:"has_next?")
       when {SectionNavigation.class, "prev"}
-        dispatch_section_nav_method(result, :prev) if SECTION_NAV_METHODS.includes?(:prev)
+        dispatch_section_nav_method(result, :prev) if TemplateMethods::SECTION_NAV_METHODS.includes?(:prev)
       when {SectionNavigation.class, "next"}
-        dispatch_section_nav_method(result, :next) if SECTION_NAV_METHODS.includes?(:next)
+        dispatch_section_nav_method(result, :next) if TemplateMethods::SECTION_NAV_METHODS.includes?(:next)
       when {BreadcrumbItem.class, "title"}
-        dispatch_breadcrumb_method(result, :title) if BREADCRUMB_METHODS.includes?(:title)
+        dispatch_breadcrumb_method(result, :title) if TemplateMethods::BREADCRUMB_METHODS.includes?(:title)
       when {BreadcrumbItem.class, "url"}
-        dispatch_breadcrumb_method(result, :url) if BREADCRUMB_METHODS.includes?(:url)
+        dispatch_breadcrumb_method(result, :url) if TemplateMethods::BREADCRUMB_METHODS.includes?(:url)
       when {BreadcrumbItem.class, "active"}
-        dispatch_breadcrumb_method(result, :active) if BREADCRUMB_METHODS.includes?(:active)
+        dispatch_breadcrumb_method(result, :active) if TemplateMethods::BREADCRUMB_METHODS.includes?(:active)
       when {MenuItem.class, "name"}
-        dispatch_menu_item_method(result, :name) if MENU_ITEM_METHODS.includes?(:name)
+        dispatch_menu_item_method(result, :name) if TemplateMethods::MENU_ITEM_METHODS.includes?(:name)
       when {MenuItem.class, "url"}
-        dispatch_menu_item_method(result, :url) if MENU_ITEM_METHODS.includes?(:url)
+        dispatch_menu_item_method(result, :url) if TemplateMethods::MENU_ITEM_METHODS.includes?(:url)
       when {MenuItem.class, "external"}
-        dispatch_menu_item_method(result, :external) if MENU_ITEM_METHODS.includes?(:external)
+        dispatch_menu_item_method(result, :external) if TemplateMethods::MENU_ITEM_METHODS.includes?(:external)
       when {Content.class, "title"}
-        dispatch_content_template_method(result, :title) if CONTENT_METHODS.includes?(:title)
+        dispatch_content_template_method(result, :title) if TemplateMethods::CONTENT_METHODS.includes?(:title)
       when {Content.class, "url"}
-        dispatch_content_template_method(result, :url) if CONTENT_METHODS.includes?(:url)
+        dispatch_content_template_method(result, :url) if TemplateMethods::CONTENT_METHODS.includes?(:url)
       when {Content.class, "date_formatted"}
-        dispatch_content_template_method(result, :"date_formatted") if CONTENT_METHODS.includes?(:"date_formatted")
+        dispatch_content_template_method(result, :"date_formatted") if TemplateMethods::CONTENT_METHODS.includes?(:"date_formatted")
       when {Content.class, "tags"}
-        dispatch_content_template_method(result, :tags) if CONTENT_METHODS.includes?(:tags)
+        dispatch_content_template_method(result, :tags) if TemplateMethods::CONTENT_METHODS.includes?(:tags)
       when {Content.class, "summary"}
-        dispatch_content_template_method(result, :summary) if CONTENT_METHODS.includes?(:summary)
+        dispatch_content_template_method(result, :summary) if TemplateMethods::CONTENT_METHODS.includes?(:summary)
       when {Content.class, "reading_time"}
-        dispatch_content_template_method(result, :"reading_time") if CONTENT_METHODS.includes?(:"reading_time")
+        dispatch_content_template_method(result, :"reading_time") if TemplateMethods::CONTENT_METHODS.includes?(:"reading_time")
       when {Array.class, _}
-        dispatch_array_template_method(result, method) if ARRAY_METHODS.includes?(method)
+        dispatch_array_template_method(result, method) if TemplateMethods::ARRAY_METHODS.includes?(method)
       else
         result
       end || result
@@ -270,35 +245,35 @@ module Lapis
 
     # Tuple-based method dispatchers using tuple iteration
     private def dispatch_section_nav_method(result, method_symbol : Symbol)
-      SECTION_NAV_METHODS.to_a.each do |method|
+      TemplateMethods::SECTION_NAV_METHODS.to_a.each do |method|
         return handle_section_nav_method(result, method) if method == method_symbol
       end
       nil
     end
 
     private def dispatch_breadcrumb_method(result, method_symbol : Symbol)
-      BREADCRUMB_METHODS.to_a.each do |method|
+      TemplateMethods::BREADCRUMB_METHODS.to_a.each do |method|
         return handle_breadcrumb_method(result, method) if method == method_symbol
       end
       nil
     end
 
     private def dispatch_menu_item_method(result, method_symbol : Symbol)
-      MENU_ITEM_METHODS.to_a.each do |method|
+      TemplateMethods::MENU_ITEM_METHODS.to_a.each do |method|
         return handle_menu_item_method(result, method) if method == method_symbol
       end
       nil
     end
 
     private def dispatch_content_template_method(result, method_symbol : Symbol)
-      CONTENT_METHODS.to_a.each do |method|
+      TemplateMethods::CONTENT_METHODS.to_a.each do |method|
         return handle_content_template_method(result, method) if method == method_symbol
       end
       nil
     end
 
     private def dispatch_array_template_method(result, method : String)
-      ARRAY_METHODS.each do |m|
+      TemplateMethods::ARRAY_METHODS.each do |m|
         return handle_array_template_method(result, m) if m == method
       end
       nil
@@ -424,7 +399,7 @@ module Lapis
     end
 
     private def handle_method_call(call : String)
-      if match = call.match(METHOD_CALL_PATTERN, options: Regex::MatchOptions::None)
+      if match = call.match(TemplatePatterns::METHOD_CALL_PATTERN, options: Regex::MatchOptions::None)
         method_name = match[1]
         args_str = match[2]
 
@@ -503,11 +478,12 @@ module Lapis
       result
     end
 
-    private def format_value(value) : String
+    # Override base class method with template-specific logic
+    protected def format_value(value) : String
       case value
-      when String       then value
-      when Int32, Int64 then value.to_s
-      when Bool         then value.to_s
+      when String       then cache_string(value)
+      when Int32, Int64 then cache_string(value.to_s)
+      when Bool         then cache_string(value.to_s)
       when Array(BreadcrumbItem)
         # Don't process arrays of complex types
         ""
@@ -518,12 +494,12 @@ module Lapis
         # Don't process arrays of complex types
         ""
       when Array(String)
-        value.join(", ")
+        cache_string(value.join(", "))
       when Hash
         # For complex objects like tag clouds
-        value.to_s
+        cache_string(value.to_s)
       when Nil then ""
-      else          value.to_s
+      else          cache_string(value.to_s)
       end
     end
 
@@ -693,7 +669,7 @@ module Lapis
     end
 
     private def apply_filter_with_args(value, filter : String)
-      if match = filter.match(FILTER_PATTERN, options: Regex::MatchOptions::None)
+      if match = filter.match(TemplatePatterns::FILTER_PATTERN, options: Regex::MatchOptions::None)
         filter_name = match[1]
         args_str = match[2]
         arg = args_str.to_i? || args_str
@@ -781,6 +757,32 @@ module Lapis
       else
         value
       end
+    end
+
+    # Implement abstract methods from BaseProcessor
+    protected def dispatch_site_method(object, method : Symbol)
+      # TemplateProcessor doesn't handle Site objects directly
+      nil
+    end
+
+    protected def dispatch_page_method(object, method : Symbol)
+      # TemplateProcessor doesn't handle Page objects directly
+      nil
+    end
+
+    protected def dispatch_content_method(object, method : Symbol)
+      # TemplateProcessor handles Content objects through dispatch_content_template_method
+      nil
+    end
+
+    protected def dispatch_time_method(object, method : Symbol)
+      # TemplateProcessor doesn't handle Time objects directly
+      nil
+    end
+
+    protected def dispatch_array_method(object, method : Symbol)
+      # TemplateProcessor handles Array objects through dispatch_array_template_method
+      nil
     end
   end
 end

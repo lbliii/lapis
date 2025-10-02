@@ -244,7 +244,7 @@ module Lapis
         generate_archive_page(paginator, page_num)
       end
 
-      puts "  Generated: #{total_pages} paginated archive pages"
+      Logger.info("Generated paginated archive pages", count: total_pages)
     end
 
     def generate_tag_paginated_archives(posts_by_tag : Hash(String, Array(Content)), per_page : Int32 = 10)

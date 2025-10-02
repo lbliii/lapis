@@ -17,13 +17,13 @@
               </li>
             {{ end }}
           {{ end }}
-          
-          <!-- Posts section -->
-          <li class="nav-item">
-            <a href="/posts/" class="nav-link {{ if eq page.url "/posts/" }}active{{ end }}">
-              Posts
-            </a>
-          </li>
+          {{ range site.menus.main }}
+            <li class="nav-item">
+              <a href="{{ .url }}" class="nav-link {{ if eq .url page.url }}active{{ end }}">
+                {{ .title }}
+              </a>
+            </li>
+          {{ end }}
         </ul>
       </nav>
 

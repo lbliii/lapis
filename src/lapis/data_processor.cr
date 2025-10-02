@@ -29,81 +29,86 @@ module Lapis
     end
 
     # Type-safe JSON parsing method
-    def self.parse_json_typed(json_string : String) : PostData
+    def self.parse_json_typed(json_string : String, file_path : String? = nil) : PostData
       raise ArgumentError.new("JSON string cannot be empty") if json_string.strip.empty?
-      Logger.debug("Parsing JSON with type safety", size: json_string.size.to_s)
+      file_context = file_path ? " from #{file_path}" : ""
+      Logger.debug("Parsing JSON with type safety#{file_context}", size: json_string.size.to_s)
 
       begin
         parsed = PostData.from_json(json_string)
-        Logger.debug("Type-safe JSON parsed successfully")
+        Logger.debug("Type-safe JSON parsed successfully#{file_context}")
         parsed
       rescue ex : JSON::ParseException
-        Logger.error("Type-safe JSON parsing error", error: ex.message.to_s)
-        raise ValidationError.new("Type-safe JSON parsing error: #{ex.message}", "json", json_string[0..100])
+        Logger.error("Type-safe JSON parsing error#{file_context}", error: ex.message.to_s, file: file_path)
+        raise ValidationError.new("Type-safe JSON parsing error#{file_context}: #{ex.message}", "json", json_string[0..100])
       rescue ex : ::TypeCastError
-        Logger.error("Type cast error in JSON parsing", error: ex.message.to_s)
-        raise Lapis::TypeCastError.new("Type cast error in JSON parsing: #{ex.message}", ex, "JSON", "PostData", json_string[0..100])
+        Logger.error("Type cast error in JSON parsing#{file_context}", error: ex.message.to_s, file: file_path)
+        raise Lapis::TypeCastError.new("Type cast error in JSON parsing#{file_context}: #{ex.message}", ex, "JSON", "PostData", json_string[0..100])
       rescue ex
-        Logger.error("Unexpected type-safe JSON error", error: ex.message.to_s)
-        raise ValidationError.new("Unexpected type-safe JSON error: #{ex.message}")
+        Logger.error("Unexpected type-safe JSON error#{file_context}", error: ex.message.to_s, file: file_path)
+        raise ValidationError.new("Unexpected type-safe JSON error#{file_context}: #{ex.message}")
       end
     end
 
     # JSON processing
-    def self.parse_json(json_string : String) : JSON::Any
+    def self.parse_json(json_string : String, file_path : String? = nil) : JSON::Any
       raise ArgumentError.new("JSON string cannot be empty") if json_string.strip.empty?
-      Logger.debug("Parsing JSON", size: json_string.size.to_s)
+      file_context = file_path ? " from #{file_path}" : ""
+      Logger.debug("Parsing JSON#{file_context}", size: json_string.size.to_s)
 
       begin
         parsed = JSON.parse(json_string)
-        Logger.debug("JSON parsed successfully")
+        Logger.debug("JSON parsed successfully#{file_context}")
         parsed
       rescue ex : JSON::ParseException
-        Logger.error("JSON parsing error", error: ex.message.to_s)
-        raise ValidationError.new("JSON parsing error: #{ex.message}", "json", json_string[0..100])
+        Logger.error("JSON parsing error#{file_context}", error: ex.message.to_s, file: file_path)
+        raise ValidationError.new("JSON parsing error#{file_context}: #{ex.message}", "json", json_string[0..100])
       rescue ex : ::TypeCastError
-        Logger.error("Type cast error in JSON parsing", error: ex.message.to_s)
-        raise Lapis::TypeCastError.new("Type cast error in JSON parsing: #{ex.message}", ex, "JSON", "JSON::Any", json_string[0..100])
+        Logger.error("Type cast error in JSON parsing#{file_context}", error: ex.message.to_s, file: file_path)
+        raise Lapis::TypeCastError.new("Type cast error in JSON parsing#{file_context}: #{ex.message}", ex, "JSON", "JSON::Any", json_string[0..100])
       rescue ex
-        Logger.error("Unexpected JSON error", error: ex.message.to_s)
-        raise ValidationError.new("Unexpected JSON error: #{ex.message}")
+        Logger.error("Unexpected JSON error#{file_context}", error: ex.message.to_s, file: file_path)
+        raise ValidationError.new("Unexpected JSON error#{file_context}: #{ex.message}")
       end
     end
 
     # YAML processing
-    def self.parse_yaml(yaml_string : String) : YAML::Any
+    def self.parse_yaml(yaml_string : String, file_path : String? = nil) : YAML::Any
       raise ArgumentError.new("YAML string cannot be empty") if yaml_string.strip.empty?
-      Logger.debug("Parsing YAML", size: yaml_string.size.to_s)
+      file_context = file_path ? " from #{file_path}" : ""
+      Logger.debug("Parsing YAML#{file_context}", size: yaml_string.size.to_s)
 
       begin
         parsed = YAML.parse(yaml_string)
-        Logger.debug("YAML parsed successfully")
+        Logger.debug("YAML parsed successfully#{file_context}")
         parsed
       rescue ex : YAML::ParseException
-        Logger.error("YAML parsing error", error: ex.message.to_s)
-        raise ValidationError.new("YAML parsing error: #{ex.message}", "yaml", yaml_string[0..100])
+        Logger.error("YAML parsing error#{file_context}", error: ex.message.to_s, file: file_path)
+        raise ValidationError.new("YAML parsing error#{file_context}: #{ex.message}", "yaml", yaml_string[0..100])
       rescue ex : ::TypeCastError
-        Logger.error("Type cast error in YAML parsing", error: ex.message.to_s)
-        raise Lapis::TypeCastError.new("Type cast error in YAML parsing: #{ex.message}", ex, "YAML", "YAML::Any", yaml_string[0..100])
+        Logger.error("Type cast error in YAML parsing#{file_context}", error: ex.message.to_s, file: file_path)
+        raise Lapis::TypeCastError.new("Type cast error in YAML parsing#{file_context}: #{ex.message}", ex, "YAML", "YAML::Any", yaml_string[0..100])
       rescue ex
-        Logger.error("Unexpected YAML error", error: ex.message.to_s)
-        raise ValidationError.new("Unexpected YAML error: #{ex.message}")
+        Logger.error("Unexpected YAML error#{file_context}", error: ex.message.to_s, file: file_path)
+        raise ValidationError.new("Unexpected YAML error#{file_context}: #{ex.message}")
       end
     end
 
     # Safe JSON parsing with default value
-    def self.parse_json_safe(json_string : String, default : JSON::Any? = nil) : JSON::Any?
-      parse_json(json_string)
+    def self.parse_json_safe(json_string : String, default : JSON::Any? = nil, file_path : String? = nil) : JSON::Any?
+      parse_json(json_string, file_path)
     rescue
-      Logger.warn("JSON parsing failed, using default value")
+      file_context = file_path ? " for #{file_path}" : ""
+      Logger.warn("JSON parsing failed#{file_context}, using default value", file: file_path)
       default
     end
 
     # Safe YAML parsing with default value
-    def self.parse_yaml_safe(yaml_string : String, default : YAML::Any? = nil) : YAML::Any?
-      parse_yaml(yaml_string)
+    def self.parse_yaml_safe(yaml_string : String, default : YAML::Any? = nil, file_path : String? = nil) : YAML::Any?
+      parse_yaml(yaml_string, file_path)
     rescue
-      Logger.warn("YAML parsing failed, using default value")
+      file_context = file_path ? " for #{file_path}" : ""
+      Logger.warn("YAML parsing failed#{file_context}, using default value", file: file_path)
       default
     end
 

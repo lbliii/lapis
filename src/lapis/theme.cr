@@ -1,5 +1,6 @@
 require "yaml"
 require "./logger"
+require "./data_processor"
 
 module Lapis
   # Standard interface for Lapis themes
@@ -25,7 +26,7 @@ module Lapis
       return unless File.exists?(config_file)
 
       begin
-        config = YAML.parse(File.read(config_file)).as_h
+        config = DataProcessor.parse_yaml(File.read(config_file), config_file).as_h
         @name = config["name"]?.try(&.as_s) || File.basename(@theme_path)
         @version = config["version"]?.try(&.as_s) || "0.0.0"
         @description = config["description"]?.try(&.as_s) || ""
@@ -79,7 +80,7 @@ module Lapis
       return {} of String => YAML::Any unless File.exists?(config_file)
 
       begin
-        YAML.parse(File.read(config_file)).as_h
+        DataProcessor.parse_yaml(File.read(config_file), config_file).as_h
       rescue
         {} of String => YAML::Any
       end
@@ -130,7 +131,7 @@ module Lapis
       return false unless File.exists?(shard_yml)
 
       begin
-        shard_config = YAML.parse(File.read(shard_yml)).as_h
+        shard_config = DataProcessor.parse_yaml(File.read(shard_yml), shard_yml).as_h
         # Check if it declares itself as a Lapis theme
         targets = shard_config["targets"]?.try(&.as_h)
         return false unless targets

@@ -12,9 +12,6 @@ dependencies:
   markd:
     github: icyleaf/markd
     version: "~> 0.5.0"
-  colorize:
-    github: crystal-lang/colorize
-    version: "~> 0.1.0"
 
 development_dependencies:
   ameba:
@@ -23,7 +20,7 @@ development_dependencies:
 
 targets:
   lapis:
-    main: src/lapis.cr
+    main: src/lapis_cli.cr
 
 description: |
   A fast static site generator built in Crystal, inspired by modern static site generators.
