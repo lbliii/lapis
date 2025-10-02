@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head><title>Debug Navigation</title></head>
+<body>
+<h1>Debug Navigation</h1>
+<p>Total pages: {{ len site.pages }}</p>
+<p>Regular pages: {{ len site.regular_pages }}</p>
+<p>Site title: {{ site.title }}</p>
+
+<h2>All Pages:</h2>
+<ul>
+{{ for page in site.pages }}
+  <li>{{ page.title }} ({{ page.url }})</li>
+{{ endfor }}
+</ul>
+
+<h2>Regular Pages:</h2>
+<ul>
+{{ for page in site.regular_pages }}
+  <li>{{ page.title }} ({{ page.url }})</li>
+{{ endfor }}
+</ul>
+</body>
+</html>

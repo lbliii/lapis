@@ -2,52 +2,19 @@ require "./functions"
 require "./site"
 require "./page"
 require "./navigation"
-require "string_pool"
+require "./base_processor"
 require "./logger"
 require "./exceptions"
 
 module Lapis
   # Enhanced template processor with advanced functions
-  class FunctionProcessor
+  class FunctionProcessor < BaseProcessor
     getter context : TemplateContext
-
-    # StringPool for memory-efficient string caching in type conversions
-    private STRING_POOL = StringPool.new(512)
     getter site : Site
     getter page : Page?
 
-    # Pre-computed symbol sets for O(1) performance optimization
-    private SITE_METHODS = Set{
-      :Title, :BaseURL, :Pages, :RegularPages, :Params, :Data, :Menus, :Author,
-      :Copyright, :Hugo, :title, :"base_url", :theme, :"theme_dir", :"layouts_dir",
-      :"static_dir", :"output_dir", :"content_dir", :debug, :"build_config",
-      :"live_reload_config", :"bundling_config",
-    }
-
-    private PAGE_METHODS = Set{
-      :Title, :Content, :Summary, :URL, :Permalink, :Date, :Tags, :Categories,
-      :WordCount, :ReadingTime, :Next, :Prev, :Parent, :Children, :Related,
-      :Section, :Kind, :Type, :Layout, :Params, :title, :content, :summary,
-      :url, :permalink, :date, :tags, :categories, :kind, :layout, :"file_path",
-    }
-
-    private CONTENT_METHODS = Set{:Title, :URL, :Date, :Summary}
-
-    # Compile-time regexes for frequently used patterns
-    private FUNCTION_CALL_PATTERN       = /\{\{\s*(\w+)\s*\(([^)]*)\)\s*\}\}/
-    private IF_CONDITIONAL_PATTERN      = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
-    private IF_ELSE_CONDITIONAL_PATTERN = /\{\{\s*if\s+([^}]+)\s*\}\}(.*?)\{\{\s*else\s*\}\}(.*?)\{\{\s*endif\s*\}\}/m
-    private FOR_LOOP_PATTERN            = /\{\{\s*for\s+(\w+)\s+in\s+([^}]+)\s*\}\}(.*?)\{\{\s*endfor\s*\}\}/m
-    private VARIABLE_PATTERN            = /\{\{\s*([^}]+)\s*\}\}/
-    private RANGE_LOOP_PATTERN          = /\{\{\s*range\s+([^}]+)\s*\}\}(.*?)\{\{\s*end\s*\}\}/m
-    private TIME_METHODS                = Set{:Year, :Month, :Day, :Format}
-    private ARRAY_METHODS               = Set{:len, :first, :last, :uniq, :uniq_by, :sample, :shuffle, :rotate, :reverse, :sort_by_length, :partition, :compact, :chunk, :index, :rindex, :"array_truncate", :size, :empty?, :any?, :all?, :none?, :one?}
-    private MENUITEM_METHODS            = Set{:name, :url, :weight, :external}
-    private BUILD_CONFIG_METHODS        = Set{:enabled, :incremental, :parallel, :"cache_dir", :"max_workers"}
-    private LIVE_RELOAD_CONFIG_METHODS  = Set{:enabled, :"websocket_path", :"debounce_ms"}
-    private BUNDLING_CONFIG_METHODS     = Set{:enabled, :minify, :"source_maps", :autoprefix}
-
     def initialize(@context : TemplateContext)
+      super(@context)
       @site = Site.new(@context.config, @context.query.site_content)
 
       if @context.content.is_a?(Content)
@@ -63,89 +30,92 @@ module Lapis
       # Use tuple operations for efficient method dispatch
       case {object.class, method_symbol}
       when {Site.class, _}
-        dispatch_site_method(object, method_symbol) if SITE_METHODS.includes?(method_symbol)
+        dispatch_site_method(object, method_symbol) if TemplateMethods::SITE_METHODS.includes?(method_symbol)
       when {Page.class, _}
-        dispatch_page_method(object, method_symbol) if PAGE_METHODS.includes?(method_symbol)
+        dispatch_page_method(object, method_symbol) if TemplateMethods::PAGE_METHODS.includes?(method_symbol)
       when {Content.class, _}
-        dispatch_content_method(object, method_symbol) if CONTENT_METHODS.includes?(method_symbol)
+        dispatch_content_method(object, method_symbol) if TemplateMethods::CONTENT_METHODS.includes?(method_symbol)
       when {Time.class, _}
-        dispatch_time_method(object, method_symbol) if TIME_METHODS.includes?(method_symbol)
+        dispatch_time_method(object, method_symbol) if TemplateMethods::TIME_METHODS.includes?(method_symbol)
       when {Array.class, _}
-        dispatch_array_method(object, method_symbol) if ARRAY_METHODS.includes?(method_symbol)
+        dispatch_array_method(object, method_symbol) if TemplateMethods::ARRAY_METHODS.includes?(method_symbol.to_s)
       when {MenuItem.class, _}
-        dispatch_menuitem_method(object, method_symbol) if MENUITEM_METHODS.includes?(method_symbol)
+        dispatch_menuitem_method(object, method_symbol) if TemplateMethods::MENUITEM_METHODS.includes?(method_symbol)
       when {BuildConfig.class, _}
-        dispatch_build_config_method(object, method_symbol) if BUILD_CONFIG_METHODS.includes?(method_symbol)
+        dispatch_build_config_method(object, method_symbol) if TemplateMethods::BUILD_CONFIG_METHODS.includes?(method_symbol)
       when {LiveReloadConfig.class, _}
-        dispatch_live_reload_config_method(object, method_symbol) if LIVE_RELOAD_CONFIG_METHODS.includes?(method_symbol)
+        dispatch_live_reload_config_method(object, method_symbol) if TemplateMethods::LIVE_RELOAD_CONFIG_METHODS.includes?(method_symbol)
       when {BundlingConfig.class, _}
-        dispatch_bundling_config_method(object, method_symbol) if BUNDLING_CONFIG_METHODS.includes?(method_symbol)
+        dispatch_bundling_config_method(object, method_symbol) if TemplateMethods::BUNDLING_CONFIG_METHODS.includes?(method_symbol)
       else
         nil
       end
     end
 
     # Tuple-based method dispatchers using tuple iteration
-    private def dispatch_site_method(object, method_symbol : Symbol)
+    protected def dispatch_site_method(object, method : Symbol)
       # Use tuple to_a for iteration and mapping
-      site_methods_tuple = SITE_METHODS.to_a
-      site_methods_tuple.each do |method|
-        return handle_site_method(object, method) if method == method_symbol
+      site_methods_tuple = TemplateMethods::SITE_METHODS.to_a
+      site_methods_tuple.each do |method_item|
+        return handle_site_method(object, method_item) if method_item == method
       end
       nil
     end
 
-    private def dispatch_page_method(object, method_symbol : Symbol) : String?
-      PAGE_METHODS.to_a.each do |method|
-        return handle_page_method(object, method) if method == method_symbol
+    protected def dispatch_page_method(object, method : Symbol) : String?
+      TemplateMethods::PAGE_METHODS.to_a.each do |method_item|
+        return handle_page_method(object, method_item) if method_item == method
       end
       nil
     end
 
-    private def dispatch_content_method(object, method_symbol : Symbol) : String?
-      CONTENT_METHODS.to_a.each do |method|
-        return handle_content_method(object, method) if method == method_symbol
+    protected def dispatch_content_method(object, method : Symbol) : String?
+      TemplateMethods::CONTENT_METHODS.to_a.each do |method_item|
+        return handle_content_method(object, method_item) if method_item == method
       end
       nil
     end
 
-    private def dispatch_time_method(object, method_symbol : Symbol) : String?
-      TIME_METHODS.to_a.each do |method|
-        return handle_time_method(object, method) if method == method_symbol
+    protected def dispatch_time_method(object, method : Symbol) : String?
+      TemplateMethods::TIME_METHODS.to_a.each do |method_item|
+        return handle_time_method(object, method_item) if method_item == method
       end
       nil
     end
 
-    private def dispatch_array_method(object, method_symbol : Symbol) : String?
-      ARRAY_METHODS.to_a.each do |method|
-        return handle_array_method(object, method) if method == method_symbol
+    # Override base class method for Symbol parameters
+    protected def dispatch_array_method(object, method : Symbol) : String?
+      TemplateMethods::ARRAY_METHODS.each do |method_item|
+        if method_item == method.to_s
+          return handle_array_method_string(object, method_item)
+        end
       end
       nil
     end
 
     private def dispatch_menuitem_method(object, method_symbol : Symbol) : String?
-      MENUITEM_METHODS.to_a.each do |method|
+      TemplateMethods::MENUITEM_METHODS.to_a.each do |method|
         return handle_menuitem_method(object, method) if method == method_symbol
       end
       nil
     end
 
     private def dispatch_build_config_method(object, method_symbol : Symbol)
-      BUILD_CONFIG_METHODS.to_a.each do |method|
+      TemplateMethods::BUILD_CONFIG_METHODS.to_a.each do |method|
         return handle_build_config_method(object, method) if method == method_symbol
       end
       nil
     end
 
     private def dispatch_live_reload_config_method(object, method_symbol : Symbol)
-      LIVE_RELOAD_CONFIG_METHODS.to_a.each do |method|
+      TemplateMethods::LIVE_RELOAD_CONFIG_METHODS.to_a.each do |method|
         return handle_live_reload_config_method(object, method) if method == method_symbol
       end
       nil
     end
 
     private def dispatch_bundling_config_method(object, method_symbol : Symbol)
-      BUNDLING_CONFIG_METHODS.to_a.each do |method|
+      TemplateMethods::BUNDLING_CONFIG_METHODS.to_a.each do |method|
         return handle_bundling_config_method(object, method) if method == method_symbol
       end
       nil
@@ -158,8 +128,8 @@ module Lapis
       when :title                then object.is_a?(Site) ? object.as(Site).title : nil
       when :BaseURL              then object.is_a?(Site) ? object.as(Site).base_url : nil
       when :"base_url"           then object.is_a?(Site) ? object.as(Site).base_url : nil
-      when :Pages                then object.is_a?(Site) ? object.as(Site).all_pages.to_s : nil
-      when :RegularPages         then object.is_a?(Site) ? object.as(Site).regular_pages.to_s : nil
+      when :Pages                then object.is_a?(Site) ? object.as(Site).all_pages : nil
+      when :RegularPages         then object.is_a?(Site) ? object.as(Site).regular_pages : nil
       when :Params               then object.is_a?(Site) ? object.as(Site).params.to_s : nil
       when :Data                 then object.is_a?(Site) ? object.as(Site).data.to_s : nil
       when :Menus                then object.is_a?(Site) ? object.as(Site).menus.to_s : nil
@@ -172,7 +142,7 @@ module Lapis
       when :"static_dir"         then object.is_a?(Site) ? object.as(Site).static_dir : nil
       when :"output_dir"         then object.is_a?(Site) ? object.as(Site).output_dir : nil
       when :"content_dir"        then object.is_a?(Site) ? object.as(Site).content_dir : nil
-      when :debug                then object.is_a?(Site) ? object.as(Site).debug.to_s : nil
+      when :debug, :Debug        then object.is_a?(Site) ? object.as(Site).debug : nil
       when :"build_config"       then object.is_a?(Site) ? object.as(Site).build_config : nil
       when :"live_reload_config" then object.is_a?(Site) ? object.as(Site).live_reload_config : nil
       when :"bundling_config"    then object.is_a?(Site) ? object.as(Site).bundling_config : nil
@@ -203,6 +173,7 @@ module Lapis
       when :Layout, :layout         then object.is_a?(Page) ? object.as(Page).layout.to_s : nil
       when :Params                  then object.is_a?(Page) ? object.as(Page).params.to_s : nil
       when :"file_path"             then object.is_a?(Page) ? object.as(Page).file_path : nil
+      when :debug, :Debug           then object.is_a?(Page) ? object.as(Page).debug : nil
       else                               nil
       end
     end
@@ -233,26 +204,26 @@ module Lapis
       end
     end
 
-    private def handle_array_method(object, method : Symbol) : String?
+    private def handle_array_method_string(object, method : String) : String?
       return nil unless object.is_a?(Array)
       array = object.as(Array)
 
       case method
-      when :len     then array.size.to_s
-      when :first   then array.first?.to_s
-      when :last    then array.last?.to_s
-      when :uniq    then array.uniq.to_s
-      when :sample  then array.sample.to_s
-      when :shuffle then array.shuffle.to_s
-      when :reverse then array.reverse.to_s
-      when :compact then array.compact.to_s
-      when :empty?  then array.empty?.to_s
-      when :any?    then array.any? { |item| !item.nil? }.to_s
-      when :all?    then array.all? { |item| !item.nil? }.to_s
-      when :none?   then array.none?(Nil).to_s
-      when :one?    then array.one? { |item| !item.nil? }.to_s
-      when :size    then array.size.to_s
-      else               nil
+      when "len"     then array.size.to_s
+      when "first"   then array.first?.to_s
+      when "last"    then array.last?.to_s
+      when "uniq"    then array.uniq.to_s
+      when "sample"  then array.sample.to_s
+      when "shuffle" then array.shuffle.to_s
+      when "reverse" then array.reverse.to_s
+      when "compact" then array.compact.to_s
+      when "empty?"  then array.empty?.to_s
+      when "any?"    then array.any? { |item| !item.nil? }.to_s
+      when "all?"    then array.all? { |item| !item.nil? }.to_s
+      when "none?"   then array.none?(Nil).to_s
+      when "one?"    then array.one? { |item| !item.nil? }.to_s
+      when "size"    then array.size.to_s
+      else                nil
       end
     end
 
@@ -319,7 +290,7 @@ module Lapis
 
     private def process_function_calls(template : String) : String
       # Process {{ function(args) }} calls
-      template.gsub(FUNCTION_CALL_PATTERN) do |match|
+      template.gsub(TemplatePatterns::FUNCTION_CALL_PATTERN) do |match|
         function_name = $1
         args_str = $2
 
@@ -345,7 +316,7 @@ module Lapis
       loop do
         original_result = result
 
-        result = result.gsub(IF_CONDITIONAL_PATTERN) do |match|
+        result = result.gsub(TemplatePatterns::IF_CONDITIONAL_PATTERN) do |match|
           condition = $1.strip
           content = $2
 
@@ -387,15 +358,20 @@ module Lapis
 
     # Find the matching {{ else }} for an if block, accounting for nested if/endif
     private def find_matching_else(content : String) : Int32?
+      # Use more efficient regex patterns to avoid backtracking
       else_pattern = /\{\{\s*else\s*\}\}/
       if_pattern = /\{\{\s*if\s+[^}]+\s*\}\}/
       endif_pattern = /\{\{\s*endif\s*\}\}/
 
       pos = 0
       nesting_level = 0
+      max_iterations = content.size / 10 # Prevent infinite loops
+      iteration_count = 0
 
-      while pos < content.size
-        # Find the next occurrence of if, else, or endif
+      while pos < content.size && iteration_count < max_iterations
+        iteration_count += 1
+
+        # Find the next occurrence of if, else, or endif with bounds checking
         if_match = content.match(if_pattern, pos, options: Regex::MatchOptions::None)
         else_match = content.match(else_pattern, pos, options: Regex::MatchOptions::None)
         endif_match = content.match(endif_pattern, pos, options: Regex::MatchOptions::None)
@@ -432,19 +408,39 @@ module Lapis
 
     private def process_loops(template : String) : String
       # Handle {{ range collection }} loops
-      result = template.gsub(RANGE_LOOP_PATTERN) do |match|
+      result = template.gsub(TemplatePatterns::RANGE_LOOP_PATTERN) do |match|
         range_expr = $1.strip
         loop_content = $2
 
         collection = evaluate_expression(range_expr)
 
         case collection
+        when Array(Content)
+          if collection.empty?
+            ""
+          else
+            collection.map_with_index do |item, index|
+              # Create loop context for Content objects
+              loop_context = create_loop_context(item, index, range_expr)
+              process_with_loop_context(loop_content, loop_context)
+            end.join("")
+          end
+        when Array(MenuItem)
+          if collection.empty?
+            ""
+          else
+            collection.map_with_index do |item, index|
+              # Create loop context for MenuItem objects
+              loop_context = create_loop_context(item, index, range_expr)
+              process_with_loop_context(loop_content, loop_context)
+            end.join("")
+          end
         when Array
           if collection.empty?
             ""
           else
             collection.map_with_index do |item, index|
-              # Create loop context
+              # Create loop context for generic arrays
               loop_context = create_loop_context(item, index, range_expr)
               process_with_loop_context(loop_content, loop_context)
             end.join("")
@@ -455,7 +451,7 @@ module Lapis
       end
 
       # Handle alternative {{ for item in collection }} loops
-      result = result.gsub(FOR_LOOP_PATTERN) do |match|
+      result = result.gsub(TemplatePatterns::FOR_LOOP_PATTERN) do |match|
         item_name = $1.strip
         collection_expr = $2.strip
         loop_content = $3
@@ -463,12 +459,32 @@ module Lapis
         collection = evaluate_expression(collection_expr)
 
         case collection
+        when Array(Content)
+          if collection.empty?
+            ""
+          else
+            collection.map_with_index do |item, index|
+              # Create loop context for Content objects
+              loop_context = create_for_loop_context(item, index, item_name)
+              process_with_loop_context(loop_content, loop_context)
+            end.join("")
+          end
+        when Array(MenuItem)
+          if collection.empty?
+            ""
+          else
+            collection.map_with_index do |item, index|
+              # Create loop context for MenuItem objects
+              loop_context = create_for_loop_context(item, index, item_name)
+              process_with_loop_context(loop_content, loop_context)
+            end.join("")
+          end
         when Array
           if collection.empty?
             ""
           else
             collection.map_with_index do |item, index|
-              # Create loop context for named item
+              # Create loop context for generic arrays
               loop_context = create_for_loop_context(item, index, item_name)
               process_with_loop_context(loop_content, loop_context)
             end.join("")
@@ -482,7 +498,7 @@ module Lapis
     end
 
     private def process_variables(template : String) : String
-      template.gsub(VARIABLE_PATTERN) do |match|
+      template.gsub(TemplatePatterns::VARIABLE_PATTERN) do |match|
         expression = $1.strip
 
         # Skip control structures
@@ -655,6 +671,8 @@ module Lapis
                       when "Hugo"               then :Hugo
                       when "title"              then :title
                       when "base_url"           then :"base_url"
+                      when "pages"              then :Pages
+                      when "regular_pages"      then :RegularPages
                       when "theme"              then :theme
                       when "theme_dir"          then :"theme_dir"
                       when "layouts_dir"        then :"layouts_dir"
@@ -724,46 +742,64 @@ module Lapis
       return nil
     end
 
-    private def create_loop_context(item, index : Int32, range_expr : String) : Hash(String, String | Int32)
-      context = {} of String => String | Int32
+    private def create_loop_context(item, index : Int32, range_expr : String) : Hash(String, String | Int32 | Content | Page | Site | MenuItem)
+      context = {} of String => String | Int32 | Content | Page | Site | MenuItem
 
-      # Set loop variables
-      context["."] = convert_to_string(item)
+      # Set loop variables - preserve objects for property access
+      context["."] = item
       context["$index"] = index
 
       # Handle assignment syntax: range $item := collection
       if range_expr.includes?(":=")
         var_name = range_expr.split(":=")[0].strip.lstrip("$")
-        context[var_name] = convert_to_string(item)
+        context[var_name] = item
       end
 
       context
     end
 
-    private def create_for_loop_context(item, index : Int32, item_name : String) : Hash(String, String | Int32)
-      context = {} of String => String | Int32
+    private def create_for_loop_context(item, index : Int32, item_name : String) : Hash(String, String | Int32 | Content | Page | Site | MenuItem)
+      context = {} of String => String | Int32 | Content | Page | Site | MenuItem
 
-      # Set loop variables
-      context["."] = convert_to_string(item)
+      # Set loop variables - preserve objects for property access
+      context["."] = item
       context["$index"] = index
-      context[item_name] = convert_to_string(item)
+      context[item_name] = item
 
       context
     end
 
-    private def process_with_loop_context(template : String, loop_context : Hash(String, String | Int32)) : String
+    private def process_with_loop_context(template : String, loop_context : Hash(String, String | Int32 | Content | Page | Site | MenuItem)) : String
       result = template
+
+      # First, handle dot notation property access for current item
+      if current_item = loop_context["."]?
+        # Replace patterns like {{ .property }}
+        result = result.gsub(/\{\{\s*\.(\w+)\s*\}\}/) do |match|
+          property = $1
+          property_value = call_method(current_item, property)
+          format_value(property_value)
+        end
+      end
 
       # Replace loop variables
       loop_context.each do |key, value|
         case key
         when "."
-          # Current item context
+          # Current item context - store object for method access
           result = result.gsub("{{ . }}", format_value(value))
         when "$index"
           result = result.gsub("{{ $index }}", value.to_s)
         else
-          # Named variables
+          # Named variables - handle both property access and direct access
+          # Handle patterns like {{ item.property }}
+          result = result.gsub(/\{\{\s*#{Regex.escape(key)}\.(\w+)\s*\}\}/) do |match|
+            property = $1
+            property_value = call_method(value, property)
+            format_value(property_value)
+          end
+
+          # Handle direct variable access
           result = result.gsub("{{ $#{key} }}", format_value(value))
           result = result.gsub("{{ #{key} }}", format_value(value))
         end
@@ -773,16 +809,23 @@ module Lapis
       process(result)
     end
 
-    private def format_value(value) : String
+    # Override base class method with function-specific logic
+    protected def format_value(value) : String
       case value
-      when String        then STRING_POOL.get(value)
-      when Int32, Int64  then STRING_POOL.get(value.to_s)
-      when Bool          then STRING_POOL.get(value.to_s)
-      when Time          then STRING_POOL.get(value.to_s("%Y-%m-%d"))
-      when Array(String) then STRING_POOL.get(value.join(", "))
-      when Array         then STRING_POOL.get(value.size.to_s) # For other arrays, show count
-      when Nil           then ""
-      else                    STRING_POOL.get(value.to_s)
+      when String          then cache_string(value)
+      when Int32, Int64    then cache_string(value.to_s)
+      when Bool            then cache_string(value.to_s)
+      when Time            then cache_string(value.to_s("%Y-%m-%d"))
+      when Array(String)   then cache_string(value.join(", "))
+      when Array(Content)  then cache_string(value.map(&.title).join(", "))
+      when Array(MenuItem) then cache_string(value.map(&.name).join(", "))
+      when Array           then cache_string(value.size.to_s) # For other arrays, show count
+      when Nil             then ""
+      when Site            then cache_string(value.as(Site).title)
+      when Page            then cache_string(value.as(Page).title)
+      when Content         then cache_string(value.as(Content).title)
+      when MenuItem        then cache_string(value.as(MenuItem).name)
+      else                      cache_string(value.to_s)
       end
     end
 
@@ -815,42 +858,42 @@ module Lapis
     private def convert_to_string(value) : String
       case value
       when String
-        STRING_POOL.get(value)
+        cache_string(value)
       when Content
-        STRING_POOL.get(value.title)
+        cache_string(value.title)
       when Page
-        STRING_POOL.get(value.title)
+        cache_string(value.title)
       when Site
-        STRING_POOL.get(value.title)
+        cache_string(value.title)
       when MenuItem
-        STRING_POOL.get(value.name)
+        cache_string(value.name)
       when Array(Content)
-        STRING_POOL.get(value.map(&.title).join(", "))
+        cache_string(value.map(&.title).join(", "))
       when Array(MenuItem)
-        STRING_POOL.get(value.map(&.name).join(", "))
+        cache_string(value.map(&.name).join(", "))
       when Hash(String, Array(MenuItem))
         # Convert menu hash to string representation
         pairs = [] of String
         value.each do |menu_name, items|
           pairs << "#{menu_name}: #{items.map(&.name).join(", ")}"
         end
-        STRING_POOL.get(pairs.join("; "))
+        cache_string(pairs.join("; "))
       when Hash(String, String)
         # Convert string hash to string representation
         pairs = [] of String
         value.each do |key, val|
           pairs << "#{key}: #{val}"
         end
-        STRING_POOL.get(pairs.join("; "))
+        cache_string(pairs.join("; "))
       when Hash(String, YAML::Any)
         # Convert YAML hash to string representation
         pairs = [] of String
         value.each do |key, val|
           pairs << "#{key}: #{val}"
         end
-        STRING_POOL.get(pairs.join("; "))
+        cache_string(pairs.join("; "))
       else
-        STRING_POOL.get(value.to_s)
+        cache_string(value.to_s)
       end
     end
   end

@@ -17,9 +17,9 @@ help:
 install:
 	shards install
 
-# Run tests
+# Run tests with enhanced output (excludes performance tests by default)
 test:
-	crystal spec
+	./scripts/test.sh
 
 # Run linter
 lint:

@@ -5,6 +5,8 @@ description: "The official example site showcasing Crystal-powered static site g
 featured: true
 ---
 
+This is a change test.
+
 # Welcome to Lapis! ⚡
 
 This is the **official example site** for Lapis, demonstrating the power and flexibility of Crystal-based static site generation. Explore the features, see the code, and get inspired!

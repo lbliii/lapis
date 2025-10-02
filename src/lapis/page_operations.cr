@@ -262,6 +262,14 @@ module Lapis
       @content.body
     end
 
+    def layout : String
+      @content.layout
+    end
+
+    def file_path : String
+      @content.file_path
+    end
+
     def params : Hash(String, YAML::Any)
       @content.frontmatter
     end

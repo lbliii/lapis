@@ -3,12 +3,14 @@ require "file_utils"
 require "log"
 require "./logger"
 require "./exceptions"
+require "./simple_api"
 
 module Lapis
   class Server
     property config : Config
     property generator : Generator
     property live_reload : LiveReload
+    property api : SimpleAPI?
     private property server : HTTP::Server?
     private property last_build_time : Time
 
@@ -16,6 +18,7 @@ module Lapis
       @generator = Generator.new(@config)
       @last_build_time = Time.utc
       @live_reload = LiveReload.new(@config, @generator)
+      @api = nil # Will be initialized after first build
     end
 
     def start
@@ -66,7 +69,18 @@ module Lapis
       Logger.build_operation("Building initial site")
       @generator.build
       @last_build_time = Time.utc
+
+      # Initialize API with loaded content
+      initialize_api
+
       Logger.build_operation("Initial build complete")
+    end
+
+    private def initialize_api
+      # Load all content for the API
+      content = Content.load_all(@config.content_dir)
+      @api = SimpleAPI.with_content(@config, @generator, content)
+      Logger.info("API initialized", content_count: content.size)
     end
 
     private def configure_server_socket(server : HTTP::Server)
@@ -91,6 +105,13 @@ module Lapis
         if @live_reload.handle_websocket_upgrade(context)
           duration = Time.monotonic - start_time
           Logger.http_request(method, path, 101, duration) # 101 Switching Protocols
+          return
+        end
+
+        # Handle API requests
+        if @api && @api.not_nil!.handle_request(context)
+          duration = Time.monotonic - start_time
+          Logger.http_request(method, path, context.response.status_code, duration)
           return
         end
 
@@ -139,9 +160,20 @@ module Lapis
 
           # For HTML files, we need to inject live reload script
           if file_path.ends_with?(".html")
-            content = file.gets_to_end
-            content = inject_live_reload_script(content)
-            context.response.print(content)
+            # Check file size before loading into memory
+            file_size = File.info(file_path).size
+            max_html_size = 10 * 1024 * 1024 # 10MB limit
+
+            if file_size > max_html_size
+              Logger.warn("HTML file too large for live reload injection",
+                file: file_path, size: file_size, limit: max_html_size)
+              # Stream directly without live reload for large files
+              IO.copy(file, context.response)
+            else
+              content = file.gets_to_end
+              content = inject_live_reload_script(content)
+              context.response.print(content)
+            end
           else
             # For other files, stream directly for better memory efficiency
             IO.copy(file, context.response)

@@ -99,6 +99,8 @@ module Lapis
     property results : Array(AssetResult) = [] of AssetResult
     property cache_dir : String
     property asset_cache : Hash(String, String) = {} of String => String
+    property max_results_size : Int32 = 5000
+    property max_cache_size : Int32 = 1000
 
     def initialize(@config : Config)
       @cache_dir = Path[@config.build_config.cache_dir].join("assets").to_s
@@ -111,6 +113,10 @@ module Lapis
       start_time = Time.monotonic
 
       @results.clear
+
+      # Check memory before processing
+      memory_manager = Lapis.memory_manager
+      memory_manager.check_collection_size("asset_results", @results.size)
 
       # Discover all assets
       assets = discover_all_assets
@@ -208,6 +214,15 @@ module Lapis
       assets.each do |asset|
         result = process_asset(asset)
         @results << result
+
+        # Check if results collection is getting too large
+        if @results.size > @max_results_size
+          Logger.warn("Asset results collection too large, clearing old entries",
+            current_size: @results.size,
+            max_size: @max_results_size)
+          # Keep only the most recent results
+          @results = @results.last((@max_results_size / 2).to_i)
+        end
       end
     end
 
@@ -264,12 +279,23 @@ module Lapis
 
     # Asset type processors
     private def process_css_asset(asset : AssetInfo, output_path : String)
-      css_content = File.read(asset.path)
-
-      # Basic CSS processing (minification)
-      processed_css = process_css_content(css_content)
-
-      File.write(output_path, processed_css)
+      # Stream-based processing for better memory efficiency
+      File.open(asset.path, "r") do |input|
+        File.open(output_path, "w") do |output|
+          # For small CSS files, read and process
+          if File.info(asset.path).size < 1024 * 1024 # 1MB
+            css_content = input.gets_to_end
+            processed_css = process_css_content(css_content)
+            output.print(processed_css)
+          else
+            # For large files, stream line by line
+            input.each_line do |line|
+              processed_line = process_css_content(line)
+              output.puts(processed_line)
+            end
+          end
+        end
+      end
     rescue ex : File::NotFoundError
       raise "CSS file not found: #{asset.path}"
     rescue ex : IO::Error
@@ -279,12 +305,23 @@ module Lapis
     end
 
     private def process_js_asset(asset : AssetInfo, output_path : String)
-      js_content = File.read(asset.path)
-
-      # Basic JS processing (minification)
-      processed_js = process_js_content(js_content)
-
-      File.write(output_path, processed_js)
+      # Stream-based processing for better memory efficiency
+      File.open(asset.path, "r") do |input|
+        File.open(output_path, "w") do |output|
+          # For small JS files, read and process
+          if File.info(asset.path).size < 1024 * 1024 # 1MB
+            js_content = input.gets_to_end
+            processed_js = process_js_content(js_content)
+            output.print(processed_js)
+          else
+            # For large files, stream line by line to avoid memory issues
+            input.each_line do |line|
+              processed_line = process_js_content(line)
+              output.puts(processed_line)
+            end
+          end
+        end
+      end
     rescue ex : File::NotFoundError
       raise "JavaScript file not found: #{asset.path}"
     rescue ex : IO::Error
@@ -329,30 +366,54 @@ module Lapis
 
     # Content processors
     private def process_css_content(css_content : String) : String
-      processed = css_content
+      # Optimized CSS processing with non-greedy patterns
+      # Use String.build to avoid multiple temporary string allocations
+      String.build do |str|
+        # Remove comments with non-greedy pattern to avoid stack overflow
+        processed = css_content.gsub(/\/\*[^*]*\*+(?:[^\/\*][^*]*\*+)*\//, "")
 
-      # Remove comments
-      processed = processed.gsub(/\/\*.*?\*\//m, "")
+        # Minify whitespace efficiently in a single pass
+        in_whitespace = false
+        in_brace = false
+        in_semicolon = false
 
-      # Minify whitespace
-      processed = processed.gsub(/\s+/, " ")
-        .gsub(/;\s*}/, "}")
-        .gsub(/{\s*/m, "{")
-        .gsub(/;\s*/m, ";")
-        .strip
-
-      processed
+        processed.each_char do |char|
+          case char
+          when ' ', '\t', '\n', '\r'
+            unless in_whitespace
+              str << ' '
+              in_whitespace = true
+            end
+          when '{'
+            str << '{'
+            in_brace = true
+            in_whitespace = false
+          when '}'
+            str << '}'
+            in_brace = false
+            in_whitespace = false
+          when ';'
+            str << ';'
+            in_semicolon = true
+            in_whitespace = false
+          else
+            str << char
+            in_whitespace = false
+            in_semicolon = false
+          end
+        end
+      end.strip
     end
 
     private def process_js_content(js_content : String) : String
       # Basic JS minification - remove comments and extra whitespace
       processed = js_content
 
-      # Remove single-line comments
-      processed = processed.gsub(/\/\/.*$/, "")
+      # Remove single-line comments (but not URLs with //)
+      processed = processed.gsub(/\/\/(?![\/\s]).*$/, "")
 
-      # Remove multi-line comments
-      processed = processed.gsub(/\/\*.*?\*\//m, "")
+      # Remove multi-line comments (but be careful with large blocks)
+      processed = processed.gsub(/\/\*[^*]*\*+(?:[^\/\*][^*]*\*+)*\//, "")
 
       # Minify whitespace
       processed = processed.gsub(/\s+/, " ").strip
@@ -360,7 +421,7 @@ module Lapis
       processed
     end
 
-    # Cache management
+    # Cache management with size limits
     private def load_asset_cache
       cache_file = Path[@cache_dir].join("asset_cache.json").to_s
       return unless File.exists?(cache_file)
@@ -382,6 +443,33 @@ module Lapis
       rescue ex
         Logger.warn("Failed to save asset cache", error: ex.message)
       end
+    end
+
+    # Safe cache addition with size limits
+    private def add_to_asset_cache(key : String, value : String)
+      memory_manager = Lapis.memory_manager
+      memory_manager.add_to_cache_safely(@asset_cache, key, value, @max_cache_size)
+    end
+
+    # Cleanup method for memory management
+    def cleanup
+      Logger.debug("Cleaning up UnifiedAssetProcessor")
+
+      # Clear large collections
+      if @results.size > 1000
+        Logger.info("Clearing large results collection", size: @results.size)
+        @results.clear
+      end
+
+      # Clear cache if it's too large
+      if @asset_cache.size > @max_cache_size
+        Logger.info("Clearing large asset cache", size: @asset_cache.size)
+        @asset_cache.clear
+      end
+
+      # Force GC if needed
+      memory_manager = Lapis.memory_manager
+      memory_manager.periodic_cleanup
     end
 
     private def log_compression_stats

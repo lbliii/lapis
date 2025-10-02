@@ -15,7 +15,7 @@ module Lapis
       return if @watching
 
       @watching = true
-      puts "File watcher started (efficient polling mode)"
+      Logger.info("File watcher started", mode: "efficient polling")
 
       spawn do
         watch_loop
@@ -26,24 +26,24 @@ module Lapis
       return unless @watching
 
       @watching = false
-      puts "File watcher stopped"
+      Logger.info("File watcher stopped")
     end
 
     private def watch_loop
       # Initialize file timestamps
       initialize_file_timestamps
 
-      puts "Watching directories:"
+      Logger.info("Watching directories")
       config = @config.live_reload_config
 
       if config.watch_content? && Dir.exists?(@config.content_dir)
-        puts "  - content: #{@config.content_dir}"
+        Logger.info("Watching content directory", path: @config.content_dir)
       end
       if config.watch_layouts? && Dir.exists?(@config.layouts_dir)
-        puts "  - layouts: #{@config.layouts_dir}"
+        Logger.info("Watching layouts directory", path: @config.layouts_dir)
       end
       if config.watch_static? && Dir.exists?(@config.static_dir)
-        puts "  - static: #{@config.static_dir}"
+        Logger.info("Watching static directory", path: @config.static_dir)
       end
 
       loop do
@@ -53,7 +53,7 @@ module Lapis
           check_for_changes
           sleep 2.seconds # Much more efficient than 1 second polling
         rescue ex
-          puts "Error in file watcher: #{ex.message}"
+          Logger.error("Error in file watcher", error: ex.message)
           sleep 5.seconds
         end
       end
@@ -165,7 +165,7 @@ module Lapis
       end
       @debounce_timer = now
 
-      puts "File changed: #{File.basename(file_path)}"
+      Logger.info("File changed", file: File.basename(file_path))
       @change_callback.call(file_path)
     end
 

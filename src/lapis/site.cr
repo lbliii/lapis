@@ -228,6 +228,55 @@ module Lapis
       generator_info["version"]
     end
 
+    # Debug method for template debugging - returns formatted site information
+    def debug : String
+      String.build do |str|
+        str << "# Site Debug Information\n\n"
+
+        # Basic site info
+        str << "## Site Configuration\n"
+        str << "- **Title**: #{@config.title}\n"
+        str << "- **Base URL**: #{@config.baseurl}\n"
+        str << "- **Description**: #{@config.description}\n"
+        str << "- **Author**: #{@config.author}\n"
+        str << "- **Theme**: #{@config.theme}\n"
+        str << "- **Theme Dir**: #{@config.theme_dir}\n"
+        str << "- **Output Dir**: #{@config.output_dir}\n"
+        str << "- **Content Dir**: #{@config.content_dir}\n"
+        str << "- **Debug Mode**: #{@config.debug}\n\n"
+
+        # Content statistics
+        str << "## Content Statistics\n"
+        str << "- **Total Pages**: #{@pages.size}\n"
+        str << "- **Regular Pages**: #{regular_pages.size}\n"
+        str << "- **Section Pages**: #{section_pages.size}\n"
+        str << "- **Home Page**: #{home ? "Yes" : "No"}\n\n"
+
+        # Taxonomies
+        str << "## Taxonomies\n"
+        str << "- **Tags**: #{tags.size} unique tags\n"
+        str << "- **Categories**: #{categories.size} unique categories\n"
+        str << "- **Sections**: #{sections.size} sections\n\n"
+
+        # Recent content
+        recent = recent_posts(5)
+        if recent.any?
+          str << "## Recent Posts\n"
+          recent.each do |post|
+            str << "- [#{post.title}](#{post.url}) (#{post.date.try(&.to_s("%Y-%m-%d")) || "No date"})\n"
+          end
+          str << "\n"
+        end
+
+        # Build info
+        str << "## Build Information\n"
+        str << "- **Generator**: #{generator_info["generator"]}\n"
+        str << "- **Version**: #{generator_info["version"]}\n"
+        str << "- **Environment**: #{generator_info["environment"]}\n"
+        str << "- **Build Date**: #{generator_info["build_date"]}\n"
+      end
+    end
+
     # URI COMPONENTS - Proper URI handling
     private def parsed_baseurl : URI
       @parsed_baseurl ||= begin
@@ -291,10 +340,10 @@ module Lapis
     def recent_posts(limit : Int32 = 5) : Array(Content)
       @pages
         .select(&.kind.single?)
-        .select(&.published?)
-        .uniq_by(&.url) # Remove duplicates
+        .reject(&.draft)
+        .uniq(&.url) # Remove duplicates
         .sort
-        .tap { |sorted| Logger.debug("Sorted by date", first_date: sorted.first?.date.try(&.to_s("%Y-%m-%d"))) }
+        .tap { |sorted| Logger.debug("Sorted by date", first_date: sorted.first?.try(&.date.try(&.to_s("%Y-%m-%d")))) }
         .last(limit)
         .reverse
         .tap { |recent| Logger.debug("Recent posts", count: recent.size) }
@@ -303,20 +352,20 @@ module Lapis
     def posts_by_year : Hash(Int32, Array(Content))
       @pages
         .select(&.kind.single?)
-        .select(&.published?)
-        .uniq_by(&.url)
+        .reject(&.draft)
+        .uniq(&.url)
         .tap { |posts| Logger.debug("Processing posts by year", count: posts.size) }
-        .group_by { |page| page.date.try(&.year) || 0 }
+        .group_by { |page| page.date?.try(&.year) || 0 }
         .tap { |grouped| Logger.debug("Grouped by year", years: grouped.keys.sort) }
     end
 
     def posts_by_month : Hash(String, Array(Content))
       @pages
         .select(&.kind.single?)
-        .select(&.published?)
-        .uniq_by(&.url)
+        .reject(&.draft)
+        .uniq(&.url)
         .tap { |posts| Logger.debug("Processing posts by month", count: posts.size) }
-        .compact_map { |page| page.date.try { |date| {page, "#{date.year}-#{date.month.to_s.rjust(2, '0')}"} } }
+        .compact_map { |page| page.date?.try { |date| {page, "#{date.year}-#{date.month.to_s.rjust(2, '0')}"} } }
         .group_by { |(page, month_key)| month_key }
         .transform_values { |pairs| pairs.map { |(page, _)| page } }
         .tap { |grouped| Logger.debug("Grouped by month", months: grouped.keys.sort) }
@@ -344,7 +393,7 @@ module Lapis
       @pages
         .select(&.kind.single?)
         .select(&.featured?)
-        .uniq_by(&.url)
+        .uniq(&.url)
         .sort
         .reverse
     end
@@ -369,9 +418,9 @@ module Lapis
       tag_set = @tag_sets[tag] ||= begin
         posts = @pages
           .select(&.kind.single?)
-          .select(&.published?)
+          .reject(&.draft)
           .select(&.tags.includes?(tag))
-          .uniq_by(&.url)
+          .uniq(&.url)
         posts.to_set
       end
       tag_set.to_a.sort.reverse
@@ -380,16 +429,16 @@ module Lapis
     def random_posts(count : Int32 = 5) : Array(Content)
       @pages
         .select(&.kind.single?)
-        .select(&.published?)
-        .uniq_by(&.url)
+        .reject(&.draft)
+        .uniq(&.url)
         .sample(count)
     end
 
     def shuffled_posts : Array(Content)
       @pages
         .select(&.kind.single?)
-        .select(&.published?)
-        .uniq_by(&.url)
+        .reject(&.draft)
+        .uniq(&.url)
         .shuffle
     end
 

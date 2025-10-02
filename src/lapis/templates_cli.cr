@@ -29,20 +29,15 @@ module Lapis
 
     def self.list_templates
       puts "Available templates:"
-      puts ""
-
       BUILTIN_TEMPLATES.each do |key, template|
-        puts "  #{key.ljust(12)} #{template["name"]}"
-        puts "  #{"".ljust(12)} #{template["description"]}"
-        puts ""
+        puts "  #{key.ljust(12)} #{template["name"]} - #{template["description"]}"
       end
     end
 
     def self.create_from_template(template_name : String, site_name : String)
       template = BUILTIN_TEMPLATES[template_name]?
       unless template
-        puts "Error: Template '#{template_name}' not found"
-        puts "Available templates: #{BUILTIN_TEMPLATES.keys.join(", ")}"
+        puts "Error: Template '#{template_name}' not found. Available: #{BUILTIN_TEMPLATES.keys.join(", ")}"
         exit(1)
       end
 

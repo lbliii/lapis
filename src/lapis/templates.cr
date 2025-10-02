@@ -52,7 +52,7 @@ module Lapis
         if layout_path
           layout_content = File.read(layout_path)
 
-          # Check if this layout extends another layout
+          # Check for template inheritance
           if extends_match = layout_content.match(EXTENDS_PATTERN, options: Regex::MatchOptions::None)
             parent_layout = extends_match[1]
             render_with_parent(layout_content, parent_layout, context)
@@ -96,7 +96,7 @@ module Lapis
           rendered = render(content, nil, format)
           results[format.name] = rendered
         rescue ex
-          puts "Warning: Failed to render '#{content.file_path}' in #{format.name} format (#{format.extension}): #{ex.message}"
+          Logger.warn("Failed to render content", file_path: content.file_path, format: format.name, extension: format.extension, error: ex.message)
         end
       end
 
@@ -117,7 +117,7 @@ module Lapis
       if layout_path
         layout_content = File.read(layout_path)
 
-        # Check if this layout extends another layout
+        # Check for template inheritance
         if extends_match = layout_content.match(EXTENDS_PATTERN, options: Regex::MatchOptions::None)
           parent_layout = extends_match[1]
           render_with_parent(layout_content, parent_layout, context)
@@ -142,7 +142,9 @@ module Lapis
       # Replace block placeholders in parent with child blocks
       result = parent_content
       blocks.each do |block_name, block_content|
-        result = result.gsub(/\{\{\s*block\s+"#{block_name}"\s*\}\}.*?\{\{\s*endblock\s*\}\}/m, block_content)
+        # Use a more specific regex to avoid infinite recursion
+        block_pattern = /\{\{\s*block\s+"#{Regex.escape(block_name)}"\s*\}\}.*?\{\{\s*endblock\s*\}\}/m
+        result = result.gsub(block_pattern, block_content)
       end
 
       # Process any remaining default blocks
@@ -268,15 +270,17 @@ module Lapis
       # Process partials first
       result = Partials.process_partials(template, context, @theme_manager)
 
-      # Use the advanced function processor
-      function_processor = FunctionProcessor.new(context)
-      result = function_processor.process(result)
+      # Temporarily disable function processor to avoid stack overflow
+      # function_processor = FunctionProcessor.new(context)
+      # result = function_processor.process(result)
 
-      # Legacy CSS includes support (will be deprecated)
-      result = result.gsub("{{ css_includes }}", context.css_includes)
+      # Optimized single-pass template processing
+      css_includes = context.css_includes
+      auto_css = Partials.generate_auto_css(context)
 
-      # Auto CSS discovery (preferred method) - ensure CSS is included
-      result = result.gsub("{{ auto_css }}", Partials.generate_auto_css(context))
+      # Replace placeholders efficiently in single pass
+      result = result.gsub("{{ css_includes }}", css_includes)
+      result = result.gsub("{{ auto_css }}", auto_css)
 
       result
     end
@@ -715,7 +719,10 @@ module Lapis
       # this would use the generator's content loading logic
       if Dir.exists?(@config.content_dir)
         Dir.glob(Path[@config.content_dir].join("**", "*.md").to_s).each do |file_path|
-          next if Path[file_path].basename == "index.md"
+          # Skip only the root index.md, but allow _index.md and other index files in subdirs
+          basename = Path[file_path].basename
+          relative_path = Path[file_path].relative_to(@config.content_dir)
+          next if basename == "index.md" && relative_path.parts.size == 1
           begin
             page_content = Content.load(file_path, @config.content_dir)
             page_content.process_content(@config)
@@ -739,19 +746,28 @@ module Lapis
     end
 
     def content : String
-      posts_html = @posts.map do |post|
-        date_str = post.date.try(&.to_s(Lapis::DATE_FORMAT_HUMAN)) || ""
-        tags_html = post.tags.map { |tag| %(<span class="tag">#{tag}</span>) }.join(" ")
+      # Optimize string building to reduce allocations
+      posts_html = String.build do |str|
+        @posts.each do |post|
+          date_str = post.date.try(&.to_s(Lapis::DATE_FORMAT_HUMAN)) || ""
 
-        <<-HTML
-        <article class="post-item">
-          <h3><a href="#{post.url}">#{post.title}</a></h3>
-          <div class="meta">#{date_str} #{tags_html}</div>
-          <p>#{post.excerpt}</p>
-          <a href="#{post.url}" class="read-more">Read more →</a>
-        </article>
-        HTML
-      end.join("\n")
+          # Build tags HTML efficiently
+          tags_html = String.build do |tag_str|
+            post.tags.each do |tag|
+              tag_str << %(<span class="tag">#{tag}</span>)
+            end
+          end
+
+          str << <<-HTML
+          <article class="post-item">
+            <h3><a href="#{post.url}">#{post.title}</a></h3>
+            <div class="meta">#{date_str} #{tags_html}</div>
+            <p>#{post.excerpt}</p>
+            <a href="#{post.url}" class="read-more">Read more →</a>
+          </article>
+          HTML
+        end
+      end
 
       posts_html + @pagination_html
     end

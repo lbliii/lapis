@@ -9,9 +9,13 @@ module Lapis
     property processes : Hash(String, Process) = {} of String => Process
     property process_timeout : Time::Span = 30.seconds
     property max_concurrent_processes : Int32 = 4
+    property max_processes_cache : Int32 = 100
 
     def initialize(@process_timeout : Time::Span = 30.seconds, @max_concurrent_processes : Int32 = 4, setup_termination : Bool = true)
       setup_termination_handler if setup_termination
+      # Check initial memory usage
+      memory_manager = Lapis.memory_manager
+      memory_manager.check_collection_size("processes", @processes.size)
     end
 
     # Setup graceful termination handler using Process.on_terminate
@@ -70,9 +74,29 @@ module Lapis
           raise ProcessError.new("Command '#{command}' timed out after #{timeout.total_seconds}s")
         end
 
-        # Read output
-        output = process.output.try(&.gets_to_end) || ""
-        error_output = process.error.try(&.gets_to_end) || ""
+        # Read output with memory limits to prevent excessive memory usage
+        max_output_size = 1024 * 1024 # 1MB limit
+        output = ""
+        error_output = ""
+        # Read output with size limits
+        if process.output
+          output = process.output.try(&.gets_to_end) || ""
+          if output.size > max_output_size
+            Logger.warn("Process output truncated due to size limit",
+              size: output.size, limit: max_output_size)
+            output = output[0, max_output_size] + "\n... (truncated)"
+          end
+        end
+
+        # Read error output with size limits
+        if process.error
+          error_output = process.error.try(&.gets_to_end) || ""
+          if error_output.size > max_output_size
+            Logger.warn("Process error output truncated due to size limit",
+              size: error_output.size, limit: max_output_size)
+            error_output = error_output[0, max_output_size] + "\n... (truncated)"
+          end
+        end
 
         result = ProcessResult.new(
           command: command,
@@ -111,6 +135,14 @@ module Lapis
         error: Process::Redirect::Pipe)
 
       @processes[process_id] = process
+
+      # Check if processes cache is getting too large
+      if @processes.size > @max_processes_cache
+        Logger.warn("Process cache too large, cleaning up old processes",
+          current_size: @processes.size,
+          max_size: @max_processes_cache)
+        cleanup_old_processes
+      end
 
       # Send input if provided
       if input && process.input
@@ -221,6 +253,26 @@ module Lapis
 
       @processes.clear
       Logger.info("Process cleanup completed")
+      # Force periodic cleanup
+      memory_manager = Lapis.memory_manager
+      memory_manager.periodic_cleanup
+    end
+
+    # Clean up old processes to prevent memory leaks
+    private def cleanup_old_processes
+      processes_to_remove = [] of String
+      @processes.each do |process_id, process|
+        if process.terminated?
+          processes_to_remove << process_id
+        end
+      end
+
+      processes_to_remove.each do |process_id|
+        @processes.delete(process_id)
+        Logger.debug("Removed terminated process", process_id: process_id)
+      end
+
+      Logger.info("Cleaned up old processes", removed: processes_to_remove.size)
     end
 
     # Execute a shell command using Process.run with shell parameter

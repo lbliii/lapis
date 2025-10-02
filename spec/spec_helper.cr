@@ -42,8 +42,18 @@ Spec.before_suite do
   ENV["LAPIS_LOG_LEVEL"] = "error" # Reduce log noise during tests
   ENV["LAPIS_TEST_MODE"] = "true"
 
+  # Skip performance tests in development unless explicitly requested
+  # Performance tests require --release flag to yield meaningful results
+  if !ENV["LAPIS_INCLUDE_PERFORMANCE"]? && !ENV["CI"]?
+    puts "Skipping performance tests (use LAPIS_INCLUDE_PERFORMANCE=1 to include them)"
+  end
+
   # Clear any Process.on_terminate handlers that might interfere with tests
   Process.restore_interrupts!
+
+  # Set up clean test output
+  puts "\n🧪 Running Lapis Test Suite"
+  puts "=" * 50
 end
 
 Spec.before_each do
@@ -54,6 +64,11 @@ end
 Spec.after_suite do
   # Clean up any test artifacts
   cleanup_test_files
+
+  # Print clean test summary
+  puts "\n" + "=" * 50
+  puts "✅ Test Suite Complete"
+  puts "=" * 50
 end
 
 # Test helper methods and setup
@@ -134,6 +149,9 @@ def cleanup_test_files
     FileUtils.rm_rf("test_temp")
   end
 
+  # Clean up shared build results
+  SharedBuildResults.cleanup
+
   # Clean up any temp files
   Dir.glob("*.tmp").each do |file|
     File.delete(file) if File.exists?(file)
@@ -196,6 +214,84 @@ class TestDataFactory
   end
 end
 
+# Shared build results for performance tests
+class SharedBuildResults
+  @@shared_generator : Lapis::Generator? = nil
+  @@shared_config : Lapis::Config? = nil
+  @@shared_content_dir : String? = nil
+  @@build_performed : Bool = false
+
+  def self.shared_generator : Lapis::Generator
+    @@shared_generator ||= begin
+      config = create_shared_config
+      generator = Lapis::Generator.new(config)
+      generator
+    end
+  end
+
+  def self.shared_config : Lapis::Config
+    @@shared_config ||= create_shared_config
+  end
+
+  def self.shared_content_dir : String
+    @@shared_content_dir ||= create_shared_content_dir
+  end
+
+  # Perform a single build once and reuse the result
+  def self.perform_shared_build : Bool
+    return true if @@build_performed
+
+    generator = get_shared_generator
+    generator.build
+    @@build_performed = true
+    true
+  end
+
+  # Mock build for tests that don't need real builds
+  def self.mock_build : Bool
+    # Just return true without actually building
+    true
+  end
+
+  private def self.create_shared_config : Lapis::Config
+    config = Lapis::Config.new
+    config.title = "Shared Test Site"
+    config.output_dir = "shared_test_output"
+    config.debug = false
+    config
+  end
+
+  private def self.create_shared_content_dir : String
+    content_dir = "shared_test_content"
+    Dir.mkdir_p(content_dir)
+
+    # Create sample content
+    content_text = <<-MD
+    ---
+    title: Shared Test Post
+    date: 2024-01-15
+    layout: post
+    ---
+
+    # Shared Test Post
+
+    This is shared content for performance testing.
+    MD
+
+    File.write(File.join(content_dir, "shared-test.md"), content_text)
+    content_dir
+  end
+
+  def self.cleanup
+    @@shared_generator = nil
+    @@shared_config = nil
+    @@shared_content_dir = nil
+    @@build_performed = false
+    FileUtils.rm_rf("shared_test_output") if Dir.exists?("shared_test_output")
+    FileUtils.rm_rf("shared_test_content") if Dir.exists?("shared_test_content")
+  end
+end
+
 # Custom matchers for domain-specific assertions
 module LapisMatchers
   def be_valid_content
@@ -222,4 +318,9 @@ module TestTags
   FUNCTIONAL  = "functional"
   PERFORMANCE = "performance"
   UNIT        = "unit"
+end
+
+# Helper method to check if performance tests should run
+def should_run_performance_tests? : Bool
+  ENV["LAPIS_INCLUDE_PERFORMANCE"]? == "1" || !ENV["CI"]?.nil?
 end

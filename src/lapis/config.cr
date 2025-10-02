@@ -2,6 +2,8 @@ require "yaml"
 require "uri"
 require "./output_formats"
 require "./content_types"
+require "./data_processor"
+require "./exceptions"
 
 module Lapis
   # Maximum number of workers allowed for parallel processing
@@ -376,7 +378,7 @@ module Lapis
         Logger.debug("Config file found", path: path)
         begin
           content = File.read(path)
-          Logger.debug("Config file content length", length: content.size.to_s)
+          # Parse YAML directly without DataProcessor to avoid recursion
           yaml_data = YAML.parse(content).as_h
           config = from_yaml(content)
           config.validate
@@ -398,6 +400,8 @@ module Lapis
           Logger.debug_config("Loaded configuration", config, path: path)
           config
         rescue ex : YAML::ParseException
+          raise ConfigError.new("Failed to parse config file: #{ex.message}")
+        rescue ex : ValidationError
           raise ConfigError.new("Failed to parse config file: #{ex.message}")
         rescue ex
           Logger.error("Failed to load config file",

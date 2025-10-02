@@ -5,11 +5,11 @@ require "./../logger"
 module Lapis
   # Advanced SEO Plugin - Built into Lapis core
   class AdvancedSEOPlugin < Plugin
-    property config : SEOConfig
+    property seo_config : SEOConfig
 
     def initialize(config : Hash(String, YAML::Any))
       super("seo", "2.0.0", config)
-      @config = SEOConfig.from_yaml(config)
+      @seo_config = SEOConfig.from_yaml(config)
     end
 
     def on_before_build(generator : Generator) : Nil
@@ -52,16 +52,16 @@ module Lapis
       log_info("Generating SEO artifacts")
 
       # Generate sitemap
-      generate_sitemap(generator) if @config.generate_sitemap
+      generate_sitemap(generator) if @seo_config.generate_sitemap
 
       # Generate robots.txt
-      generate_robots_txt(generator) if @config.generate_robots_txt
+      generate_robots_txt(generator) if @seo_config.generate_robots_txt
 
       # Generate social media cards
-      generate_social_cards(generator) if @config.generate_social_cards
+      generate_social_cards(generator) if @seo_config.generate_social_cards
 
       # Generate SEO report
-      generate_seo_report(generator) if @config.generate_report
+      generate_seo_report(generator) if @seo_config.generate_report
     end
 
     def on_before_asset_process(generator : Generator, asset_path : String) : Nil
@@ -79,12 +79,12 @@ module Lapis
     end
 
     private def validate_seo_config
-      if @config.site_name.empty?
+      if @seo_config.site_name.empty?
         log_warn("Site name not configured - using default")
-        @config.site_name = "My Site"
+        @seo_config.site_name = "My Site"
       end
 
-      if @config.default_image.empty?
+      if @seo_config.default_image.empty?
         log_warn("Default social image not configured")
       end
     end
@@ -136,12 +136,12 @@ module Lapis
       content.frontmatter["og_title"] = content.title
       content.frontmatter["og_description"] = content.frontmatter["description"]
       content.frontmatter["og_type"] = determine_og_type(content)
-      content.frontmatter["og_image"] = content.frontmatter["image"]? || @config.default_image
+      content.frontmatter["og_image"] = content.frontmatter["image"]? || @seo_config.default_image
 
       # Add Twitter Card metadata
       content.frontmatter["twitter_card"] = "summary_large_image"
-      content.frontmatter["twitter_site"] = @config.twitter_site
-      content.frontmatter["twitter_creator"] = @config.twitter_creator
+      content.frontmatter["twitter_site"] = @seo_config.twitter_site
+      content.frontmatter["twitter_creator"] = @seo_config.twitter_creator
     end
 
     private def add_structured_data_context(content : Content)
@@ -268,14 +268,14 @@ module Lapis
         "description": content.frontmatter["description"]? || content.excerpt,
         "author":      {
           "@type": "Person",
-          "name":  @config.author_name,
+          "name":  @seo_config.author_name,
         },
         "publisher": {
           "@type": "Organization",
-          "name":  @config.site_name,
+          "name":  @seo_config.site_name,
           "logo":  {
             "@type": "ImageObject",
-            "url":   @config.logo_url,
+            "url":   @seo_config.logo_url,
           },
         },
         "datePublished": content.date.to_s,
@@ -302,8 +302,8 @@ module Lapis
         xml += "  <url>\n"
         xml += "    <loc>#{config.baseurl}#{item.url}</loc>\n"
         xml += "    <lastmod>#{item.last_modified.to_s("%Y-%m-%d")}</lastmod>\n"
-        xml += "    <changefreq>#{@config.sitemap_changefreq}</changefreq>\n"
-        xml += "    <priority>#{@config.sitemap_priority}</priority>\n"
+        xml += "    <changefreq>#{@seo_config.sitemap_changefreq}</changefreq>\n"
+        xml += "    <priority>#{@seo_config.sitemap_priority}</priority>\n"
         xml += "  </url>\n"
       end
 
@@ -346,7 +346,7 @@ module Lapis
 
     private def generate_canonical_url(content : Content) : String
       # Generate canonical URL
-      "#{@config.site_url}#{content.url}"
+      "#{@seo_config.site_url}#{content.url}"
     end
 
     private def inject_canonical_url(html : String, url : String) : String
@@ -366,7 +366,7 @@ module Lapis
   class SEOConfig
     include YAML::Serializable
 
-    property enabled? : Bool = true
+    property enabled : Bool = true
     property site_name : String = "My Site"
     property site_url : String = "https://example.com"
     property author_name : String = "Site Author"
@@ -375,14 +375,14 @@ module Lapis
     property twitter_site : String = ""
     property twitter_creator : String = ""
     property facebook_app_id : String = ""
-    property generate_sitemap? : Bool = true
-    property generate_robots_txt? : Bool = true
-    property generate_social_cards? : Bool = false
-    property generate_report? : Bool = false
+    property generate_sitemap : Bool = true
+    property generate_robots_txt : Bool = true
+    property generate_social_cards : Bool = false
+    property generate_report : Bool = false
     property sitemap_changefreq : String = "weekly"
     property sitemap_priority : Float64 = 0.8
-    property auto_meta_tags? : Bool = true
-    property structured_data? : Bool = true
+    property auto_meta_tags : Bool = true
+    property structured_data : Bool = true
 
     def initialize
     end

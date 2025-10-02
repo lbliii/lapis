@@ -3,6 +3,7 @@ require "yaml"
 require "log"
 require "./logger"
 require "./exceptions"
+require "./data_processor"
 
 module Lapis
   # Incremental build system with file change tracking
@@ -11,12 +12,19 @@ module Lapis
     property file_timestamps : Hash(String, Time) = {} of String => Time
     property dependencies : Hash(String, Array(String)) = {} of String => Array(String)
     property build_cache : Hash(String, String) = {} of String => String
+    property max_cache_size : Int32 = 2000
 
     def initialize(@cache_dir : String)
       Logger.debug("Initializing incremental builder", cache_dir: @cache_dir)
       Dir.mkdir_p(@cache_dir)
       initialize_cache_files
       load_cache
+
+      # Check initial memory usage
+      memory_manager = Lapis.memory_manager
+      memory_manager.check_collection_size("file_timestamps", @file_timestamps.size)
+      memory_manager.check_collection_size("dependencies", @dependencies.size)
+      memory_manager.check_collection_size("build_cache", @build_cache.size)
       Logger.debug("Incremental builder initialized",
         cache_dir: @cache_dir,
         cached_files: @file_timestamps.size,
@@ -114,6 +122,35 @@ module Lapis
         FileUtils.rm_rf(@cache_dir)
         Dir.mkdir_p(@cache_dir)
       end
+
+      # Force periodic cleanup
+      memory_manager = Lapis.memory_manager
+      memory_manager.periodic_cleanup
+    end
+
+    # Cleanup method for memory management
+    def cleanup
+      Logger.debug("Cleaning up IncrementalBuilder")
+
+      # Clear large caches if they exceed limits
+      if @file_timestamps.size > @max_cache_size
+        Logger.info("Clearing large file timestamps cache", size: @file_timestamps.size)
+        @file_timestamps.clear
+      end
+
+      if @dependencies.size > @max_cache_size
+        Logger.info("Clearing large dependencies cache", size: @dependencies.size)
+        @dependencies.clear
+      end
+
+      if @build_cache.size > @max_cache_size
+        Logger.info("Clearing large build cache", size: @build_cache.size)
+        @build_cache.clear
+      end
+
+      # Force periodic cleanup
+      memory_manager = Lapis.memory_manager
+      memory_manager.periodic_cleanup
     end
 
     def cache_stats : Hash(String, Int32)
@@ -148,7 +185,7 @@ module Lapis
       return unless File.exists?(timestamps_file)
 
       begin
-        timestamps_data = YAML.parse(File.read(timestamps_file))
+        timestamps_data = DataProcessor.parse_yaml(File.read(timestamps_file), timestamps_file)
         timestamps_data.as_h.each do |path, time_str|
           @file_timestamps[path.to_s] = Time.parse(time_str.to_s, "%Y-%m-%d %H:%M:%S", Time::Location::UTC)
         end
@@ -163,7 +200,7 @@ module Lapis
       return unless File.exists?(dependencies_file)
 
       begin
-        deps_data = YAML.parse(File.read(dependencies_file))
+        deps_data = DataProcessor.parse_yaml(File.read(dependencies_file), dependencies_file)
         deps_data.as_h.each do |file, deps_array|
           deps = deps_array.as_a.map(&.to_s)
           @dependencies[file.to_s] = deps
@@ -179,7 +216,7 @@ module Lapis
       return unless File.exists?(cache_file)
 
       begin
-        cache_data = YAML.parse(File.read(cache_file))
+        cache_data = DataProcessor.parse_yaml(File.read(cache_file), cache_file)
         cache_data.as_h.each do |file, content|
           @build_cache[file.to_s] = content.to_s
         end

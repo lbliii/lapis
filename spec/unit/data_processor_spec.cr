@@ -14,9 +14,10 @@ describe Lapis::DataProcessor do
 
     it "handles invalid JSON gracefully", tags: [TestTags::FAST, TestTags::UNIT] do
       invalid_json = "{\"title\": \"Test\", \"count\": 42, \"active\": true"
+      test_file = "test_invalid.json"
 
       expect_raises(Lapis::ValidationError) do
-        Lapis::DataProcessor.parse_json(invalid_json)
+        Lapis::DataProcessor.parse_json(invalid_json, test_file)
       end
     end
   end
@@ -43,9 +44,10 @@ describe Lapis::DataProcessor do
       title: Test
       invalid: yaml: content: here
       YAML
+      test_file = "test_invalid.yml"
 
       expect_raises(Lapis::ValidationError) do
-        Lapis::DataProcessor.parse_yaml(invalid_yaml)
+        Lapis::DataProcessor.parse_yaml(invalid_yaml, test_file)
       end
     end
   end
@@ -62,9 +64,10 @@ describe Lapis::DataProcessor do
 
     it "handles invalid JSON during conversion", tags: [TestTags::FAST, TestTags::UNIT] do
       invalid_json = "{\"title\": \"Test\", \"count\": 42"
+      test_file = "test_conversion_invalid.json"
 
       expect_raises(Lapis::ValidationError) do
-        json_data = Lapis::DataProcessor.parse_json(invalid_json)
+        json_data = Lapis::DataProcessor.parse_json(invalid_json, test_file)
         Lapis::DataProcessor.json_to_yaml(json_data)
       end
     end
@@ -89,9 +92,10 @@ describe Lapis::DataProcessor do
       title: Test
       invalid: yaml: content: here
       YAML
+      test_file = "test_conversion_invalid.yml"
 
       expect_raises(Lapis::ValidationError) do
-        yaml_data = Lapis::DataProcessor.parse_yaml(invalid_yaml)
+        yaml_data = Lapis::DataProcessor.parse_yaml(invalid_yaml, test_file)
         Lapis::DataProcessor.yaml_to_json(yaml_data)
       end
     end
@@ -110,9 +114,10 @@ describe Lapis::DataProcessor do
 
     it "handles invalid JSON during pretty print", tags: [TestTags::FAST, TestTags::UNIT] do
       invalid_json = "{\"title\": \"Test\", \"count\": 42"
+      test_file = "test_pretty_invalid.json"
 
       expect_raises(Lapis::ValidationError) do
-        json_data = Lapis::DataProcessor.parse_json(invalid_json)
+        json_data = Lapis::DataProcessor.parse_json(invalid_json, test_file)
         Lapis::DataProcessor.pretty_json(json_data)
       end
     end
@@ -146,16 +151,18 @@ describe Lapis::DataProcessor do
     it "returns default value when parsing fails", tags: [TestTags::FAST, TestTags::UNIT] do
       invalid_yaml = "invalid: yaml: content"
       default_value = YAML::Any.new("default")
+      test_file = "test_safe_invalid.yml"
 
-      result = Lapis::DataProcessor.parse_yaml_safe(invalid_yaml, default_value)
+      result = Lapis::DataProcessor.parse_yaml_safe(invalid_yaml, default_value, test_file)
 
       result.should eq(default_value)
     end
 
     it "uses nil as default when no default provided", tags: [TestTags::FAST, TestTags::UNIT] do
       invalid_yaml = "invalid: yaml: content"
+      test_file = "test_safe_nil.yml"
 
-      result = Lapis::DataProcessor.parse_yaml_safe(invalid_yaml)
+      result = Lapis::DataProcessor.parse_yaml_safe(invalid_yaml, nil, test_file)
 
       result.should be_nil
     end
@@ -186,9 +193,10 @@ describe Lapis::DataProcessor do
 
     it "handles invalid JSON gracefully", tags: [TestTags::FAST, TestTags::UNIT] do
       invalid_json = "{\"title\": \"Test\", \"count\": 42, \"active\": true"
+      test_file = "test_typed_invalid.json"
 
       expect_raises(Lapis::ValidationError) do
-        Lapis::DataProcessor.parse_json_typed(invalid_json)
+        Lapis::DataProcessor.parse_json_typed(invalid_json, test_file)
       end
     end
 
@@ -196,9 +204,10 @@ describe Lapis::DataProcessor do
       # This test verifies that TypeCastError is properly handled
       # The actual TypeCastError would be triggered by JSON deserialization issues
       invalid_json = "{\"title\": \"Test\", \"count\": \"not_a_number\", \"active\": true}"
+      test_file = "test_typed_cast_error.json"
 
       expect_raises(Lapis::ValidationError) do
-        Lapis::DataProcessor.parse_json_typed(invalid_json)
+        Lapis::DataProcessor.parse_json_typed(invalid_json, test_file)
       end
     end
   end

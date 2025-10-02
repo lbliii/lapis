@@ -6,6 +6,8 @@ module Lapis
   class ContentCollections
     getter collections : Hash(String, Collection)
     getter site_content : Array(Content)
+    property max_collections_size : Int32 = 100
+    property max_cache_size : Int32 = 5000
 
     # Performance optimization: cached lookups
     @url_to_content : Hash(String, Content)?
@@ -22,6 +24,11 @@ module Lapis
       build_performance_caches
       initialize_default_collections
       initialize_custom_collections(config)
+
+      # Check memory usage
+      memory_manager = Lapis.memory_manager
+      memory_manager.check_collection_size("content_collections", @collections.size)
+      memory_manager.check_collection_size("site_content", @site_content.size)
 
       Logger.debug("ContentCollections initialized with performance caches",
         collections: @collections.keys, cache_size: @url_to_content.try(&.size) || 0)
@@ -40,6 +47,12 @@ module Lapis
       end
 
       @performance_stats["cache_build"] = @site_content.size
+
+      # Check cache sizes
+      memory_manager = Lapis.memory_manager
+      memory_manager.check_collection_size("url_to_content_cache", @url_to_content.not_nil!.size)
+      memory_manager.check_collection_size("content_by_section_cache", @content_by_section.not_nil!.size)
+      memory_manager.check_collection_size("content_by_kind_cache", @content_by_kind.not_nil!.size)
     end
 
     # O(1) LOOKUP METHODS USING REFERENCE OPTIMIZATION
@@ -64,6 +77,7 @@ module Lapis
       collection = get_collection(collection_name)
       return [] of Content unless collection
 
+      # Use reference instead of duplicating
       filtered_content = collection.content
 
       filters.each do |key, value|
@@ -188,7 +202,8 @@ module Lapis
     private def group_by_property_optimized(content : Array(Content), property : String) : Hash(String, Array(Content))
       case property
       when "section"
-        @content_by_section.not_nil!.dup
+        # Return reference instead of duplicating
+        @content_by_section.not_nil!
       when "kind"
         grouped = Hash(String, Array(Content)).new { |h, k| h[k] = [] of Content }
         @content_by_kind.not_nil!.each do |kind, items|
@@ -203,7 +218,8 @@ module Lapis
 
     # PERFORMANCE MONITORING
     def performance_stats : Hash(String, Int32)
-      @performance_stats.dup
+      # Return reference instead of duplicating
+      @performance_stats
     end
 
     def reset_performance_stats
@@ -589,11 +605,40 @@ module Lapis
 
     # Performance monitoring
     def performance_stats : Hash(String, Int32)
-      @performance_stats.dup
+      # Return reference instead of duplicating
+      @performance_stats
     end
 
     def reset_performance_stats
       @performance_stats.clear
+    end
+
+    # Cleanup method for memory management
+    def cleanup
+      Logger.debug("Cleaning up ContentCollections")
+
+      # Clear large caches if they exceed limits
+      if @url_to_content && @url_to_content.not_nil!.size > @max_cache_size
+        Logger.info("Clearing large URL cache", size: @url_to_content.not_nil!.size)
+        @url_to_content.not_nil!.clear
+      end
+
+      if @content_by_section && @content_by_section.not_nil!.size > @max_cache_size
+        Logger.info("Clearing large section cache", size: @content_by_section.not_nil!.size)
+        @content_by_section.not_nil!.clear
+      end
+
+      if @content_by_kind && @content_by_kind.not_nil!.size > @max_cache_size
+        Logger.info("Clearing large kind cache", size: @content_by_kind.not_nil!.size)
+        @content_by_kind.not_nil!.clear
+      end
+
+      # Clear performance stats
+      @performance_stats.clear
+
+      # Force periodic cleanup
+      memory_manager = Lapis.memory_manager
+      memory_manager.periodic_cleanup
     end
 
     def size : Int32
@@ -666,8 +711,21 @@ module Lapis
 
     def content_previews(window_size : Int32 = 3) : Array(Array(Content))
       return [] of Array(Content) if window_size <= 0
+
+      # Add memory bounds to prevent excessive memory usage
+      max_previews = 1000
+      max_content_size = 10000
+
+      if @content.size > max_content_size
+        Logger.warn("Content collection too large for previews",
+          size: @content.size, max: max_content_size)
+        return [] of Array(Content)
+      end
+
       begin
-        each_cons(window_size).to_a
+        # Limit the number of previews to prevent memory exhaustion
+        previews = each_cons(window_size).first(max_previews).to_a
+        previews
       rescue ex
         Logger.warn("Error in content_previews", error: ex.message, window_size: window_size)
         [] of Array(Content)
@@ -677,11 +735,23 @@ module Lapis
     # SLICE-BASED CONTENT PREVIEWS FOR ZERO-COPY OPERATIONS
     def content_preview_slices(window_size : Int32 = 3) : Array(Slice(Content))
       return [] of Slice(Content) if window_size <= 0
+
+      # Add memory bounds to prevent excessive memory usage
+      max_previews = 1000
+      max_content_size = 10000
+
+      if @content.size > max_content_size
+        Logger.warn("Content collection too large for slice previews",
+          size: @content.size, max: max_content_size)
+        return [] of Slice(Content)
+      end
+
       begin
         result = [] of Slice(Content)
         content_slice = @content.to_slice
+        max_iterations = Math.min(content_slice.size - window_size + 1, max_previews)
 
-        (0..content_slice.size - window_size).each do |i|
+        (0...max_iterations).each do |i|
           result << content_slice[i, window_size]
         end
 

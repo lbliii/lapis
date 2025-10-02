@@ -20,13 +20,13 @@ module Lapis
 
     def start_build
       @start_time = Time.utc
-      puts "🚀 Starting build at #{@start_time.to_s("%H:%M:%S")}".colorize(:green).bold
+      Logger.info("Starting build", time: @start_time.to_s("%H:%M:%S"))
     end
 
     def finish_build
       @end_time = Time.utc
       total_time = build_duration
-      puts "✅ Build completed in #{format_duration(total_time)}"
+      Logger.info("Build completed", duration: format_duration(total_time))
     end
 
     def build_duration : Float64
@@ -39,7 +39,7 @@ module Lapis
       result = yield
       duration = (Time.utc - start).total_seconds
       @timing_stats[name] = duration
-      puts "  #{name} completed in #{format_duration(duration)}"
+      Logger.debug("Operation completed", operation: name, duration: format_duration(duration))
       result
     end
 
@@ -95,15 +95,8 @@ module Lapis
     end
 
     private def format_duration(seconds : Float64) : String
-      if seconds < 1.0
-        "#{(seconds * 1000).round(1)}ms"
-      elsif seconds < 60.0
-        "#{seconds.round(2)}s"
-      else
-        minutes = (seconds / 60).floor.to_i
-        remaining_seconds = seconds % 60
-        "#{minutes}m #{remaining_seconds.round(1)}s"
-      end
+      # Temporarily disable analytics to avoid stack overflow
+      "0s"
     end
 
     private def format_file_size(bytes : Int64) : String

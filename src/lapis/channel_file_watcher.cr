@@ -15,7 +15,15 @@ module Lapis
     property is_running : Bool = false
 
     def initialize(buffer_size : Int32 = 100)
-      @change_channel = Channel(ChangeEvent).new(buffer_size)
+      # Ensure reasonable buffer size to prevent memory issues
+      max_buffer_size = 10000
+      safe_buffer_size = Math.min(buffer_size, max_buffer_size)
+
+      if buffer_size > max_buffer_size
+        Log.warn { "File watcher buffer size capped at #{max_buffer_size} (requested: #{buffer_size})" }
+      end
+
+      @change_channel = Channel(ChangeEvent).new(safe_buffer_size)
       @shutdown_channel = Channel(Nil).new
     end
 
@@ -34,6 +42,9 @@ module Lapis
         Log.debug { "File change event sent: #{event_type} #{path}" }
       rescue Channel::ClosedError
         Log.warn { "Attempted to send change event to closed channel: #{path}" }
+      rescue Channel::FullError
+        Log.warn { "File change channel full, dropping event: #{event_type} #{path}" }
+        # Channel is full, drop the event to prevent memory buildup
       end
     end
 
