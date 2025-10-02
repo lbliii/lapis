@@ -31,7 +31,7 @@ lint-fix:
 
 # Build the project
 build:
-	crystal build src/lapis.cr --release
+	crystal build src/lapis_cli.cr -o lapis --release
 
 # Clean build artifacts
 clean:

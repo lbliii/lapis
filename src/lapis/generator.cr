@@ -24,13 +24,35 @@ module Lapis
     property incremental_builder : IncrementalBuilder
     property parallel_processor : ParallelProcessor
     property plugin_manager : PluginManager
+    
+    # Cache the Site object to prevent O(n²) duplication during rendering
+    @cached_site : Site?
+    @site_content : Array(Content)?
 
     def initialize(@config : Config)
+      # Initialize template engine without generator first to avoid circular dependency
       @template_engine = TemplateEngine.new(@config)
       @asset_processor = UnifiedAssetProcessor.new(@config)
       @incremental_builder = IncrementalBuilder.new(@config.build_config.cache_dir)
       @parallel_processor = ParallelProcessor.new(@config.build_config)
       @plugin_manager = PluginManager.new(@config)
+      
+      # Set generator reference after initialization
+      @template_engine.generator = self
+    end
+    
+    # Get or create the Site object - only created once per build
+    def get_or_create_site(content : Array(Content)) : Site
+      # Invalidate cache if content changed
+      if @site_content != content
+        @cached_site = nil
+        @site_content = content
+      end
+      
+      @cached_site ||= begin
+        Logger.debug("Creating Site object", pages: content.size)
+        Site.new(@config, content)
+      end
     end
 
     def build
@@ -179,17 +201,14 @@ module Lapis
       if File.exists?(index_path)
         Logger.debug("Index file exists, processing it")
         index_content = Content.load(index_path, @config.content_dir)
-        index_content.process_content(@config)
-
+        
+        # DON'T call process_content() yet - we need to handle recent_posts first
         # Process recent_posts shortcodes in the raw content before markdown processing
         processed_raw = process_recent_posts_shortcodes(index_content.raw_content, all_content)
 
-        # Re-process the markdown with the substituted content
-        processor = ShortcodeProcessor.new(@config)
-        processed_markdown = processor.process(processed_raw)
-
-        options = Markd::Options.new(smart: true, safe: false)
-        index_content.content = Markd.to_html(processed_markdown, options)
+        # Update the body with recent_posts substituted, then process normally
+        index_content.body = processed_raw
+        index_content.process_content(@config)
 
         html = @template_engine.render(index_content)
         write_file_atomically(Path[@config.output_dir].join("index.html").to_s, html)

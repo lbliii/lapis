@@ -228,8 +228,8 @@ module Lapis
       generator_info["version"]
     end
 
-    # Debug method for template debugging - returns formatted site information
-    def debug : String
+    # Debug info method for template debugging - returns formatted site information
+    def debug_info : String
       String.build do |str|
         str << "# Site Debug Information\n\n"
 

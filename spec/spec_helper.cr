@@ -241,7 +241,7 @@ class SharedBuildResults
   def self.perform_shared_build : Bool
     return true if @@build_performed
 
-    generator = get_shared_generator
+    generator = shared_generator
     generator.build
     @@build_performed = true
     true

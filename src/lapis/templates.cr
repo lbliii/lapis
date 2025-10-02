@@ -21,12 +21,13 @@ module Lapis
     property layouts_dir : String
     property theme_layouts_dir : String
     property theme_manager : ThemeManager
+    property generator : Generator?
 
     # Compile-time regexes for frequently used patterns
     private EXTENDS_PATTERN = /\{\{\s*extends\s+"([^"]+)"\s*\}\}/
     private BLOCK_PATTERN   = /\{\{\s*block\s+"([^"]+)"\s*\}\}(.*?)\{\{\s*endblock\s*\}\}/m
 
-    def initialize(@config : Config)
+    def initialize(@config : Config, @generator : Generator? = nil)
       @layouts_dir = @config.layouts_dir
       @theme_layouts_dir = Path[@config.theme_dir].join("layouts").to_s
       @theme_manager = ThemeManager.new(@config.theme, @config.root_dir, @config.theme_dir)
@@ -267,12 +268,19 @@ module Lapis
     end
 
     private def process_template(template : String, context : TemplateContext) : String
-      # Process partials first
-      result = Partials.process_partials(template, context, @theme_manager)
+      # Get or create cached Site object
+      site = if gen = @generator
+               gen.get_or_create_site(context.query.site_content)
+             else
+               Site.new(context.config, context.query.site_content)
+             end
+      
+      # Process partials first (pass site to prevent duplication)
+      result = Partials.process_partials(template, context, @theme_manager, site: site)
 
-      # Temporarily disable function processor to avoid stack overflow
-      # function_processor = FunctionProcessor.new(context)
-      # result = function_processor.process(result)
+      # Re-enable function processor with cached Site
+      function_processor = FunctionProcessor.new(context, site)
+      result = function_processor.process(result)
 
       # Optimized single-pass template processing
       css_includes = context.css_includes

@@ -374,8 +374,13 @@ module Lapis
       "leaf"
     end
 
-    # Debug method for template debugging - returns formatted page information
-    def debug : String
+    # Debug property - returns site debug setting
+    def debug : Bool
+      @site.debug
+    end
+
+    # Debug info method for template debugging - returns formatted page information
+    def debug_info : String
       String.build do |str|
         str << "# Page Debug Information\n\n"
 

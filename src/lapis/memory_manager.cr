@@ -42,6 +42,20 @@ module Lapis
       end
     end
 
+    # Execute block with GC disabled
+    def with_gc_disabled(&)
+      previous_state = @gc_enabled
+      @gc_enabled = false
+      GC.disable if previous_state
+      
+      begin
+        yield
+      ensure
+        @gc_enabled = previous_state
+        GC.enable if previous_state
+      end
+    end
+
     # Force garbage collection
     def force_gc
       Logger.debug("Forcing garbage collection")

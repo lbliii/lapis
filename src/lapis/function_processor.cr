@@ -13,16 +13,38 @@ module Lapis
     getter site : Site
     getter page : Page?
 
-    def initialize(@context : TemplateContext)
-      super(@context)
-      @site = Site.new(@context.config, @context.query.site_content)
+    # Cache compiled regex patterns to avoid recompilation
+    # This prevents stack overflow from excessive Regex object creation
+    class_property cleanup_regexes : Hash(String, Regex) = {
+      "endfor" => /\{\{\s*endfor\s*\}\}/,
+      "endif" => /\{\{\s*endif\s*\}\}/,
+      "else" => /\{\{\s*else\s*\}\}/,
+      "end" => /\{\{\s*end\s*\}\}/,
+      "for_block" => /\{\{\s*for\s+\w+\s+in\s+[^}]*\}\}/,
+      "if_block" => /\{\{\s*if\s+[^}]*\}\}/,
+      "any_block" => /\{\{\s*[^}]*\s*\}\}/,
+      "empty_quote_bracket" => />\s*">\s*</,
+      "empty_quote_newline" => />\s*">\s*\n/,
+      "empty_quote" => />\s*">/,
+    }
 
+    # Accept Site object instead of creating a new one
+    # This prevents O(n²) memory explosion from duplicate Site objects
+    def initialize(@context : TemplateContext, @site : Site)
+      super(@context)
+      
       if @context.content.is_a?(Content)
         @page = Page.new(@context.content.as(Content), @site)
       end
 
       # Initialize global functions
       Functions.setup
+    end
+    
+    # Backward compatibility: allow creating without Site (will create one)
+    def self.new(context : TemplateContext)
+      site = Site.new(context.config, context.query.site_content)
+      new(context, site)
     end
 
     # Optimized tuple-based method dispatch
@@ -142,7 +164,8 @@ module Lapis
       when :"static_dir"         then object.is_a?(Site) ? object.as(Site).static_dir : nil
       when :"output_dir"         then object.is_a?(Site) ? object.as(Site).output_dir : nil
       when :"content_dir"        then object.is_a?(Site) ? object.as(Site).content_dir : nil
-      when :debug, :Debug        then object.is_a?(Site) ? object.as(Site).debug : nil
+      when :debug, :Debug        then object.is_a?(Site) ? object.as(Site).debug.to_s : nil
+      when :"debug_info"         then object.is_a?(Site) ? object.as(Site).debug_info : nil
       when :"build_config"       then object.is_a?(Site) ? object.as(Site).build_config : nil
       when :"live_reload_config" then object.is_a?(Site) ? object.as(Site).live_reload_config : nil
       when :"bundling_config"    then object.is_a?(Site) ? object.as(Site).bundling_config : nil
@@ -173,7 +196,8 @@ module Lapis
       when :Layout, :layout         then object.is_a?(Page) ? object.as(Page).layout.to_s : nil
       when :Params                  then object.is_a?(Page) ? object.as(Page).params.to_s : nil
       when :"file_path"             then object.is_a?(Page) ? object.as(Page).file_path : nil
-      when :debug, :Debug           then object.is_a?(Page) ? object.as(Page).debug : nil
+      when :debug, :Debug           then object.is_a?(Page) ? object.as(Page).debug.to_s : nil
+      when :"debug_info"            then object.is_a?(Page) ? object.as(Page).debug_info : nil
       else                               nil
       end
     end
@@ -830,26 +854,28 @@ module Lapis
     end
 
     # Clean up any remaining unprocessed template syntax
+    # Uses cached regex patterns to avoid excessive object creation
     private def cleanup_remaining_syntax(template : String) : String
       result = template
+      regexes = self.class.cleanup_regexes
 
       # Remove any remaining unmatched template blocks (be more aggressive)
-      result = result.gsub(/\{\{\s*endfor\s*\}\}/, "")
-      result = result.gsub(/\{\{\s*endif\s*\}\}/, "")
-      result = result.gsub(/\{\{\s*else\s*\}\}/, "")
-      result = result.gsub(/\{\{\s*end\s*\}\}/, "")
+      result = result.gsub(regexes["endfor"], "")
+      result = result.gsub(regexes["endif"], "")
+      result = result.gsub(regexes["else"], "")
+      result = result.gsub(regexes["end"], "")
 
       # Remove any remaining template fragments or malformed syntax
-      result = result.gsub(/\{\{\s*for\s+\w+\s+in\s+[^}]*\}\}/, "")
-      result = result.gsub(/\{\{\s*if\s+[^}]*\}\}/, "")
+      result = result.gsub(regexes["for_block"], "")
+      result = result.gsub(regexes["if_block"], "")
 
       # Final pass: remove any remaining {{ }} blocks that weren't processed
-      result = result.gsub(/\{\{\s*[^}]*\s*\}\}/, "")
+      result = result.gsub(regexes["any_block"], "")
 
       # Clean up any resulting empty lines or malformed HTML
-      result = result.gsub(/>\s*">\s*</, "><")
-      result = result.gsub(/>\s*">\s*\n/, ">\n")
-      result = result.gsub(/>\s*">/, ">")
+      result = result.gsub(regexes["empty_quote_bracket"], "><")
+      result = result.gsub(regexes["empty_quote_newline"], ">\n")
+      result = result.gsub(regexes["empty_quote"], ">")
 
       result
     end

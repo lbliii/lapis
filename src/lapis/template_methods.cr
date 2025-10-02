@@ -7,7 +7,7 @@ module Lapis
       :Title, :BaseURL, :Pages, :RegularPages, :Params, :Data, :Menus, :Author,
       :Copyright, :Hugo, :title, :"base_url", :theme, :"theme_dir", :"layouts_dir",
       :"static_dir", :"output_dir", :"content_dir", :debug, :"build_config",
-      :"live_reload_config", :"bundling_config", :Debug,
+      :"live_reload_config", :"bundling_config", :Debug, :"debug_info",
     }
 
     # Page object methods - used for page.* template expressions
@@ -16,7 +16,7 @@ module Lapis
       :WordCount, :ReadingTime, :Next, :Prev, :Parent, :Children, :Related,
       :Section, :Kind, :Type, :Layout, :Params, :title, :content, :summary,
       :url, :permalink, :date, :tags, :categories, :kind, :layout, :"file_path",
-      :debug, :Debug,
+      :debug, :Debug, :"debug_info",
     }
 
     # Content object methods - used for content.* template expressions
@@ -79,6 +79,7 @@ module Lapis
       when "output_dir"         then :"output_dir"
       when "content_dir"        then :"content_dir"
       when "debug"              then :debug
+      when "debug_info"         then :"debug_info"
       when "build_config"       then :"build_config"
       when "live_reload_config" then :"live_reload_config"
       when "bundling_config"    then :"bundling_config"
